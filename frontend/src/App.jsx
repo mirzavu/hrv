@@ -71,27 +71,44 @@ const Toast = ({ message, onDismiss }) => {
     );
 };
 
-const MilestoneProgressBar = ({ elapsedTime, totalDuration, milestones, darkMode }) => {
+const MilestoneProgressBar = ({ elapsedTime, milestones, darkMode }) => {
+    const displayMilestones = useMemo(() => [{ label: 'Start', value: 0 }, ...milestones], [milestones]);
+    const totalDuration = milestones[milestones.length - 1].value;
+
     return (
-        <div className="mt-4">
-            <div className="relative h-2.5 w-full bg-gray-200 rounded-full dark:bg-gray-700">
-                <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(elapsedTime / totalDuration) * 100}%`, transition: 'width 1s linear' }}></div>
-                {milestones.map(milestone => {
-                    const isReached = elapsedTime >= milestone.value;
-                    const position = (milestone.value / totalDuration) * 100;
-                    return (
-                        <div key={milestone.label} className="absolute top-1/2" style={{ left: `${position}%`, transform: 'translate(-50%, -50%)' }}>
-                            <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-green-500' : (darkMode ? 'bg-gray-500' : 'bg-gray-300')}`}>
-                                {isReached && <span className="text-white text-xs font-bold">✓</span>}
-                            </div>
-                            <span className={`absolute -bottom-5 text-xs whitespace-nowrap ${darkMode ? 'text-gray-400' : 'text-gray-600'}`} style={{ transform: 'translateX(-50%)' }}>
-                                {milestone.label}
-                            </span>
-                        </div>
-                    );
-                })}
+        <div className="mt-4 pt-4 flex flex-col items-center">
+            <div className="w-full px-2">
+                <div className="relative h-2.5 w-full">
+                    {/* Background track */}
+                    <div className={`absolute top-1/2 -translate-y-1/2 h-1 w-full rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
+                    {/* Progress fill */}
+                    <div className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-blue-600" style={{ width: `${(elapsedTime / totalDuration) * 100}%`, transition: 'width 1s linear' }}></div>
+                    
+                    {/* Milestone points and labels container */}
+                    <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between">
+                        {displayMilestones.map((milestone, index) => {
+                            const isReached = elapsedTime >= milestone.value;
+                            return (
+                                <div key={milestone.label} className="relative flex flex-col items-center">
+                                    {/* Circle */}
+                                    <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-green-500' : (darkMode ? 'bg-gray-500' : 'bg-gray-300')}`}>
+                                        {isReached && <span className="text-white text-xs font-bold">✓</span>}
+                                    </div>
+                                    {/* Label */}
+                                    <span className={`absolute top-6 text-xs whitespace-nowrap ${darkMode ? 'text-gray-400' : 'text-gray-600'}
+                                        ${index === 0 ? 'left-0' : ''}
+                                        ${index === displayMilestones.length - 1 ? 'right-0' : ''}
+                                        ${index > 0 && index < displayMilestones.length - 1 ? 'left-1/2 -translate-x-1/2' : ''}
+                                    `}>
+                                        {milestone.label}
+                                    </span>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
             </div>
-            <p className="text-center text-sm mt-6 font-mono">{Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')} / {totalDuration / 60}:00</p>
+            <p className="text-center text-sm mt-8 font-mono">{Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')} / {totalDuration / 60}:00</p>
         </div>
     );
 };
@@ -135,6 +152,7 @@ const App = () => {
     const [sessionSummary, setSessionSummary] = useState(null);
     const milestonesReached = useRef(new Set());
     const sessionTimer = useRef(null);
+    const demoDataGenerator = useRef(null);
 
     // --- Derived State & Memos ---
     const liveHrvMetrics = useMemo(() => {
@@ -162,60 +180,66 @@ const App = () => {
         setToasts(prev => prev.filter(toast => toast.id !== id));
     }, []);
     
-    // --- endSession needs to be defined before being used in useEffect ---
+    // --- Session Logic ---
+    const latestSessionData = useRef({ elapsedTime, rrIntervals });
+    useEffect(() => {
+        latestSessionData.current = { elapsedTime, rrIntervals };
+    }, [elapsedTime, rrIntervals]);
+
     const endSession = useCallback(() => {
         setStatusMessage('Session ended. Calculating summary...');
         setSessionActive(false);
         setIsConnected(false);
+        clearInterval(demoDataGenerator.current);
 
         if (device && device.gatt.connected) {
             device.gatt.disconnect();
         }
         
-        // Calculate final summary
-        const meanRR = rrIntervals.length > 0 ? rrIntervals.reduce((a, b) => a + b, 0) / rrIntervals.length : null;
-        const sdnn = calculateSDNN(rrIntervals);
-        const mode = calculateMode(rrIntervals);
+        const { elapsedTime: finalElapsedTime, rrIntervals: finalRrIntervals } = latestSessionData.current;
+        const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
+        const sdnn = calculateSDNN(finalRrIntervals);
+        const mode = calculateMode(finalRrIntervals);
 
         setSessionSummary({
-            duration: { label: 'Duration', value: elapsedTime, unit: 's' },
-            totalBeats: { label: 'Total Beats', value: rrIntervals.length, unit: '' },
-            meanHR: { label: 'Mean HR', value: calculateMeanHR(rrIntervals), unit: 'bpm' },
+            duration: { label: 'Duration', value: finalElapsedTime, unit: 's' },
+            totalBeats: { label: 'Total Beats', value: finalRrIntervals.length, unit: '' },
+            meanHR: { label: 'Mean HR', value: calculateMeanHR(finalRrIntervals), unit: 'bpm' },
             meanRR: { label: 'Mean RR', value: meanRR, unit: 'ms' },
-            rmssd: { label: 'RMSSD', value: calculateRMSSD(rrIntervals), unit: 'ms' },
+            rmssd: { label: 'RMSSD', value: calculateRMSSD(finalRrIntervals), unit: 'ms' },
             sdnn: { label: 'SDNN', value: sdnn, unit: 'ms' },
-            pnn50: { label: 'pNN50', value: calculatePNN50(rrIntervals), unit: '%' },
-            mxdmn: { label: 'MxDMn', value: calculateMxDMn(rrIntervals), unit: 'ms' },
+            pnn50: { label: 'pNN50', value: calculatePNN50(finalRrIntervals), unit: '%' },
+            mxdmn: { label: 'MxDMn', value: calculateMxDMn(finalRrIntervals), unit: 'ms' },
             cv: { label: 'CV', value: calculateCV(sdnn, meanRR), unit: '%' },
             mo: { label: 'Mode (Mo)', value: mode, unit: 'ms' },
-            amo50: { label: 'AMo50', value: calculateAMo50(rrIntervals, mode), unit: '%' },
+            amo50: { label: 'AMo50', value: calculateAMo50(finalRrIntervals, mode), unit: '%' },
         });
-    }, [device, rrIntervals, elapsedTime]);
+    }, [device]);
 
-    // --- Session Timer Logic ---
     useEffect(() => {
         if (sessionActive) {
             sessionTimer.current = setInterval(() => {
-                setElapsedTime(prevTime => {
-                    const newTime = prevTime + 1;
-                    
-                    const milestone = SESSION_MILESTONES.find(d => d.value === newTime);
-                    if (milestone && !milestonesReached.current.has(newTime)) {
-                        addToast(`${milestone.label} analysis complete!`);
-                        milestonesReached.current.add(newTime);
-                    }
-
-                    if (newTime >= MAX_SESSION_DURATION) {
-                        endSession();
-                    }
-                    return newTime;
-                });
+                setElapsedTime(prevTime => prevTime + 1);
             }, 1000);
         } else {
             clearInterval(sessionTimer.current);
         }
         return () => clearInterval(sessionTimer.current);
-    }, [sessionActive, addToast, endSession]);
+    }, [sessionActive]);
+    
+    useEffect(() => {
+        if (!sessionActive) return;
+
+        const milestone = SESSION_MILESTONES.find(d => d.value === elapsedTime);
+        if (milestone && !milestonesReached.current.has(elapsedTime)) {
+            addToast(`${milestone.label} analysis complete!`);
+            milestonesReached.current.add(elapsedTime);
+        }
+
+        if (elapsedTime >= MAX_SESSION_DURATION) {
+            endSession();
+        }
+    }, [elapsedTime, sessionActive, addToast, endSession]);
 
     // --- Bluetooth & Session Logic ---
     const handleHRNotification = useCallback((event) => {
@@ -245,7 +269,7 @@ const App = () => {
         }
     }, [sessionActive, addToast, endSession]);
 
-    const startSession = async () => {
+    const startRealSession = async () => {
         if (!navigator.bluetooth) {
             setStatusMessage('Web Bluetooth API is not available.');
             return;
@@ -277,8 +301,25 @@ const App = () => {
             setDevice(null);
         }
     };
+    
+    const startDemoSession = () => {
+        setIsConnected(true);
+        setSessionActive(true);
+        setStatusMessage('Demo session running...');
+        milestonesReached.current.clear();
+
+        demoDataGenerator.current = setInterval(() => {
+            const baseHr = 65 + Math.sin(Date.now() / 10000) * 5;
+            const baseRr = 60000 / baseHr;
+            const newRr = baseRr + (Math.random() - 0.5) * 25;
+            
+            setHr(Math.round(60000 / newRr));
+            setRrIntervals(prev => [...prev, newRr]);
+        }, 900);
+    };
 
     const resetApp = () => {
+        clearInterval(demoDataGenerator.current);
         setDevice(null);
         setHr(null);
         setRrIntervals([]);
@@ -314,9 +355,14 @@ const App = () => {
                             <p className="text-sm text-center sm:text-left">{statusMessage}</p>
                         </div>
                         {!sessionActive ? (
-                            <button onClick={startSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                                Start Session
-                            </button>
+                            <div className="flex gap-2">
+                                <button onClick={startRealSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                    Start Session
+                                </button>
+                                <button onClick={startDemoSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                    Start Demo
+                                </button>
+                            </div>
                         ) : (
                             <button onClick={endSession} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
                                 End Session
@@ -326,7 +372,6 @@ const App = () => {
                     {sessionActive && (
                         <MilestoneProgressBar 
                             elapsedTime={elapsedTime} 
-                            totalDuration={MAX_SESSION_DURATION} 
                             milestones={SESSION_MILESTONES}
                             darkMode={darkMode}
                         />
