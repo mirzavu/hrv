@@ -186,22 +186,22 @@ const App = () => {
         latestSessionData.current = { elapsedTime, rrIntervals };
     }, [elapsedTime, rrIntervals]);
 
-    const endSession = useCallback(() => {
+    const endSession = useCallback(async () => {
         setStatusMessage('Session ended. Calculating summary...');
         setSessionActive(false);
         setIsConnected(false);
         clearInterval(demoDataGenerator.current);
-
+    
         if (device && device.gatt.connected) {
             device.gatt.disconnect();
         }
-        
+    
         const { elapsedTime: finalElapsedTime, rrIntervals: finalRrIntervals } = latestSessionData.current;
         const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
         const sdnn = calculateSDNN(finalRrIntervals);
         const mode = calculateMode(finalRrIntervals);
-
-        setSessionSummary({
+    
+        const summary = {
             duration: { label: 'Duration', value: finalElapsedTime, unit: 's' },
             totalBeats: { label: 'Total Beats', value: finalRrIntervals.length, unit: '' },
             meanHR: { label: 'Mean HR', value: calculateMeanHR(finalRrIntervals), unit: 'bpm' },
@@ -213,8 +213,45 @@ const App = () => {
             cv: { label: 'CV', value: calculateCV(sdnn, meanRR), unit: '%' },
             mo: { label: 'Mode (Mo)', value: mode, unit: 'ms' },
             amo50: { label: 'AMo50', value: calculateAMo50(finalRrIntervals, mode), unit: '%' },
-        });
-    }, [device]);
+        };
+        setSessionSummary(summary);
+    
+        // Determine session type
+        let sessionType = 'custom';
+        for (let i = SESSION_MILESTONES.length - 1; i >= 0; i--) {
+            if (finalElapsedTime >= SESSION_MILESTONES[i].value) {
+                sessionType = SESSION_MILESTONES[i].label;
+                break;
+            }
+        }
+    
+        // Prepare data for backend
+        const sessionDataToSave = {
+            sessionType,
+            date: new Date().toISOString(),
+            ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
+        };
+    
+        // Save to DB
+        try {
+            const response = await fetch('http://localhost:5000/api/hrv/session', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(sessionDataToSave),
+            });
+            if (response.ok) {
+                addToast('Session saved successfully!');
+            } else {
+                throw new Error('Failed to save session');
+            }
+        } catch (error) {
+            console.error('Error saving session:', error);
+            addToast('Error: Could not save session to database.');
+        }
+    
+    }, [device, addToast]);
 
     useEffect(() => {
         if (sessionActive) {
