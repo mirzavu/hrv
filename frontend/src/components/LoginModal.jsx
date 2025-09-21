@@ -5,7 +5,7 @@ const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL || 'http://localhost:8090';
+  const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL;
   const pb = new PocketBase(POCKETBASE_URL);
 
   const handleGoogleLogin = async () => {

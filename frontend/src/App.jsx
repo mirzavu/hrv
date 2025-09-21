@@ -115,9 +115,20 @@ const MilestoneProgressBar = ({ elapsedTime, milestones, darkMode }) => {
     );
 };
 
-const SessionSummaryModal = ({ summary, darkMode, onReset, isGuest, onGuestLogin }) => (
+const SessionSummaryModal = ({ summary, darkMode, onReset, isGuest, onGuestLogin, onClose }) => (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
-        <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} p-6 rounded-xl shadow-2xl w-full max-w-md mx-4`}>
+        <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} p-6 rounded-xl shadow-2xl w-full max-w-md mx-4 relative`}>
+            {/* Close Button */}
+            <button
+                onClick={onClose}
+                className={`absolute top-3 right-3 p-2 rounded-full transition-colors ${darkMode ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-200'}`}
+                aria-label="Close"
+            >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+
             <h2 className="text-2xl font-bold text-center mb-4">Session Summary</h2>
             <div className="grid grid-cols-2 gap-4 mb-6">
                 {Object.entries(summary).map(([key, item]) => (
@@ -418,54 +429,65 @@ const App = () => {
         }
     }, [addToast]);
 
-    const handleLoginSuccess = async (userData, token) => {
+    const handleLoginSuccess = (userData, token) => {
         setUser(userData);
         setAuthToken(token);
-
-        // Save to localStorage
         localStorage.setItem('hrv_user', JSON.stringify(userData));
         if (token) {
             localStorage.setItem('hrv_auth_token', token);
         }
-
         setShowLoginModal(false);
         addToast(`Welcome ${userData.name || userData.email || 'User'}!`);
-
-        // Check if there's a guest session to save to database
-        const guestSession = localStorage.getItem('hrv_guest_session');
-        console.log('🔍 Login Debug - guestSession:', !!guestSession, 'token:', !!token);
-
-        if (guestSession && token) {
-            try {
-                const sessionData = JSON.parse(guestSession);
-                console.log('💾 Saving guest session to database:', sessionData);
-                console.log('🔑 Using token:', token.substring(0, 20) + '...');
-
-                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`,
-                    },
-                    body: JSON.stringify(sessionData),
-                });
-
-                console.log('📡 API Response status:', response.status);
-
-                if (response.ok) {
-                    localStorage.removeItem('hrv_guest_session'); // Remove from localStorage after successful save
-                    addToast('Your previous session has been saved to your account!');
-                } else {
-                    const errorText = await response.text();
-                    console.error('❌ API Error:', response.status, errorText);
-                    addToast('Session transferred, but could not save previous guest session.');
-                }
-            } catch (error) {
-                console.error('Error saving guest session:', error);
-                addToast('Session transferred, but could not save previous guest session.');
-            }
-        }
     };
+
+    useEffect(() => {
+        const saveGuestSession = async () => {
+            const guestSession = localStorage.getItem('hrv_guest_session');
+            // --- START LOGGING ---
+            console.log('[FRONTEND DEBUG] Checking for guest session. Token available:', !!authToken);
+            // --- END LOGGING ---
+
+            if (guestSession && authToken && user && user.id !== 'guest') {
+                try {
+                    const sessionData = JSON.parse(guestSession);
+                    const authHeader = `Bearer ${authToken}`;
+                    // --- START LOGGING ---
+                    console.log('[FRONTEND DEBUG] Attempting to save guest session with token:', authToken.substring(0, 20) + '...');
+                    console.log('[FRONTEND DEBUG] Authorization Header:', authHeader);
+                    // --- END LOGGING ---
+
+                    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': authHeader,
+                        },
+                        body: JSON.stringify(sessionData),
+                    });
+
+                    // --- START LOGGING ---
+                    console.log('[FRONTEND DEBUG] API Response status:', response.status);
+                    // --- END LOGGING ---
+
+                    if (response.ok) {
+                        localStorage.removeItem('hrv_guest_session');
+                        addToast('Your previous session has been saved to your account!');
+                    } else {
+                        const errorText = await response.text();
+                        // --- START LOGGING ---
+                        console.error('❌ [FRONTEND DEBUG] API Error:', response.status, errorText);
+                        // --- END LOGGING ---
+                        addToast('Could not save previous guest session.');
+                    }
+                } catch (error) {
+                    console.error('Error saving guest session:', error);
+                    addToast('Could not save previous guest session.');
+                }
+            }
+        };
+
+        saveGuestSession();
+    }, [authToken, user, addToast]);
 
     const handleLogout = () => {
         setUser(null);
@@ -498,6 +520,7 @@ const App = () => {
                         onReset={resetApp}
                         isGuest={user && user.id === 'guest'}
                         onGuestLogin={() => setShowLoginModal(true)}
+                        onClose={() => setSessionSummary(null)}
                     />
                 )}
                 {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}

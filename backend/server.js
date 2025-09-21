@@ -11,7 +11,7 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Initialize PocketBase
-const pb = new PocketBase(process.env.POCKETBASE_URL || 'http://127.0.0.1:8090');
+const pb = new PocketBase(process.env.POCKETBASE_URL);
 
 // Middleware
 app.use(helmet());
@@ -74,22 +74,46 @@ app.post('/api/auth/google', async (req, res) => {
 
 // Middleware to verify authentication
 const authenticateUser = async (req, res, next) => {
+  console.log('[BACKEND DEBUG] authenticateUser middleware triggered.');
   try {
     const authHeader = req.headers.authorization;
+    console.log('[BACKEND DEBUG] Authorization Header received:', authHeader);
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('[BACKEND DEBUG] No valid auth token provided.');
       return res.status(401).json({ error: 'No valid authentication token provided' });
     }
 
     const token = authHeader.substring(7);
-    pb.authStore.save(token);
+    console.log('[BACKEND DEBUG] Token extracted:', token.substring(0, 20) + '...');
+
+    // Set the token for the PocketBase JS SDK instance
+    pb.authStore.save(token, null);
+
+    console.log('[BACKEND DEBUG] Auth store isValid before refresh:', pb.authStore.isValid);
+    console.log('[BACKEND DEBUG] Auth store model before refresh:', pb.authStore.model);
+
+    // Actively verify and refresh the token against the PocketBase server
+    try {
+        const authRefresh = await pb.collection('users').authRefresh();
+        console.log('[BACKEND DEBUG] Auth refresh successful for user:', authRefresh.record.id);
+    } catch(e) {
+        console.error('[BACKEND DEBUG] Auth refresh failed:', e.message);
+        pb.authStore.clear(); // Clear invalid token
+        return res.status(401).json({ error: 'Invalid authentication token', details: e.message });
+    }
 
     if (!pb.authStore.isValid || !pb.authStore.model) {
+      console.log('[BACKEND DEBUG] Auth store is still invalid after refresh attempt.');
       return res.status(401).json({ error: 'Invalid authentication token' });
     }
 
+    console.log('[BACKEND DEBUG] Authentication successful for user:', pb.authStore.model.id);
     req.user = pb.authStore.model;
     next();
   } catch (error) {
+    console.error('[BACKEND DEBUG] Authentication middleware failed with error:', error);
+    pb.authStore.clear();
     res.status(401).json({ error: 'Authentication failed' });
   }
 };
@@ -140,5 +164,5 @@ app.listen(PORT, () => {
   console.log(`🚀 HRV Backend server running on port ${PORT}`);
   console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🔗 Health check: http://localhost:${PORT}/api/health`);
-  console.log(`🗄️ PocketBase URL: ${process.env.POCKETBASE_URL || 'http://127.0.0.1:8090'}`);
+  console.log(`🗄️ PocketBase URL: ${process.env.POCKETBASE_URL}`);
 }); 
