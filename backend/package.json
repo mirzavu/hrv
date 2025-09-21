@@ -2,6 +2,7 @@
   "name": "hrv-backend",
   "version": "1.0.0",
   "description": "Backend API for HRV Analysis and Tracking App",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
