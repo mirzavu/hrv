@@ -115,7 +115,7 @@ const MilestoneProgressBar = ({ elapsedTime, milestones, darkMode }) => {
     );
 };
 
-const SessionSummaryModal = ({ summary, darkMode, onReset }) => (
+const SessionSummaryModal = ({ summary, darkMode, onReset, isGuest, onGuestLogin }) => (
     <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50">
         <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} p-6 rounded-xl shadow-2xl w-full max-w-md mx-4`}>
             <h2 className="text-2xl font-bold text-center mb-4">Session Summary</h2>
@@ -127,6 +127,19 @@ const SessionSummaryModal = ({ summary, darkMode, onReset }) => (
                     </div>
                 ))}
             </div>
+
+            {isGuest && (
+                <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <p className="text-sm text-blue-800 mb-2">💡 Log in to save your session data permanently!</p>
+                    <button
+                        onClick={onGuestLogin}
+                        className="w-full px-3 py-2 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-transform transform hover:scale-105"
+                    >
+                        Login to Save Data
+                    </button>
+                </div>
+            )}
+
             <button
                 onClick={onReset}
                 className="w-full px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105"
@@ -239,23 +252,31 @@ const App = () => {
             ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
         };
     
-        // Save to DB
-        try {
-            const response = await fetch('http://localhost:5000/api/hrv/session', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(sessionDataToSave),
-            });
-            if (response.ok) {
-                addToast('Session saved successfully!');
-            } else {
-                throw new Error('Failed to save session');
+        // Save to DB or localStorage depending on user type
+        if (user && user.id !== 'guest' && authToken) {
+            // Authenticated user - save to database
+            try {
+                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${authToken}`,
+                    },
+                    body: JSON.stringify(sessionDataToSave),
+                });
+                if (response.ok) {
+                    addToast('Session saved successfully!');
+                } else {
+                    throw new Error('Failed to save session');
+                }
+            } catch (error) {
+                console.error('Error saving session:', error);
+                addToast('Error: Could not save session to database.');
             }
-        } catch (error) {
-            console.error('Error saving session:', error);
-            addToast('Error: Could not save session to database.');
+        } else {
+            // Guest user - save to localStorage (overwrite previous session)
+            localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
+            addToast('Session saved locally!');
         }
     
     }, [device, addToast]);
@@ -397,7 +418,7 @@ const App = () => {
         }
     }, [addToast]);
 
-    const handleLoginSuccess = (userData, token) => {
+    const handleLoginSuccess = async (userData, token) => {
         setUser(userData);
         setAuthToken(token);
 
@@ -409,6 +430,41 @@ const App = () => {
 
         setShowLoginModal(false);
         addToast(`Welcome ${userData.name || userData.email || 'User'}!`);
+
+        // Check if there's a guest session to save to database
+        const guestSession = localStorage.getItem('hrv_guest_session');
+        console.log('🔍 Login Debug - guestSession:', !!guestSession, 'token:', !!token);
+
+        if (guestSession && token) {
+            try {
+                const sessionData = JSON.parse(guestSession);
+                console.log('💾 Saving guest session to database:', sessionData);
+                console.log('🔑 Using token:', token.substring(0, 20) + '...');
+
+                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`,
+                    },
+                    body: JSON.stringify(sessionData),
+                });
+
+                console.log('📡 API Response status:', response.status);
+
+                if (response.ok) {
+                    localStorage.removeItem('hrv_guest_session'); // Remove from localStorage after successful save
+                    addToast('Your previous session has been saved to your account!');
+                } else {
+                    const errorText = await response.text();
+                    console.error('❌ API Error:', response.status, errorText);
+                    addToast('Session transferred, but could not save previous guest session.');
+                }
+            } catch (error) {
+                console.error('Error saving guest session:', error);
+                addToast('Session transferred, but could not save previous guest session.');
+            }
+        }
     };
 
     const handleLogout = () => {
@@ -435,7 +491,15 @@ const App = () => {
         <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
             <div className="container mx-auto p-4 md:p-8">
                 {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
-                {sessionSummary && <SessionSummaryModal summary={sessionSummary} darkMode={darkMode} onReset={resetApp} />}
+                {sessionSummary && (
+                    <SessionSummaryModal
+                        summary={sessionSummary}
+                        darkMode={darkMode}
+                        onReset={resetApp}
+                        isGuest={user && user.id === 'guest'}
+                        onGuestLogin={() => setShowLoginModal(true)}
+                    />
+                )}
                 {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
 
                 <header className="flex justify-between items-center mb-6">
@@ -446,12 +510,14 @@ const App = () => {
                                 <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                     Hello, {user.name || user.email || 'User'}!
                                 </span>
-                                <button
-                                    onClick={handleLogout}
-                                    className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
-                                >
-                                    Logout
-                                </button>
+                                {user.id !== 'guest' && (
+                                    <button
+                                        onClick={handleLogout}
+                                        className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
+                                    >
+                                        Logout
+                                    </button>
+                                )}
                             </div>
                         )}
                         <button onClick={toggleDarkMode} className={`p-2 rounded-full transition-colors duration-300 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-200'}`}>

@@ -72,19 +72,47 @@ app.post('/api/auth/google', async (req, res) => {
   }
 });
 
-// HRV data endpoints
-app.post('/api/hrv/session', async (req, res) => {
+// Middleware to verify authentication
+const authenticateUser = async (req, res, next) => {
   try {
-    const sessionData = await pb.collection('hrv_sessions').create(req.body);
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ error: 'No valid authentication token provided' });
+    }
+
+    const token = authHeader.substring(7);
+    pb.authStore.save(token);
+
+    if (!pb.authStore.isValid || !pb.authStore.model) {
+      return res.status(401).json({ error: 'Invalid authentication token' });
+    }
+
+    req.user = pb.authStore.model;
+    next();
+  } catch (error) {
+    res.status(401).json({ error: 'Authentication failed' });
+  }
+};
+
+// HRV data endpoints
+app.post('/api/hrv/session', authenticateUser, async (req, res) => {
+  try {
+    const sessionData = await pb.collection('hrv_sessions').create({
+      ...req.body,
+      user: req.user.id
+    });
     res.json(sessionData);
   } catch (error) {
     res.status(400).json({ error: error.message });
   }
 });
 
-app.get('/api/hrv/sessions', async (req, res) => {
+app.get('/api/hrv/sessions', authenticateUser, async (req, res) => {
   try {
-    const sessions = await pb.collection('hrv_sessions').getList();
+    const sessions = await pb.collection('hrv_sessions').getList(1, 50, {
+      filter: `user = "${req.user.id}"`,
+      sort: '-created'
+    });
     res.json(sessions);
   } catch (error) {
     res.status(400).json({ error: error.message });

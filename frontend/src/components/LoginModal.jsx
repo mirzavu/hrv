@@ -63,7 +63,7 @@ const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
           console.error('[OAUTH_DEBUG] ❌ Failed to update user record:', err);
         }
 
-        onLoginSuccess(user.record, authData.token);
+        onLoginSuccess(user.record, pb.authStore.token);
       }
     } catch (err) {
       console.error('[OAUTH_DEBUG] ❌ OAuth login failed:', err);
