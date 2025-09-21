@@ -222,16 +222,16 @@ const App = () => {
         setSessionActive(false);
         setIsConnected(false);
         clearInterval(demoDataGenerator.current);
-    
+
         if (device && device.gatt.connected) {
             device.gatt.disconnect();
         }
-    
+
         const { elapsedTime: finalElapsedTime, rrIntervals: finalRrIntervals } = latestSessionData.current;
         const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
         const sdnn = calculateSDNN(finalRrIntervals);
         const mode = calculateMode(finalRrIntervals);
-    
+
         const summary = {
             duration: { label: 'Duration', value: finalElapsedTime, unit: 's' },
             totalBeats: { label: 'Total Beats', value: finalRrIntervals.length, unit: '' },
@@ -246,7 +246,7 @@ const App = () => {
             amo50: { label: 'AMo50', value: calculateAMo50(finalRrIntervals, mode), unit: '%' },
         };
         setSessionSummary(summary);
-    
+
         // Determine session type
         let sessionType = 'custom';
         for (let i = SESSION_MILESTONES.length - 1; i >= 0; i--) {
@@ -255,14 +255,14 @@ const App = () => {
                 break;
             }
         }
-    
+
         // Prepare data for backend
         const sessionDataToSave = {
             sessionType,
             date: new Date().toISOString(),
             ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
         };
-    
+
         // Save to DB or localStorage depending on user type
         if (user && user.id !== 'guest' && authToken) {
             // Authenticated user - save to database
@@ -289,8 +289,8 @@ const App = () => {
             localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
             addToast('Session saved locally!');
         }
-    
-    }, [device, addToast]);
+
+    }, [device, addToast, user, authToken]); // <-- CORRECTED DEPENDENCY ARRAY
 
     useEffect(() => {
         if (sessionActive) {
@@ -432,61 +432,62 @@ const App = () => {
     const handleLoginSuccess = (userData, token) => {
         setUser(userData);
         setAuthToken(token);
+
+        // Save to localStorage
         localStorage.setItem('hrv_user', JSON.stringify(userData));
         if (token) {
             localStorage.setItem('hrv_auth_token', token);
         }
+
         setShowLoginModal(false);
         addToast(`Welcome ${userData.name || userData.email || 'User'}!`);
+        // The useEffect hook will now handle the guest session transfer automatically
     };
 
     useEffect(() => {
-        const saveGuestSession = async () => {
-            const guestSession = localStorage.getItem('hrv_guest_session');
-            // --- START LOGGING ---
-            console.log('[FRONTEND DEBUG] Checking for guest session. Token available:', !!authToken);
-            // --- END LOGGING ---
+        const transferGuestSession = async () => {
+            const guestSessionJSON = localStorage.getItem('hrv_guest_session');
 
-            if (guestSession && authToken && user && user.id !== 'guest') {
+            // Proceed only if there's a guest session and a logged-in user
+            if (guestSessionJSON && authToken && user && user.id !== 'guest') {
                 try {
-                    const sessionData = JSON.parse(guestSession);
-                    const authHeader = `Bearer ${authToken}`;
-                    // --- START LOGGING ---
-                    console.log('[FRONTEND DEBUG] Attempting to save guest session with token:', authToken.substring(0, 20) + '...');
-                    console.log('[FRONTEND DEBUG] Authorization Header:', authHeader);
-                    // --- END LOGGING ---
+                    const sessionData = JSON.parse(guestSessionJSON);
+                    const sessionDate = new Date(sessionData.date);
+                    const now = new Date();
+                    const userCreationDate = new Date(user.created);
 
-                    const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': authHeader,
-                        },
-                        body: JSON.stringify(sessionData),
-                    });
+                    // Define conditions for transfer
+                    const isNewUser = (now.getTime() - userCreationDate.getTime()) < 60000; // 1 minute
+                    const isRecentSession = (now.getTime() - sessionDate.getTime()) < (2 * 60 * 60 * 1000); // 2 hours
 
-                    // --- START LOGGING ---
-                    console.log('[FRONTEND DEBUG] API Response status:', response.status);
-                    // --- END LOGGING ---
+                    // Only save to DB if both conditions are true
+                    if (isNewUser && isRecentSession) {
+                        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'Authorization': `Bearer ${authToken}`,
+                            },
+                            body: JSON.stringify(sessionData),
+                        });
 
-                    if (response.ok) {
-                        localStorage.removeItem('hrv_guest_session');
-                        addToast('Your previous session has been saved to your account!');
-                    } else {
-                        const errorText = await response.text();
-                        // --- START LOGGING ---
-                        console.error('❌ [FRONTEND DEBUG] API Error:', response.status, errorText);
-                        // --- END LOGGING ---
-                        addToast('Could not save previous guest session.');
+                        if (response.ok) {
+                            addToast('Your guest session has been saved to your new account!');
+                        } else {
+                            addToast('Could not save your previous guest session.');
+                        }
                     }
                 } catch (error) {
-                    console.error('Error saving guest session:', error);
-                    addToast('Could not save previous guest session.');
+                    console.error('Error processing guest session:', error);
+                } finally {
+                    // IMPORTANT: Always clear the local storage after handling it.
+                    localStorage.removeItem('hrv_guest_session');
+                    console.log('[SESSION_TRANSFER] Guest session cleared from local storage.');
                 }
             }
         };
 
-        saveGuestSession();
+        transferGuestSession();
     }, [authToken, user, addToast]);
 
     const handleLogout = () => {
