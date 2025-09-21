@@ -13,30 +13,17 @@ COPY backend/package*.json ./backend/
 # Install dependencies
 RUN npm ci --only=production && npm cache clean --force
 
-# Build the frontend
-FROM base AS frontend-builder
+# Build the application
+FROM base AS app-builder
 WORKDIR /app
 
-# Copy frontend files
-COPY frontend/ ./frontend/
+# Copy all source files
+COPY . .
 COPY --from=deps /app/node_modules ./node_modules
 
-# Install frontend dependencies and build
-WORKDIR /app/frontend
-RUN npm ci
-RUN npm run build
-
-# Build the backend
-FROM base AS backend-builder
-WORKDIR /app
-
-# Copy backend files
-COPY backend/ ./backend/
-COPY --from=deps /app/node_modules ./node_modules
-
-# Install backend dependencies
-WORKDIR /app/backend
-RUN npm ci
+# Build frontend and backend from workspace root
+RUN npm run build:frontend
+RUN npm run build:backend
 
 # Production image
 FROM base AS runner
@@ -47,13 +34,13 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy built applications
-COPY --from=frontend-builder --chown=nextjs:nodejs /app/frontend/dist ./frontend/dist
-COPY --from=backend-builder --chown=nextjs:nodejs /app/backend ./backend
+COPY --from=app-builder --chown=nextjs:nodejs /app/frontend/dist ./frontend/dist
+COPY --from=app-builder --chown=nextjs:nodejs /app/backend ./backend
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 # Copy environment files
-COPY frontend/env.production ./frontend/.env.production
-COPY backend/env.production ./backend/.env.production
+COPY frontend/.env.production ./frontend/.env.production
+COPY backend/.env.production ./backend/.env.production
 
 # Switch to non-root user
 USER nextjs

@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: frontend-builder
+      target: app-builder
     ports:
       - "3001:3001"
     environment:
@@ -34,7 +34,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      target: backend-builder
+      target: app-builder
     ports:
       - "5000:5000"
     environment:
