@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import LoginModal from './components/LoginModal';
+import AuthCallback from './components/AuthCallback';
 
 // --- Constants ---
 const POLAR_HR_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
@@ -145,7 +147,12 @@ const App = () => {
     const [rrIntervals, setRrIntervals] = useState([]);
     const [darkMode, setDarkMode] = useState(false);
     const [toasts, setToasts] = useState([]);
-    
+
+    // Authentication state
+    const [user, setUser] = useState(null);
+    const [showLoginModal, setShowLoginModal] = useState(false);
+    const [authToken, setAuthToken] = useState(null);
+
     // Session state
     const [sessionActive, setSessionActive] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
@@ -365,6 +372,58 @@ const App = () => {
         setStatusMessage('Click "Start Session" to begin.');
     };
 
+    // --- Authentication Logic ---
+    useEffect(() => {
+        // Check if user is returning from OAuth callback
+        const urlParams = new URLSearchParams(window.location.search);
+        const authError = urlParams.get('auth_error');
+
+        if (authError) {
+            addToast(`Authentication error: ${authError}`);
+            // Clean up URL
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+
+        // Check for existing auth
+        const savedUser = localStorage.getItem('hrv_user');
+        const savedToken = localStorage.getItem('hrv_auth_token');
+
+        if (savedUser && savedToken) {
+            setUser(JSON.parse(savedUser));
+            setAuthToken(savedToken);
+        } else {
+            // Show login modal for first-time users
+            setShowLoginModal(true);
+        }
+    }, [addToast]);
+
+    const handleLoginSuccess = (userData, token) => {
+        setUser(userData);
+        setAuthToken(token);
+
+        // Save to localStorage
+        localStorage.setItem('hrv_user', JSON.stringify(userData));
+        if (token) {
+            localStorage.setItem('hrv_auth_token', token);
+        }
+
+        setShowLoginModal(false);
+        addToast(`Welcome ${userData.name || userData.email || 'User'}!`);
+    };
+
+    const handleLogout = () => {
+        setUser(null);
+        setAuthToken(null);
+        localStorage.removeItem('hrv_user');
+        localStorage.removeItem('hrv_auth_token');
+        addToast('Logged out successfully');
+    };
+
+    // Handle OAuth callback route
+    if (window.location.pathname === '/auth/callback') {
+        return <AuthCallback onAuthComplete={handleLoginSuccess} />;
+    }
+
     // --- Dark Mode ---
     const toggleDarkMode = () => setDarkMode(!darkMode);
     useEffect(() => {
@@ -377,12 +436,28 @@ const App = () => {
             <div className="container mx-auto p-4 md:p-8">
                 {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
                 {sessionSummary && <SessionSummaryModal summary={sessionSummary} darkMode={darkMode} onReset={resetApp} />}
+                {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
 
                 <header className="flex justify-between items-center mb-6">
                     <h1 className="text-3xl md:text-4xl font-bold">Polar H10 HRV Monitor</h1>
-                    <button onClick={toggleDarkMode} className={`p-2 rounded-full transition-colors duration-300 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-200'}`}>
-                        {darkMode ? '☀️' : '🌙'}
-                    </button>
+                    <div className="flex items-center gap-4">
+                        {user && (
+                            <div className="flex items-center gap-2">
+                                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                    Hello, {user.name || user.email || 'User'}!
+                                </span>
+                                <button
+                                    onClick={handleLogout}
+                                    className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
+                                >
+                                    Logout
+                                </button>
+                            </div>
+                        )}
+                        <button onClick={toggleDarkMode} className={`p-2 rounded-full transition-colors duration-300 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-200'}`}>
+                            {darkMode ? '☀️' : '🌙'}
+                        </button>
+                    </div>
                 </header>
 
                 <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>

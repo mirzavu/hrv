@@ -98,4 +98,10 @@ temp/
 
 # HRV specific
 *.csv
-hrv_sessions/ 
+hrv_sessions/
+
+# Backup and archive files
+*.backup
+*.zip
+*.tar.gz
+*.rar 

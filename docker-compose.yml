@@ -22,7 +22,7 @@ services:
       - "3001:3001"
     environment:
       - NODE_ENV=development
-      - VITE_POCKETBASE_URL=http://pocketbase:8090
+      - VITE_POCKETBASE_URL=http://localhost:8090
     volumes:
       - ./frontend:/app/frontend
       - /app/frontend/node_modules
@@ -39,7 +39,7 @@ services:
       - "5000:5000"
     environment:
       - NODE_ENV=development
-      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_URL=http://localhost:8090
     volumes:
       - ./backend:/app/backend
       - /app/backend/node_modules
