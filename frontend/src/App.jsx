@@ -212,12 +212,12 @@ const App = () => {
     }, []);
     
     // --- Session Logic ---
-    const latestSessionData = useRef({ elapsedTime, rrIntervals });
+    const latestSessionData = useRef({ elapsedTime, rrIntervals, sessionActive });
     useEffect(() => {
-        latestSessionData.current = { elapsedTime, rrIntervals };
-    }, [elapsedTime, rrIntervals]);
+        latestSessionData.current = { elapsedTime, rrIntervals, sessionActive };
+    }, [elapsedTime, rrIntervals, sessionActive]);
 
-    const endSession = useCallback(async () => {
+    const endSession = useCallback(async (finalElapsedTime, finalRrIntervals) => {
         setStatusMessage('Session ended. Calculating summary...');
         setSessionActive(false);
         setIsConnected(false);
@@ -226,8 +226,6 @@ const App = () => {
         if (device && device.gatt.connected) {
             device.gatt.disconnect();
         }
-
-        const { elapsedTime: finalElapsedTime, rrIntervals: finalRrIntervals } = latestSessionData.current;
         const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
         const sdnn = calculateSDNN(finalRrIntervals);
         const mode = calculateMode(finalRrIntervals);
@@ -290,7 +288,7 @@ const App = () => {
             addToast('Session saved locally!');
         }
 
-    }, [device, addToast, user, authToken]); // <-- CORRECTED DEPENDENCY ARRAY
+    }, [device, addToast, user, authToken]); // dependency array is correct
 
     useEffect(() => {
         if (sessionActive) {
@@ -313,7 +311,7 @@ const App = () => {
         }
 
         if (elapsedTime >= MAX_SESSION_DURATION) {
-            endSession();
+            endSession(elapsedTime, rrIntervals); // Pass current state
         }
     }, [elapsedTime, sessionActive, addToast, endSession]);
 
@@ -339,11 +337,12 @@ const App = () => {
     }, []);
 
     const onDisconnected = useCallback(() => {
-        if (sessionActive) {
+        if (latestSessionData.current.sessionActive) { // Use ref to check session status
             addToast("Device disconnected unexpectedly!");
-            endSession();
+            const { elapsedTime, rrIntervals } = latestSessionData.current;
+            endSession(elapsedTime, rrIntervals);
         }
-    }, [sessionActive, addToast, endSession]);
+    }, [addToast, endSession]);
 
     const startRealSession = async () => {
         if (!navigator.bluetooth) {
@@ -418,11 +417,9 @@ const App = () => {
 
         // Check for existing auth
         const savedUser = localStorage.getItem('hrv_user');
-        const savedToken = localStorage.getItem('hrv_auth_token');
 
-        if (savedUser && savedToken) {
+        if (savedUser) {
             setUser(JSON.parse(savedUser));
-            setAuthToken(savedToken);
         } else {
             // Show login modal for first-time users
             setShowLoginModal(true);
@@ -433,10 +430,9 @@ const App = () => {
         setUser(userData);
         setAuthToken(token);
 
-        // Save to localStorage
-        localStorage.setItem('hrv_user', JSON.stringify(userData));
-        if (token) {
-            localStorage.setItem('hrv_auth_token', token);
+        // Only save user to localStorage if it's not a guest account
+        if (userData && userData.id !== 'guest') {
+            localStorage.setItem('hrv_user', JSON.stringify(userData));
         }
 
         setShowLoginModal(false);
@@ -494,7 +490,6 @@ const App = () => {
         setUser(null);
         setAuthToken(null);
         localStorage.removeItem('hrv_user');
-        localStorage.removeItem('hrv_auth_token');
         addToast('Logged out successfully');
     };
 
@@ -566,7 +561,7 @@ const App = () => {
                                 </button>
                             </div>
                         ) : (
-                            <button onClick={endSession} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+                            <button onClick={() => endSession(elapsedTime, rrIntervals)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
                                 End Session
                             </button>
                         )}
