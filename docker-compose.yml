@@ -26,7 +26,8 @@ services:
     volumes:
       - ./frontend:/app/frontend
       - /app/frontend/node_modules
-    command: npm run dev
+    # Corrected command for frontend
+    command: npm run dev:frontend
     depends_on:
       - pocketbase
 
@@ -43,7 +44,8 @@ services:
     volumes:
       - ./backend:/app/backend
       - /app/backend/node_modules
-    command: npm run dev
+    # Corrected command for backend
+    command: npm run dev:backend
     depends_on:
       - pocketbase
 
@@ -62,4 +64,4 @@ services:
     #   - "8090:8090"
 
 volumes:
-  pocketbase_data: 
+  pocketbase_data:

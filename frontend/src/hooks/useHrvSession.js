@@ -18,7 +18,7 @@ const SESSION_MILESTONES = [
     { label: 'Full Analysis', value: 900 },
 ];
 
-export const useHrvSession = (user, authToken, addToast) => {
+export const useHrvSession = (user, addToast) => {
     const [sessionActive, setSessionActive] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [rrIntervals, setRrIntervals] = useState([]);
@@ -64,13 +64,12 @@ export const useHrvSession = (user, authToken, addToast) => {
             ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
         };
 
-        if (user && user.id !== 'guest' && authToken) {
+        if (user && user.id !== 'guest') {
             try {
                 const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${authToken}`,
                     },
                     body: JSON.stringify(sessionDataToSave),
                 });
@@ -84,7 +83,7 @@ export const useHrvSession = (user, authToken, addToast) => {
             localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
             addToast('Session saved locally!');
         }
-    }, [addToast, user, authToken]);
+    }, [addToast, user]);
 
     useEffect(() => {
         if (sessionActive) {

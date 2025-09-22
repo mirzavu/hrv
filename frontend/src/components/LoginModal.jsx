@@ -11,64 +11,27 @@ const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
+    console.log('[FRONTEND LOG] Initiating Google login.');
 
     try {
-      console.log('[OAUTH_DEBUG] Step 1: Fetching auth providers manually via fetch...');
-
-      const raw = await fetch(`${pb.baseUrl}/api/collections/users/auth-methods`, {
-        headers: { 'Content-Type': 'application/json' },
+      // Step 1: Get the auth URL from our backend
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/google/initiate`, {
+        method: 'POST',
       });
 
-      if (!raw.ok) {
-        throw new Error(`Failed to fetch auth providers. Status: ${raw.status}`);
+      if (!response.ok) {
+        throw new Error('Could not get Google auth URL from server.');
       }
 
-      const authMethods = await raw.json();
-      console.log('[OAUTH_DEBUG] ✅ Raw response:', authMethods);
+      const { authUrl } = await response.json();
+      console.log('[FRONTEND LOG] Received auth URL. Redirecting user to Google...', authUrl);
 
-      const googleProvider = authMethods.authProviders?.find(p => p.name === 'google');
-      if (!googleProvider) {
-        throw new Error('Google provider not configured in PocketBase.');
-      }
+      // Step 2: Redirect the user to the Google login page
+      window.location.href = authUrl;
 
-      console.log('[OAUTH_DEBUG] ✅ Google provider found, redirecting...');
-
-      const authData = await pb.collection('users').authWithOAuth2({
-        provider: googleProvider.name,
-        createData: {
-          username: 'user' + Math.floor(Math.random() * 100000)
-        }
-      });
-
-      console.log('[OAUTH_DEBUG] ✅ OAuth login successful:', authData);
-
-      if (onLoginSuccess) {
-        const user = authData;
-
-        // ✅ Enrich user record immediately after OAuth login
-        try {
-          // Extract name from various Google OAuth fields
-          console.log(user);
-          const googleName = user.meta.name || 'Google User';
-          console.log('[OAUTH_DEBUG] 📝 Extracted name from Google:', googleName);
-
-          const updatedUser = await pb.collection('users').update(user.record.id, {
-            email: user.record.email?.trim().toLowerCase(),
-            emailVisibility: true,
-            name: googleName,
-            username: user.record.email?.split('@')[0] || `user${Math.floor(Math.random() * 10000)}`,
-          });
-          console.log('[OAUTH_DEBUG] ✅ Updated user fields:', updatedUser);
-        } catch (err) {
-          console.error('[OAUTH_DEBUG] ❌ Failed to update user record:', err);
-        }
-
-        onLoginSuccess(user.record, pb.authStore.token);
-      }
     } catch (err) {
-      console.error('[OAUTH_DEBUG] ❌ OAuth login failed:', err);
-      setError(err.message || 'OAuth login failed');
-    } finally {
+      console.error('[FRONTEND ERROR] Google login initiation failed:', err);
+      setError(err.message || 'Login initiation failed');
       setLoading(false);
     }
   };

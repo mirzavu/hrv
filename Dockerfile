@@ -10,8 +10,8 @@ COPY package*.json ./
 COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
-# Install dependencies
-RUN npm ci --only=production && npm cache clean --force
+# Install ALL dependencies (including dev dependencies)
+RUN npm ci && npm cache clean --force
 
 # Build the application
 FROM base AS app-builder
@@ -34,7 +34,7 @@ RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
 # Copy built applications and necessary package files
-COPY --from=app-builder --chown=nextjs:nodejs /app/frontend/dist ./frontend/dist
+COPY --from=app-builder --chown=nextjs:nodejs /app/frontend ./frontend
 COPY --from=app-builder --chown=nextjs:nodejs /app/backend ./backend
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=app-builder --chown=nextjs:nodejs /app/package.json ./package.json

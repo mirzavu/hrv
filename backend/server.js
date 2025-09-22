@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import cookieParser from 'cookie-parser';
 import PocketBase from 'pocketbase';
 import dotenv from 'dotenv';
 
@@ -17,6 +18,7 @@ const pb = new PocketBase(process.env.POCKETBASE_URL);
 app.use(helmet());
 app.use(cors());
 app.use(morgan('combined'));
+app.use(cookieParser());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -61,13 +63,56 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ message: 'Logged out successfully' });
 });
 
-// Google OAuth endpoints
+// --- Add this new endpoint to INITIATE the login ---
+app.post('/api/auth/google/initiate', async (req, res) => {
+  console.log('[BACKEND LOG] Received request to initiate Google OAuth.');
+  try {
+    const authMethods = await pb.collection('users').listAuthMethods();
+    const googleProvider = authMethods.authProviders.find(p => p.name === 'google');
+    if (!googleProvider) {
+      console.error('[BACKEND ERROR] Google auth provider not found in PocketBase.');
+      return res.status(500).json({ error: 'Google provider not configured.' });
+    }
+    console.log('[BACKEND LOG] Found Google provider. Sending auth URL to frontend.');
+    res.json({ authUrl: googleProvider.authUrl });
+  } catch (error) {
+    console.error('[BACKEND ERROR] Failed to get auth methods:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// --- Modify your existing Google callback endpoint ---
 app.post('/api/auth/google', async (req, res) => {
+  console.log('[BACKEND LOG] Received auth code from frontend callback.');
   try {
     const { code } = req.body;
-    const authData = await pb.collection('users').authWithOAuth2('google', code);
-    res.json({ user: authData.record, token: authData.token });
+    if (!code) {
+      console.error('[BACKEND ERROR] No auth code received from frontend.');
+      return res.status(400).json({ error: 'No authorization code provided.' });
+    }
+
+    // Exchange the code for a token
+    const authData = await pb.collection('users').authWithOAuth2Code(
+      'google',       // Provider name
+      code,           // The auth code from the frontend
+      'http://localhost:3001/auth/callback' // The original redirect URL
+    );
+
+    console.log('[BACKEND LOG] Successfully exchanged code for token. User:', authData.record.email);
+
+    // Set the token in an HTTP-only cookie
+    res.cookie('auth_token', pb.authStore.token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 3600000 // 1 hour
+    });
+
+    console.log('[BACKEND LOG] HttpOnly cookie has been set.');
+    res.json({ user: authData.record, token: pb.authStore.token });
+
   } catch (error) {
+    console.error('[BACKEND ERROR] Google OAuth callback failed:', error);
     res.status(400).json({ error: error.message });
   }
 });
