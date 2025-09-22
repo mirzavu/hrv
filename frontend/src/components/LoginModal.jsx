@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import PocketBase from 'pocketbase';
 
+const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL;
+const pb = new PocketBase(POCKETBASE_URL);
+
 const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL;
-  const pb = new PocketBase(POCKETBASE_URL);
 
   const handleGoogleLogin = async () => {
     setError('');

@@ -28,7 +28,7 @@ const AuthCallback = ({ onAuthComplete }) => {
         setStatus('Exchanging code for tokens...');
 
         // Exchange code for tokens via our backend
-        const response = await fetch('http://localhost:5000/api/auth/google', {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/google`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
