@@ -226,6 +226,7 @@ const App = () => {
         if (device && device.gatt.connected) {
             device.gatt.disconnect();
         }
+
         const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
         const sdnn = calculateSDNN(finalRrIntervals);
         const mode = calculateMode(finalRrIntervals);
@@ -288,7 +289,7 @@ const App = () => {
             addToast('Session saved locally!');
         }
 
-    }, [device, addToast, user, authToken]); // dependency array is correct
+    }, [device, addToast, user, authToken]);
 
     useEffect(() => {
         if (sessionActive) {
@@ -313,7 +314,7 @@ const App = () => {
         if (elapsedTime >= MAX_SESSION_DURATION) {
             endSession(elapsedTime, rrIntervals); // Pass current state
         }
-    }, [elapsedTime, sessionActive, addToast, endSession]);
+    }, [elapsedTime, sessionActive, addToast, endSession, rrIntervals]);
 
     // --- Bluetooth & Session Logic ---
     const handleHRNotification = useCallback((event) => {
@@ -336,13 +337,13 @@ const App = () => {
         }
     }, []);
 
-    const onDisconnected = useCallback(() => {
-        if (latestSessionData.current.sessionActive) { // Use ref to check session status
+    const onDisconnected = () => { // No longer using useCallback
+        if (latestSessionData.current.sessionActive) {
             addToast("Device disconnected unexpectedly!");
             const { elapsedTime, rrIntervals } = latestSessionData.current;
             endSession(elapsedTime, rrIntervals);
         }
-    }, [addToast, endSession]);
+    };
 
     const startRealSession = async () => {
         if (!navigator.bluetooth) {
@@ -384,9 +385,9 @@ const App = () => {
         milestonesReached.current.clear();
 
         demoDataGenerator.current = setInterval(() => {
-            const baseHr = 65 + Math.sin(Date.now() / 10000) * 5;
+            const baseHr = 65 + Math.sin(Date.now() / 10000) * 15; // Increased variability
             const baseRr = 60000 / baseHr;
-            const newRr = baseRr + (Math.random() - 0.5) * 25;
+            const newRr = baseRr + (Math.random() - 0.5) * 80; // Increased variability
             
             setHr(Math.round(60000 / newRr));
             setRrIntervals(prev => [...prev, newRr]);
@@ -492,6 +493,11 @@ const App = () => {
         localStorage.removeItem('hrv_user');
         addToast('Logged out successfully');
     };
+    
+    const handleViewReport = () => {
+        // Placeholder for report viewing logic
+        alert('Navigating to the report page (to be implemented).');
+    };
 
     // Handle OAuth callback route
     if (window.location.pathname === '/auth/callback') {
@@ -507,35 +513,43 @@ const App = () => {
     // --- Render ---
     return (
         <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
-            <div className="container mx-auto p-4 md:p-8">
-                {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
-                {sessionSummary && (
-                    <SessionSummaryModal
-                        summary={sessionSummary}
-                        darkMode={darkMode}
-                        onReset={resetApp}
-                        isGuest={user && user.id === 'guest'}
-                        onGuestLogin={() => setShowLoginModal(true)}
-                        onClose={() => setSessionSummary(null)}
-                    />
-                )}
-                {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
+            {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
+            {sessionSummary && (
+                <SessionSummaryModal
+                    summary={sessionSummary}
+                    darkMode={darkMode}
+                    onReset={resetApp}
+                    isGuest={user && user.id === 'guest'}
+                    onGuestLogin={() => setShowLoginModal(true)}
+                    onClose={() => setSessionSummary(null)}
+                />
+            )}
+            {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
 
-                <header className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl md:text-4xl font-bold">Polar H10 HRV Monitor</h1>
+            <header className={`p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                <div className="container mx-auto flex justify-between items-center">
+                    <h1 className="text-xl md:text-2xl font-bold">HRV Monitor</h1>
                     <div className="flex items-center gap-4">
                         {user && (
                             <div className="flex items-center gap-2">
-                                <span className={`text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+                                <span className={`hidden sm:inline text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                                     Hello, {user.name || user.email || 'User'}!
                                 </span>
                                 {user.id !== 'guest' && (
-                                    <button
-                                        onClick={handleLogout}
-                                        className={`text-xs px-2 py-1 rounded ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
-                                    >
-                                        Logout
-                                    </button>
+                                    <>
+                                        <button
+                                            onClick={handleViewReport}
+                                            className={`text-xs px-3 py-1.5 rounded font-semibold ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'} transition-colors`}
+                                        >
+                                            View Report
+                                        </button>
+                                        <button
+                                            onClick={handleLogout}
+                                            className={`text-xs px-3 py-1.5 rounded ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-200 hover:bg-gray-300 text-gray-700'} transition-colors`}
+                                        >
+                                            Logout
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         )}
@@ -543,8 +557,10 @@ const App = () => {
                             {darkMode ? '☀️' : '🌙'}
                         </button>
                     </div>
-                </header>
+                </div>
+            </header>
 
+            <main className="container mx-auto p-4 md:p-8">
                 <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
@@ -605,9 +621,9 @@ const App = () => {
                     <p>Ensure you are on a secure context (HTTPS or localhost) for Web Bluetooth to work.</p>
                     <p>This app is for informational purposes only and is not a medical device.</p>
                 </footer>
-            </div>
+            </main>
         </div>
     );
 };
 
-export default App; 
+export default App;
