@@ -38,12 +38,11 @@ services:
       target: app-builder
     ports:
       - "5000:5000"
-    # Add this env_file section
     env_file:
-      - ./backend/env.development
+      - ./backend/.env.development
+    # The POCKETBASE_URL here was overriding our .env file. Remove it.
     environment:
       - NODE_ENV=development
-      - POCKETBASE_URL=http://pocketbase:8090
     volumes:
       - ./backend:/app/backend
       - /app/backend/node_modules

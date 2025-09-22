@@ -79,7 +79,8 @@ app.post('/api/auth/google', async (req, res) => {
       console.error('[AUTH ERROR] No auth code received.');
       return res.status(400).json({ error: 'No authorization code provided.' });
     }
-    const redirectUrl = `${POCKETBASE_URL}/api/oauth2-redirect`;
+    // Use the PUBLIC URL for the redirect
+    const redirectUrl = `${process.env.POCKETBASE_PUBLIC_URL}/api/oauth2-redirect`;
     const authData = await pb.collection('users').authWithOAuth2Code('google', code, codeVerifier, redirectUrl);
     console.log(`[AUTH SUCCESS] User ${authData.record.email} authenticated.`);
     res.cookie('auth_token', pb.authStore.token, { httpOnly: true, secure: process.env.NODE_ENV === 'production', sameSite: 'strict', maxAge: 3600000 });
