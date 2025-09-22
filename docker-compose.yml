@@ -38,13 +38,15 @@ services:
       target: app-builder
     ports:
       - "5000:5000"
+    # Add this env_file section
+    env_file:
+      - ./backend/env.development
     environment:
       - NODE_ENV=development
       - POCKETBASE_URL=http://pocketbase:8090
     volumes:
       - ./backend:/app/backend
       - /app/backend/node_modules
-    # Corrected command for backend
     command: npm run dev:backend
     depends_on:
       - pocketbase
@@ -56,7 +58,7 @@ services:
       dockerfile: Dockerfile
     environment:
       - NODE_ENV=production
-      - POCKETBASE_URL=http://pocketbase:8090
+      - POCKETBASE_URL=http://localhost:8090
     restart: unless-stopped
     # ports:  # intentionally commented: uncomment only when running standalone
     #   - "3001:3001"

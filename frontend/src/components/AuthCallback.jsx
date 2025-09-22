@@ -25,6 +25,8 @@ const AuthCallback = ({ onAuthComplete }) => {
           throw new Error('Invalid state parameter');
         }
 
+        const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
+
         setStatus('Exchanging code for tokens...');
 
         // Exchange code for tokens via our backend
@@ -33,7 +35,7 @@ const AuthCallback = ({ onAuthComplete }) => {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ code }),
+          body: JSON.stringify({ code, codeVerifier }),
         });
 
         if (!response.ok) {
@@ -45,6 +47,8 @@ const AuthCallback = ({ onAuthComplete }) => {
 
         // Clean up
         sessionStorage.removeItem('oauth_state');
+        sessionStorage.removeItem('oauth_code_verifier');
+
 
         // Notify parent component
         onAuthComplete(authData.user, authData.token);

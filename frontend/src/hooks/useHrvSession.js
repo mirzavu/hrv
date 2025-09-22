@@ -18,7 +18,8 @@ const SESSION_MILESTONES = [
     { label: 'Full Analysis', value: 900 },
 ];
 
-export const useHrvSession = (user, addToast) => {
+// Update the hook signature to accept authToken
+export const useHrvSession = (user, authToken, addToast) => {
     const [sessionActive, setSessionActive] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [rrIntervals, setRrIntervals] = useState([]);
@@ -70,6 +71,8 @@ export const useHrvSession = (user, addToast) => {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
+                        // Add the Authorization header
+                        'Authorization': `Bearer ${authToken}`,
                     },
                     body: JSON.stringify(sessionDataToSave),
                 });
@@ -83,7 +86,7 @@ export const useHrvSession = (user, addToast) => {
             localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
             addToast('Session saved locally!');
         }
-    }, [addToast, user]);
+    }, [addToast, user, authToken]); // Add authToken to dependency array
 
     useEffect(() => {
         if (sessionActive) {

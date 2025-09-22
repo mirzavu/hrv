@@ -14,30 +14,37 @@ const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
     console.log('[FRONTEND LOG] Initiating Google login.');
 
     try {
-      // Step 1: Get the auth URL from our backend
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/google/initiate`, {
-        method: 'POST',
-      });
+      const authData = await pb.collection('users').authWithOAuth2({ provider: 'google' });
 
-      if (!response.ok) {
-        throw new Error('Could not get Google auth URL from server.');
+      // CASE 1: A redirect is required.
+      if (authData?.meta?.authUrl) {
+        console.log('[FRONTEND LOG] Redirect URL received. Redirecting to Google...');
+        sessionStorage.setItem('oauth_state', authData.meta.state);
+        sessionStorage.setItem('oauth_code_verifier', authData.meta.codeVerifier);
+        window.location.href = authData.meta.authUrl;
+        return; // Stop execution
       }
 
-      const { authUrl } = await response.json();
-      console.log('[FRONTEND LOG] Received auth URL. Redirecting user to Google...', authUrl);
+      // CASE 2: Login was successful without a redirect.
+      if (authData?.record && authData?.token) {
+        console.log('[FRONTEND LOG] Logged in directly without redirect.');
+        onLoginSuccess(authData.record, authData.token);
+        onClose();
+        return; // Stop execution
+      }
 
-      // Step 2: Redirect the user to the Google login page
-      window.location.href = authUrl;
+      // If neither case is met, something is wrong.
+      console.error('[FRONTEND ERROR] Unexpected response from PocketBase.', authData);
+      throw new Error('An unexpected error occurred during login. Please try again.');
 
     } catch (err) {
       console.error('[FRONTEND ERROR] Google login initiation failed:', err);
-      setError(err.message || 'Login initiation failed');
+      setError(err.message || 'Login failed. Check the browser console and PocketBase logs.');
       setLoading(false);
     }
   };
 
   const handleSkipLogin = () => {
-    // Allow guest access for demo
     onLoginSuccess({ id: 'guest', email: 'guest@demo.com', name: 'Guest User' });
     onClose();
   };
