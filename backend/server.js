@@ -90,31 +90,19 @@ const authenticateUser = async (req, res, next) => {
     // Set the token for the PocketBase JS SDK instance
     pb.authStore.save(token, null);
 
-    console.log('[BACKEND DEBUG] Auth store isValid before refresh:', pb.authStore.isValid);
-    console.log('[BACKEND DEBUG] Auth store model before refresh:', pb.authStore.model);
-
-    // Actively verify and refresh the token against the PocketBase server
-    try {
-        const authRefresh = await pb.collection('users').authRefresh();
-        console.log('[BACKEND DEBUG] Auth refresh successful for user:', authRefresh.record.id);
-    } catch(e) {
-        console.error('[BACKEND DEBUG] Auth refresh failed:', e.message);
-        pb.authStore.clear(); // Clear invalid token
-        return res.status(401).json({ error: 'Invalid authentication token', details: e.message });
-    }
-
-    if (!pb.authStore.isValid || !pb.authStore.model) {
-      console.log('[BACKEND DEBUG] Auth store is still invalid after refresh attempt.');
-      return res.status(401).json({ error: 'Invalid authentication token' });
-    }
-
-    console.log('[BACKEND DEBUG] Authentication successful for user:', pb.authStore.model.id);
+    // Actively verify and refresh the token against the PocketBase server.
+    // This single call is enough to validate the token. If it's invalid
+    // or expired, it will throw an error which is caught below.
+    const authRefresh = await pb.collection('users').authRefresh();
+    console.log('[BACKEND DEBUG] Auth refresh successful for user:', authRefresh.record.id);
+    
+    // If authRefresh is successful, the user is authenticated.
     req.user = pb.authStore.model;
     next();
   } catch (error) {
-    console.error('[BACKEND DEBUG] Authentication middleware failed with error:', error);
-    pb.authStore.clear();
-    res.status(401).json({ error: 'Authentication failed' });
+    console.error('[BACKEND DEBUG] Authentication middleware failed:', error.message);
+    pb.authStore.clear(); // Ensure the invalid token is cleared
+    res.status(401).json({ error: 'Authentication failed', details: error.message });
   }
 };
 
