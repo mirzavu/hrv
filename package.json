@@ -27,5 +27,8 @@
     "health-tracking"
   ],
   "author": "HRV App Team",
-  "license": "MIT"
-} 
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^17.2.2"
+  }
+}
