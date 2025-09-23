@@ -11,7 +11,7 @@ COPY frontend/package*.json ./frontend/
 COPY backend/package*.json ./backend/
 
 # Install ALL dependencies (including dev dependencies)
-RUN npm ci && npm cache clean --force
+RUN npm install && npm cache clean --force
 
 # Build the application
 FROM base AS app-builder

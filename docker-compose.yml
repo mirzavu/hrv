@@ -1,18 +1,4 @@
 services:
-  pocketbase:
-    build:
-      context: .
-      dockerfile: Dockerfile.pb
-      args:
-        PB_VERSION: 0.18.3
-        ARCH: linux_amd64
-    container_name: pocketbase
-    ports:
-      - "8090:8090"
-    volumes:
-      - pocketbase_data:/pb/pb_data
-    restart: unless-stopped
-
   frontend:
     build:
       context: .
@@ -20,16 +6,12 @@ services:
       target: app-builder
     ports:
       - "3001:3001"
-    environment:
-      - NODE_ENV=development
-      - VITE_POCKETBASE_URL=http://localhost:8090
+    env_file:
+      - ./frontend/.env.development
     volumes:
       - ./frontend:/app/frontend
       - /app/frontend/node_modules
-    # Corrected command for frontend
     command: npm run dev:frontend
-    depends_on:
-      - pocketbase
 
   backend:
     build:
@@ -40,29 +22,7 @@ services:
       - "5000:5000"
     env_file:
       - ./backend/.env.development
-    # The POCKETBASE_URL here was overriding our .env file. Remove it.
-    environment:
-      - NODE_ENV=development
     volumes:
       - ./backend:/app/backend
       - /app/backend/node_modules
     command: npm run dev:backend
-    depends_on:
-      - pocketbase
-
-  # production bundle - do not expose duplicate host ports if running dev stack
-  hrv-app:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    environment:
-      - NODE_ENV=production
-      - POCKETBASE_URL=http://localhost:8090
-    restart: unless-stopped
-    # ports:  # intentionally commented: uncomment only when running standalone
-    #   - "3001:3001"
-    #   - "5000:5000"
-    #   - "8090:8090"
-
-volumes:
-  pocketbase_data:
