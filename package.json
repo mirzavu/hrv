@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "HRV Analysis and Tracking App with Polar H10 support",
   "private": true,
+  "type": "module",
   "workspaces": [
     "frontend",
     "backend"
@@ -17,7 +18,9 @@
     "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "dotenv": "^17.2.2",
+    "node-appwrite": "^13.0.0"
   },
   "keywords": [
     "hrv",
@@ -27,8 +30,5 @@
     "health-tracking"
   ],
   "author": "HRV App Team",
-  "license": "MIT",
-  "dependencies": {
-    "dotenv": "^17.2.2"
-  }
+  "license": "MIT"
 }
