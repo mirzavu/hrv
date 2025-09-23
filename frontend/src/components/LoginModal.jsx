@@ -1,8 +1,5 @@
 import React, { useState } from 'react';
-import PocketBase from 'pocketbase';
-
-const POCKETBASE_URL = import.meta.env.VITE_POCKETBASE_URL;
-const pb = new PocketBase(POCKETBASE_URL);
+import { account } from '../appwrite';
 
 const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
@@ -11,41 +8,23 @@ const LoginModal = ({ darkMode, onClose, onLoginSuccess }) => {
   const handleGoogleLogin = async () => {
     setError('');
     setLoading(true);
-    console.log('[FRONTEND LOG] Initiating Google login.');
-
     try {
-      const authData = await pb.collection('users').authWithOAuth2({ provider: 'google' });
-
-      // CASE 1: A redirect is required.
-      if (authData?.meta?.authUrl) {
-        console.log('[FRONTEND LOG] Redirect URL received. Redirecting to Google...');
-        sessionStorage.setItem('oauth_state', authData.meta.state);
-        sessionStorage.setItem('oauth_code_verifier', authData.meta.codeVerifier);
-        window.location.href = authData.meta.authUrl;
-        return; // Stop execution
-      }
-
-      // CASE 2: Login was successful without a redirect.
-      if (authData?.record && authData?.token) {
-        console.log('[FRONTEND LOG] Logged in directly without redirect.');
-        onLoginSuccess(authData.record, authData.token);
-        onClose();
-        return; // Stop execution
-      }
-
-      // If neither case is met, something is wrong.
-      console.error('[FRONTEND ERROR] Unexpected response from PocketBase.', authData);
-      throw new Error('An unexpected error occurred during login. Please try again.');
-
+      // This will redirect the user to Google's login page
+      account.createOAuth2Session(
+        'google', // provider
+        `${window.location.origin}/auth/callback`, // success URL
+        `${window.location.origin}/?error=true`  // failure URL
+      );
     } catch (err) {
       console.error('[FRONTEND ERROR] Google login initiation failed:', err);
-      setError(err.message || 'Login failed. Check the browser console and PocketBase logs.');
+      setError(err.message || 'Login initiation failed');
       setLoading(false);
     }
   };
 
   const handleSkipLogin = () => {
-    onLoginSuccess({ id: 'guest', email: 'guest@demo.com', name: 'Guest User' });
+    // Guest access logic will be managed by useAuth hook now
+    onLoginSuccess({ $id: 'guest', name: 'Guest User' });
     onClose();
   };
 

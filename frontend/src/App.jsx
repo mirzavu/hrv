@@ -23,8 +23,9 @@ const App = () => {
         setToasts(prev => prev.filter(toast => toast.id !== id));
     }, []);
 
-    const { user, authToken, showLoginModal, handleLoginSuccess, handleLogout, setShowLoginModal } = useAuth(addToast);
+    const { user, showLoginModal, handleLoginSuccess, handleLogout, setShowLoginModal } = useAuth(addToast);
     
+    // authToken is no longer needed here
     const {
         sessionActive,
         setSessionActive,
@@ -36,7 +37,7 @@ const App = () => {
         endSession,
         resetSession,
         demoDataGenerator
-    } = useHrvSession(user, authToken, addToast);
+    } = useHrvSession(user, addToast); // Pass user and addToast
 
     // Create a ref to hold the latest session data for callbacks
     const latestSessionData = useRef({});

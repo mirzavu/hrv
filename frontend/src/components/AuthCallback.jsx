@@ -1,73 +1,39 @@
 import React, { useEffect, useState } from 'react';
+import { account } from '../appwrite';
 
 const AuthCallback = ({ onAuthComplete }) => {
-  const [status, setStatus] = useState('Processing authentication...');
+  const [status, setStatus] = useState('Finalizing authentication...');
 
   useEffect(() => {
-    const handleAuthCallback = async () => {
+    const completeAuth = async () => {
       try {
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        const error = urlParams.get('error');
-
-        if (error) {
-          throw new Error(`OAuth error: ${error}`);
-        }
-
-        if (!code) {
-          throw new Error('No authorization code received');
-        }
-
-        // Verify state
-        const storedState = sessionStorage.getItem('oauth_state');
-        if (state !== storedState) {
-          throw new Error('Invalid state parameter');
-        }
-
-        const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
-
-        setStatus('Exchanging code for tokens...');
-
-        // Exchange code for tokens via our backend
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/google`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ code, codeVerifier }),
+        // Appwrite's SDK handles the token exchange from the URL automatically
+        const user = await account.get();
+        
+        // Now, we need to create a session via our secure backend to get the cookie
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/oauth2/exchange`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.$id }),
         });
 
         if (!response.ok) {
-          throw new Error(`Authentication failed: ${response.status}`);
+            throw new Error('Failed to create session on the backend.');
         }
 
-        const authData = await response.json();
-        console.log('[OAUTH_DEBUG] ✅ Authentication successful:', authData);
-
-        // Clean up
-        sessionStorage.removeItem('oauth_state');
-        sessionStorage.removeItem('oauth_code_verifier');
-
-
-        // Notify parent component
-        onAuthComplete(authData.user, authData.token);
-
-        // Redirect to main app
-        window.location.href = '/';
+        console.log("Successfully created session via backend.");
+        onAuthComplete(user);
+        window.location.href = '/'; // Redirect to home
 
       } catch (err) {
-        console.error('[OAUTH_DEBUG] ❌ Auth callback error:', err);
+        console.error('Auth callback error:', err);
         setStatus(`Authentication failed: ${err.message}`);
-
-        // Redirect back to main app after error
         setTimeout(() => {
-          window.location.href = '/?auth_error=' + encodeURIComponent(err.message);
+          window.location.href = '/?error=' + encodeURIComponent(err.message);
         }, 3000);
       }
     };
-
-    handleAuthCallback();
+    completeAuth();
   }, [onAuthComplete]);
 
   return (

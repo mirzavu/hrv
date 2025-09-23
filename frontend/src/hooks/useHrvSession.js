@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { databases, AppwriteID, account } from '../appwrite';
 import {
     calculateRMSSD,
     calculateSDNN,
@@ -8,9 +9,13 @@ import {
     calculateAMo50,
     calculateCV,
     calculateMxDMn
-} from '../utils/hrv'; // We will create this file next
+} from '../utils/hrv';
 
-const MAX_SESSION_DURATION = 900; // 15 minutes
+// Appwrite Database and Collection IDs - YOU MUST CREATE THESE IN THE APPWRITE CONSOLE
+const DATABASE_ID = 'YOUR_DATABASE_ID';
+const COLLECTION_ID = 'YOUR_COLLECTION_ID';
+
+const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES = [
     { label: 'Quick Check', value: 120 },
     { label: 'Standard', value: 300 },
@@ -18,8 +23,7 @@ const SESSION_MILESTONES = [
     { label: 'Full Analysis', value: 900 },
 ];
 
-// Update the hook signature to accept authToken
-export const useHrvSession = (user, authToken, addToast) => {
+export const useHrvSession = (user, addToast) => {
     const [sessionActive, setSessionActive] = useState(false);
     const [elapsedTime, setElapsedTime] = useState(0);
     const [rrIntervals, setRrIntervals] = useState([]);
@@ -65,28 +69,28 @@ export const useHrvSession = (user, authToken, addToast) => {
             ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
         };
 
-        if (user && user.id !== 'guest') {
+        if (user && user.$id !== 'guest') {
             try {
-                const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/hrv/session`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        // Add the Authorization header
-                        'Authorization': `Bearer ${authToken}`,
-                    },
-                    body: JSON.stringify(sessionDataToSave),
-                });
-                if (response.ok) addToast('Session saved successfully!');
-                else throw new Error('Failed to save session');
+                // Use Appwrite SDK to create the document
+                await databases.createDocument(
+                    DATABASE_ID,
+                    COLLECTION_ID,
+                    AppwriteID.unique(), // Let Appwrite generate a unique ID
+                    {
+                        ...sessionDataToSave,
+                        user: user.$id // Link to the user
+                    }
+                );
+                addToast('Session saved successfully!');
             } catch (error) {
-                console.error('Error saving session:', error);
+                console.error('Error saving session to Appwrite:', error);
                 addToast('Error: Could not save session to database.');
             }
         } else {
             localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
             addToast('Session saved locally!');
         }
-    }, [addToast, user, authToken]); // Add authToken to dependency array
+    }, [addToast, user]);
 
     useEffect(() => {
         if (sessionActive) {
