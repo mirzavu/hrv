@@ -10,18 +10,7 @@ const AuthCallback = ({ onAuthComplete }) => {
         // Appwrite's SDK handles the token exchange from the URL automatically
         const user = await account.get();
         
-        // Now, we need to create a session via our secure backend to get the cookie
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/oauth2/exchange`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ userId: user.$id }),
-        });
-
-        if (!response.ok) {
-            throw new Error('Failed to create session on the backend.');
-        }
-
-        console.log("Successfully created session via backend.");
+        console.log("Successfully authenticated with Appwrite:", user);
         onAuthComplete(user);
         window.location.href = '/'; // Redirect to home
 

@@ -34,31 +34,26 @@ app.get('/api/health', (req, res) => {
 });
 
 /**
- * This endpoint is a server-side proxy to exchange the OAuth2 token.
- * It's needed to securely create a session without exposing an API key on the frontend.
- * The Appwrite Web SDK will call this endpoint after the user returns from Google.
+ * OAuth2 exchange endpoint - REMOVED
+ * The Appwrite client-side SDK handles OAuth sessions automatically.
+ * No server-side session creation is needed for the current implementation.
+ * 
+ * If server-side authentication is needed in the future, consider using:
+ * - account.createJWT() to create JWT tokens for server-side API calls
+ * - Proper session management with secrets
  */
-app.post('/api/auth/oauth2/exchange', async (req, res) => {
-  try {
-    // The Web SDK on the frontend will have already created the user.
-    // We just need to create a session for them on the server to get the session cookie.
-    const { userId } = req.body;
-    if (!userId) {
-      return res.status(400).json({ error: 'User ID is required' });
-    }
 
-    // Create a session for the user, which generates the necessary auth cookie
-    const session = await account.createSession(userId);
-
-    // The Appwrite SDK automatically sets the secure, http-only cookie on the response.
-    // We just need to send a success message.
-    res.json({ message: 'Session created successfully', session });
-
-  } catch (error) {
-    console.error('[AUTH ERROR] Failed to exchange token:', error);
-    res.status(500).json({ error: 'Failed to create session' });
-  }
-});
+// Example endpoint for future server-side operations (currently unused)
+// app.post('/api/auth/jwt', async (req, res) => {
+//   try {
+//     const { userId } = req.body;
+//     const jwt = await account.createJWT();
+//     res.json({ jwt });
+//   } catch (error) {
+//     console.error('[AUTH ERROR] Failed to create JWT:', error);
+//     res.status(500).json({ error: 'Failed to create JWT' });
+//   }
+// });
 
 app.listen(PORT, () => {
   console.log(`🚀 HRV Backend server running on port ${PORT}`);
