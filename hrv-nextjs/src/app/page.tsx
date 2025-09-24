@@ -1,50 +1,203 @@
 'use client';
 
-import Toast from '@/components/ui/Toast';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { useAuthContext } from '@/contexts/AuthContext';
+import { useHrvSession } from '@/hooks/useHrvSession';
+import { useBluetooth } from '@/hooks/useBluetooth';
+import { calculateRMSSD, calculateSDNN, calculatePNN50, calculateMeanHR } from '@/utils/hrv';
+
+import Header from '@/components/ui/Header';
 import LoginModal from '@/components/auth/LoginModal';
-import HrvApp from '@/components/HrvApp';
-import { AuthProvider, useAuthContext } from '@/contexts/AuthContext';
+import UserOnboardingModal from '@/components/UserOnboardingModal';
+import AuthCallback from '@/components/auth/AuthCallback';
+import Toast from '@/components/ui/Toast';
+import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 
-function HomeContent() {
-  const { user, showLoginModal, loading, setShowLoginModal, handleLoginSuccess } = useAuthContext();
-  const { addToast } = useToast();
-  const [darkMode] = [false]; // We'll add dark mode toggle later
+const AppContent = () => {
+    const [darkMode, setDarkMode] = useState(false);
+    
+    const { 
+        user, 
+        userProfile,
+        showLoginModal, 
+        showOnboardingModal,
+        handleLoginSuccess, 
+        handleLogout, 
+        handleOnboardingComplete,
+        handleOnboardingSkip,
+        setShowLoginModal 
+    } = useAuthContext();
+    
+    const { addToast } = useToast();
+    
+    // authToken is no longer needed here
+    const {
+        sessionActive,
+        setSessionActive,
+        elapsedTime,
+        rrIntervals,
+        setRrIntervals,
+        sessionSummary,
+        setSessionSummary,
+        endSession,
+        resetSession,
+        demoDataGenerator
+    } = useHrvSession(user, addToast); // Pass user and addToast
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
+    // Create a ref to hold the latest session data for callbacks
+    const latestSessionData = useRef({});
+    useEffect(() => {
+        latestSessionData.current = { elapsedTime, rrIntervals, sessionActive };
+    }, [elapsedTime, rrIntervals, sessionActive]);
+
+    const {
+        isConnected,
+        statusMessage,
+        setStatusMessage,
+        startRealSession,
+        disconnectDevice,
+    } = useBluetooth(
+        setSessionActive, 
+        setRrIntervals, 
+        (hr) => setHr(hr), 
+        endSession, 
+        addToast,
+        latestSessionData // Pass the ref to the hook
     );
-  }
 
-  // Show login modal if user is not authenticated
-  if (showLoginModal) {
+    const [hr, setHr] = useState<number | null>(null);
+
+    const liveHrvMetrics = useMemo(() => {
+        const latestRR = rrIntervals.slice(-128);
+        return {
+            rmssd: calculateRMSSD(latestRR),
+            sdnn: calculateSDNN(latestRR),
+            pnn50: calculatePNN50(latestRR),
+            meanHR: calculateMeanHR(latestRR),
+        };
+    }, [rrIntervals]);
+
+    const startDemoSession = () => {
+        setSessionActive(true);
+        setStatusMessage('Demo session running...');
+
+        demoDataGenerator.current = setInterval(() => {
+            const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
+            const baseRr = 60000 / baseHr;
+            const newRr = baseRr + (Math.random() - 0.5) * 80;
+            
+            setHr(Math.round(60000 / newRr));
+            setRrIntervals(prev => [...prev, newRr]);
+        }, 900);
+    };
+
+    const resetApp = () => {
+        disconnectDevice();
+        resetSession();
+        setHr(null);
+        setStatusMessage('Click "Start Session" to begin.');
+    };
+    
+    const handleViewReport = () => {
+        window.location.href = '/reports';
+    };
+
+    useEffect(() => {
+        document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
+    }, [darkMode]);
+
+    if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
+        return <AuthCallback onAuthComplete={handleLoginSuccess} />;
+    }
+
     return (
-      <div className="min-h-screen bg-gray-100">
-        <LoginModal 
-          darkMode={darkMode} 
-          onClose={() => setShowLoginModal(false)} 
-          onLoginSuccess={handleLoginSuccess} 
-        />
-      </div>
-    );
-  }
+        <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
+            {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
+            {showOnboardingModal && user && (
+                <UserOnboardingModal 
+                    darkMode={darkMode} 
+                    user={user}
+                    onComplete={handleOnboardingComplete}
+                    onClose={handleOnboardingSkip}
+                />
+            )}
+            
+            <Header 
+                user={user} 
+                handleLogout={handleLogout} 
+                handleViewReport={handleViewReport}
+                toggleDarkMode={() => setDarkMode(!darkMode)} 
+                darkMode={darkMode} 
+            />
+            
+            {/* Simple HomePage without charts for now */}
+            <main className="container mx-auto p-4 md:p-8">
+                <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-4 h-4 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                            <p className="text-sm text-center sm:text-left">{statusMessage}</p>
+                        </div>
+                        {!sessionActive ? (
+                            <div className="flex gap-2">
+                                <button onClick={startRealSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                    Start Session
+                                </button>
+                                <button onClick={startDemoSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                    Start Demo
+                                </button>
+                            </div>
+                        ) : (
+                            <button onClick={() => endSession(elapsedTime, rrIntervals)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+                                End Session
+                            </button>
+                        )}
+                    </div>
+                </div>
 
-  // Show the full HRV app once authenticated
-  return <HrvApp addToast={addToast} />;
-}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <h3 className="text-sm font-medium opacity-75">Live HR</h3>
+                        <p className="text-2xl font-bold">{hr || '--'} <span className="text-sm font-normal">BPM</span></p>
+                    </div>
+                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <h3 className="text-sm font-medium opacity-75">Live RMSSD</h3>
+                        <p className="text-2xl font-bold">{liveHrvMetrics.rmssd?.toFixed(1) || '--'} <span className="text-sm font-normal">ms</span></p>
+                    </div>
+                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <h3 className="text-sm font-medium opacity-75">Live SDNN</h3>
+                        <p className="text-2xl font-bold">{liveHrvMetrics.sdnn?.toFixed(1) || '--'} <span className="text-sm font-normal">ms</span></p>
+                    </div>
+                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        <h3 className="text-sm font-medium opacity-75">Live pNN50</h3>
+                        <p className="text-2xl font-bold">{liveHrvMetrics.pnn50?.toFixed(1) || '--'} <span className="text-sm font-normal">%</span></p>
+                    </div>
+                </div>
+
+                <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <h2 className="text-xl font-semibold mb-4">Live RR Intervals (Total: {rrIntervals.length})</h2>
+                    <div className="flex items-center justify-center h-[300px]">
+                        <p className="text-gray-500">{sessionActive ? "Chart will be added later..." : "Start a session to see the chart."}</p>
+                    </div>
+                </div>
+
+                <footer className="text-center mt-8 text-xs text-gray-500">
+                    <p>Ensure you are on a secure context (HTTPS or localhost) for Web Bluetooth to work.</p>
+                    <p>This app is for informational purposes only and is not a medical device.</p>
+                </footer>
+            </main>
+        </div>
+    );
+};
 
 export default function Home() {
-  const { toasts, addToast, removeToast } = useToast();
+    const { toasts, addToast, removeToast } = useToast();
 
-  return (
-    <AuthProvider addToast={addToast}>
-      {toasts.map(toast => (
-        <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />
-      ))}
-      <HomeContent />
-    </AuthProvider>
-  );
+    return (
+        <AuthProvider addToast={addToast}>
+            {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
+            <AppContent />
+        </AuthProvider>
+    );
 }
