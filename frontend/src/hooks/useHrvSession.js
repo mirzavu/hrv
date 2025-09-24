@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { databases, AppwriteID, account } from '../appwrite';
+import { Query } from 'appwrite';
 import {
     calculateRMSSD,
     calculateSDNN,
@@ -12,8 +13,8 @@ import {
 } from '../utils/hrv';
 
 // Appwrite Database and Collection IDs - YOU MUST CREATE THESE IN THE APPWRITE CONSOLE
-const DATABASE_ID = '68d348f300270390c151';
-const COLLECTION_ID = '68d348f3002b05c37274';
+const DATABASE_ID = '68d3feeb0010a759c201';
+const COLLECTION_ID = '68d3feeb0014bf0c49a4';
 
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES = [
@@ -71,6 +72,21 @@ export const useHrvSession = (user, addToast) => {
 
         if (user && user.$id !== 'guest') {
             try {
+                // First, find the user in the users collection
+                const USERS_COLLECTION_ID = '68d3feeb001653eb83a6';
+                const existingUsers = await databases.listDocuments(
+                    DATABASE_ID,
+                    USERS_COLLECTION_ID,
+                    [Query.equal('authUserId', user.$id)]
+                );
+
+                if (existingUsers.documents.length === 0) {
+                    addToast('Error: User not found in database. Please try logging out and back in.');
+                    return;
+                }
+
+                const userDoc = existingUsers.documents[0];
+
                 // Use Appwrite SDK to create the document
                 await databases.createDocument(
                     DATABASE_ID,
@@ -78,7 +94,7 @@ export const useHrvSession = (user, addToast) => {
                     AppwriteID.unique(), // Let Appwrite generate a unique ID
                     {
                         ...sessionDataToSave,
-                        user: user.$id // Link to the user
+                        user: userDoc.$id // Link to the user document via relation
                     }
                 );
                 addToast('Session saved successfully!');
