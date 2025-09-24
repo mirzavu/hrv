@@ -7,6 +7,7 @@ import { calculateRMSSD, calculateSDNN, calculatePNN50, calculateMeanHR } from '
 import Header from './components/ui/Header';
 import HomePage from './pages/HomePage';
 import LoginModal from './components/LoginModal';
+import UserOnboardingModal from './components/UserOnboardingModal';
 import AuthCallback from './components/AuthCallback';
 import Toast from './components/ui/Toast';
 
@@ -23,7 +24,17 @@ const App = () => {
         setToasts(prev => prev.filter(toast => toast.id !== id));
     }, []);
 
-    const { user, showLoginModal, handleLoginSuccess, handleLogout, setShowLoginModal } = useAuth(addToast);
+    const { 
+        user, 
+        userProfile,
+        showLoginModal, 
+        showOnboardingModal,
+        handleLoginSuccess, 
+        handleLogout, 
+        handleOnboardingComplete,
+        handleOnboardingSkip,
+        setShowLoginModal 
+    } = useAuth(addToast);
     
     // authToken is no longer needed here
     const {
@@ -109,6 +120,14 @@ const App = () => {
         <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
             {toasts.map(toast => <Toast key={toast.id} message={toast.message} onDismiss={() => removeToast(toast.id)} />)}
             {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
+            {showOnboardingModal && user && (
+                <UserOnboardingModal 
+                    darkMode={darkMode} 
+                    user={user}
+                    onComplete={handleOnboardingComplete}
+                    onClose={handleOnboardingSkip}
+                />
+            )}
             
             <Header 
                 user={user} 

@@ -11,9 +11,11 @@ const USERS_COLLECTION_ID = '68d3feeb001653eb83a6';
 
 export const useAuth = (addToast) => {
     const [user, setUser] = useState(null);
+    const [userProfile, setUserProfile] = useState(null);
     const [showLoginModal, setShowLoginModal] = useState(false);
+    const [showOnboardingModal, setShowOnboardingModal] = useState(false);
 
-    // Function to sync user from auth system to users collection
+    // Function to sync user from auth system to users collection and get profile
     const syncUserToDatabase = useCallback(async (authUser) => {
         try {
             // First, check if user already exists in the users collection
@@ -23,9 +25,10 @@ export const useAuth = (addToast) => {
                 [Query.equal('authUserId', authUser.$id)]
             );
 
+            let userDoc;
             if (existingUsers.documents.length === 0) {
                 // User doesn't exist in users collection, create them
-                await databases.createDocument(
+                userDoc = await databases.createDocument(
                     DATABASE_ID,
                     USERS_COLLECTION_ID,
                     AppwriteID.unique(),
@@ -35,12 +38,13 @@ export const useAuth = (addToast) => {
                         email: authUser.email || '',
                         createdAt: new Date().toISOString(),
                         lastLoginAt: new Date().toISOString(),
+                        profileCompleted: false,
                     }
                 );
                 console.log('User synced to database');
             } else {
                 // User exists, update last login time
-                await databases.updateDocument(
+                userDoc = await databases.updateDocument(
                     DATABASE_ID,
                     USERS_COLLECTION_ID,
                     existingUsers.documents[0].$id,
@@ -50,9 +54,20 @@ export const useAuth = (addToast) => {
                 );
                 console.log('User last login updated');
             }
+
+            // Set user profile data
+            setUserProfile(userDoc);
+
+            // Check if user needs onboarding
+            if (!userDoc.profileCompleted && authUser.$id !== 'guest') {
+                setShowOnboardingModal(true);
+            }
+
+            return userDoc;
         } catch (error) {
             console.error('Error syncing user to database:', error);
             // Don't throw error - user can still use the app even if sync fails
+            return null;
         }
     }, []);
 
@@ -101,6 +116,8 @@ export const useAuth = (addToast) => {
         try {
             await account.deleteSession('current');
             setUser(null);
+            setUserProfile(null);
+            setShowOnboardingModal(false);
             addToast('Logged out successfully');
         } catch (error) {
             console.error('Logout failed:', error);
@@ -125,5 +142,30 @@ export const useAuth = (addToast) => {
         }
     }, [addToast, loadUser, syncUserToDatabase]);
 
-    return { user, showLoginModal, handleLoginSuccess, handleLogout, setShowLoginModal };
+    // Handle onboarding completion
+    const handleOnboardingComplete = useCallback((profileData) => {
+        setShowOnboardingModal(false);
+        addToast('Profile setup completed successfully!');
+        // Refresh user profile data
+        if (user) {
+            syncUserToDatabase(user);
+        }
+    }, [addToast, user, syncUserToDatabase]);
+
+    const handleOnboardingSkip = useCallback(() => {
+        setShowOnboardingModal(false);
+        addToast('You can complete your profile later in settings');
+    }, [addToast]);
+
+    return { 
+        user, 
+        userProfile,
+        showLoginModal, 
+        showOnboardingModal,
+        handleLoginSuccess, 
+        handleLogout, 
+        handleOnboardingComplete,
+        handleOnboardingSkip,
+        setShowLoginModal 
+    };
 };
