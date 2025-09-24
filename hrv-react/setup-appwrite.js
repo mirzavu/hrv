@@ -3,13 +3,18 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Load environment variables from the backend's .env file
-dotenv.config({ path: path.resolve(process.cwd(), 'backend', '.env.development') });
+dotenv.config({ path: path.resolve(process.cwd(), '..', '..', 'backend', '.env.development') });
 
-const { APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, APPWRITE_API_KEY } = process.env;
+// Use default values if environment variables are not set
+const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT || 'http://localhost/v1';
+const APPWRITE_PROJECT_ID = process.env.APPWRITE_PROJECT_ID || 'hrv-app';
+const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY;
 
-if (!APPWRITE_ENDPOINT || !APPWRITE_PROJECT_ID || !APPWRITE_API_KEY) {
-    console.error("Error: Missing required environment variables in backend/.env.development");
-    console.error("Please ensure APPWRITE_ENDPOINT, APPWRITE_PROJECT_ID, and APPWRITE_API_KEY are set.");
+if (!APPWRITE_API_KEY) {
+    console.error("Error: Missing APPWRITE_API_KEY environment variable");
+    console.error("Please set APPWRITE_API_KEY in backend/.env.development or as an environment variable");
+    console.error("You can get the API key from the Appwrite console at http://localhost/console");
+    console.error("Go to Settings > API Keys and create a new API key");
     process.exit(1);
 }
 
@@ -20,8 +25,9 @@ const client = new Client()
 
 const databases = new Databases(client);
 
-const DATABASE_NAME = 'HRV Data';
-const COLLECTION_NAME = 'hrv_sessions';
+        const DATABASE_NAME = 'HRV Data';
+        const COLLECTION_NAME = 'hrv_sessions';
+        const USERS_COLLECTION_NAME = 'users';
 
 async function setup() {
     try {
@@ -67,6 +73,27 @@ async function setup() {
         }
         const COLLECTION_ID = collection.$id;
 
+        // 2.5. Create Users Collection (if it doesn't exist)
+        let usersCollection;
+        try {
+            usersCollection = await databases.createCollection(DATABASE_ID, ID.unique(), USERS_COLLECTION_NAME, [
+                Permission.read(Role.users()),
+                Permission.create(Role.users()),
+                Permission.update(Role.users()),
+                Permission.delete(Role.users()),
+            ]);
+            console.log(`✅ Users collection '${USERS_COLLECTION_NAME}' created successfully.`);
+        } catch (e) {
+            if (e.code === 409) {
+                console.log(`- Users collection '${USERS_COLLECTION_NAME}' already exists.`);
+                const colList = await databases.listCollections(DATABASE_ID);
+                usersCollection = colList.collections.find(col => col.name === USERS_COLLECTION_NAME);
+                if (!usersCollection) throw new Error(`Could not find users collection named ${USERS_COLLECTION_NAME}`);
+            } else {
+                throw e;
+            }
+        }
+        const USERS_COLLECTION_ID = usersCollection.$id;
 
         console.log("\n✨ Your IDs are:");
         console.log("------------------------------------");
@@ -76,10 +103,41 @@ async function setup() {
         console.log("ACTION: Copy these IDs into hrv-clean/frontend/src/hooks/useHrvSession.js\n");
 
 
-        // 3. Create Attributes
-        console.log("- Checking and creating attributes...");
+        // 3. Create Attributes for Users Collection
+        console.log("- Checking and creating users collection attributes...");
 
-        const attributes = [
+        const usersAttributes = [
+            { key: 'authUserId', type: 'string', required: true, size: 50 }, // Link to Appwrite auth user ID
+            { key: 'name', type: 'string', required: false, size: 100 },
+            { key: 'email', type: 'string', required: true, size: 255 },
+            { key: 'createdAt', type: 'datetime', required: true },
+            { key: 'lastLoginAt', type: 'datetime', required: false },
+        ];
+
+        for (const attr of usersAttributes) {
+            try {
+                switch (attr.type) {
+                    case 'string':
+                        await databases.createStringAttribute(DATABASE_ID, USERS_COLLECTION_ID, attr.key, attr.size, attr.required);
+                        break;
+                    case 'datetime':
+                        await databases.createDatetimeAttribute(DATABASE_ID, USERS_COLLECTION_ID, attr.key, attr.required);
+                        break;
+                }
+                console.log(`  ✅ Users attribute '${attr.key}' created.`);
+            } catch (e) {
+                if (e.code === 409) {
+                    console.log(`  - Users attribute '${attr.key}' already exists. Skipping.`);
+                } else {
+                    console.error(`  ❌ Failed to create users attribute '${attr.key}':`, e.message);
+                }
+            }
+        }
+
+        // 4. Create Attributes for HRV Sessions Collection
+        console.log("- Checking and creating HRV sessions collection attributes...");
+
+        const sessionAttributes = [
             { key: 'sessionType', type: 'string', required: true, size: 50 },
             { key: 'date', type: 'datetime', required: true },
             { key: 'duration', type: 'float', required: true },
@@ -93,10 +151,10 @@ async function setup() {
             { key: 'cv', type: 'float', required: false },
             { key: 'mo', type: 'float', required: false },
             { key: 'amo50', type: 'float', required: false },
-            { key: 'user', type: 'string', required: true, size: 50 },
+            { key: 'user', type: 'relation', required: true },
         ];
 
-        for (const attr of attributes) {
+        for (const attr of sessionAttributes) {
             try {
                 switch (attr.type) {
                     case 'string':
@@ -110,6 +168,10 @@ async function setup() {
                         break;
                     case 'integer':
                         await databases.createIntegerAttribute(DATABASE_ID, COLLECTION_ID, attr.key, attr.required);
+                        break;
+                    case 'relation':
+                        // Create a relation to the users collection
+                        await databases.createRelationshipAttribute(DATABASE_ID, COLLECTION_ID, USERS_COLLECTION_ID, 'manyToOne', false, attr.key, null, 'cascade');
                         break;
                 }
                 console.log(`  ✅ Attribute '${attr.key}' created.`);
