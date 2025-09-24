@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useAuthContext } from '@/contexts/AuthContext';
+import { AuthProvider, useAuthContext } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/useToast';
 import MetricCard from '@/components/ui/MetricCard';
 
 interface Session {
@@ -16,7 +17,7 @@ interface Session {
   pnn50: number;
 }
 
-export default function ReportsPage() {
+function ReportsContent() {
   const { user } = useAuthContext();
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,5 +222,15 @@ export default function ReportsPage() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function ReportsPage() {
+  const { addToast } = useToast();
+
+  return (
+    <AuthProvider addToast={addToast}>
+      <ReportsContent />
+    </AuthProvider>
   );
 }
