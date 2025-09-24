@@ -12,8 +12,8 @@ import {
 } from '../utils/hrv';
 
 // Appwrite Database and Collection IDs - YOU MUST CREATE THESE IN THE APPWRITE CONSOLE
-const DATABASE_ID = '68d28bbd0032721a9e99';
-const COLLECTION_ID = '68d28bbd0036c3c7bbfa';
+const DATABASE_ID = '68d348f300270390c151';
+const COLLECTION_ID = '68d348f3002b05c37274';
 
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES = [
