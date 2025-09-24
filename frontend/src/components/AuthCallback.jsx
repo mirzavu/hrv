@@ -11,8 +11,17 @@ const AuthCallback = ({ onAuthComplete }) => {
         const user = await account.get();
         
         console.log("Successfully authenticated with Appwrite:", user);
+        
+        // Store user data temporarily to avoid re-fetching after redirect
+        localStorage.setItem('temp_auth_user', JSON.stringify(user));
+        
+        // Pass user data to the auth handler and redirect
         onAuthComplete(user);
-        window.location.href = '/'; // Redirect to home
+        
+        // Use a small delay to ensure the auth state is updated before redirect
+        setTimeout(() => {
+          window.location.href = '/';
+        }, 100);
 
       } catch (err) {
         console.error('Auth callback error:', err);
