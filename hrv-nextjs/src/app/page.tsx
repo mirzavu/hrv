@@ -11,6 +11,8 @@ import LoginModal from '@/components/auth/LoginModal';
 import UserOnboardingModal from '@/components/UserOnboardingModal';
 import AuthCallback from '@/components/auth/AuthCallback';
 import Toast from '@/components/ui/Toast';
+import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
+import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 
@@ -98,6 +100,13 @@ const AppContent = () => {
         setHr(null);
         setStatusMessage('Click "Start Session" to begin.');
     };
+
+    // Reset status message when session ends
+    useEffect(() => {
+        if (!sessionActive && statusMessage === 'Demo session running...') {
+            setStatusMessage('Click "Start Session" to begin.');
+        }
+    }, [sessionActive, statusMessage, setStatusMessage]);
     
     const handleViewReport = () => {
         window.location.href = '/reports';
@@ -133,6 +142,16 @@ const AppContent = () => {
             
             {/* Simple HomePage without charts for now */}
             <main className="container mx-auto p-4 md:p-8">
+                {sessionSummary && (
+                    <SessionSummaryModal
+                        summary={sessionSummary}
+                        darkMode={darkMode}
+                        onReset={resetApp}
+                        isGuest={user?.$id === 'guest'}
+                        onGuestLogin={() => setShowLoginModal(true)}
+                        onClose={() => setSessionSummary(null)}
+                    />
+                )}
                 <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
@@ -154,6 +173,12 @@ const AppContent = () => {
                             </button>
                         )}
                     </div>
+                    {sessionActive && (
+                        <MilestoneProgressBar 
+                            elapsedTime={elapsedTime} 
+                            darkMode={darkMode}
+                        />
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
