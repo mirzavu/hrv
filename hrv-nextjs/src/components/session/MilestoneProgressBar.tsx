@@ -17,30 +17,85 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
   const totalDuration = SESSION_MILESTONES[SESSION_MILESTONES.length - 1].value;
 
   return (
-    <div className="mt-4 pt-4 flex flex-col items-center">
-      <div className="w-full px-2">
-        <div className="relative h-2.5 w-full">
-          {/* Background track */}
-          <div className={`absolute top-1/2 -translate-y-1/2 h-1 w-full rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-300'}`}></div>
-          {/* Progress fill */}
-          <div className="absolute top-1/2 -translate-y-1/2 h-1 rounded-full bg-blue-600" style={{ width: `${(elapsedTime / totalDuration) * 100}%`, transition: 'width 1s linear' }}></div>
+    <div className="mt-6 pt-6 flex flex-col items-center">
+      <div className="w-full px-4">
+        <div className="relative h-3 w-full">
+          {/* Background track with gradient */}
+          <div className={`absolute top-1/2 -translate-y-1/2 h-2 w-full rounded-full ${
+            darkMode 
+              ? 'bg-gradient-to-r from-gray-800 to-gray-700 shadow-inner' 
+              : 'bg-gradient-to-r from-gray-200 to-gray-300 shadow-inner'
+          }`}></div>
+          
+          {/* Progress fill with custom blue gradient */}
+          <div 
+            className="absolute top-1/2 -translate-y-1/2 h-2 rounded-full"
+            style={{ 
+              width: `${Math.min((elapsedTime / totalDuration) * 100, 100)}%`, 
+              transition: 'width 0.8s cubic-bezier(0.4, 0, 0.2, 1)',
+              background: 'linear-gradient(to right, #1469a5, #2e93db)'
+            }}
+          ></div>
           
           {/* Milestone points and labels container */}
           <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between">
             {displayMilestones.map((milestone, index) => {
-              const isReached = elapsedTime >= milestone.value;
+              // Calculate the progress percentage for this milestone
+              const milestoneProgress = (milestone.value / totalDuration) * 100;
+              const currentProgress = Math.min((elapsedTime / totalDuration) * 100, 100);
+              
+              // Only mark as reached when progress bar has visually reached this point
+              const isReached = currentProgress >= milestoneProgress;
+              const isActive = currentProgress >= milestoneProgress - 2 && currentProgress < milestoneProgress && !isReached;
+              
               return (
                 <div key={milestone.label} className="relative flex flex-col items-center">
-                  {/* Circle */}
-                  <div className={`w-5 h-5 rounded-full flex items-center justify-center transition-all duration-500 ${isReached ? 'bg-green-500' : (darkMode ? 'bg-gray-500' : 'bg-gray-300')}`}>
-                    {isReached && <span className="text-white text-xs font-bold">✓</span>}
+                  {/* Circle with custom blue design */}
+                  <div 
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-700 transform ${
+                      !isReached && !isActive
+                        ? darkMode 
+                          ? 'bg-gray-600 hover:bg-gray-500' 
+                          : 'bg-gray-400 hover:bg-gray-500'
+                        : ''
+                    }`}
+                    style={{
+                      background: isReached 
+                        ? 'linear-gradient(to right, #1e40af, #1469a5)' // Darker blue for completed
+                        : isActive
+                        ? 'linear-gradient(to right, #2e93db, #60a5fa)' // Lighter blue for active
+                        : undefined
+                    }}
+                  >
+                    {isReached ? (
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white animate-ping' : 'bg-white/60'}`}></div>
+                    )}
                   </div>
-                  {/* Label */}
-                  <span className={`absolute top-6 text-xs whitespace-nowrap ${darkMode ? 'text-gray-400' : 'text-gray-600'}
-                    ${index === 0 ? 'left-0' : ''}
-                    ${index === displayMilestones.length - 1 ? 'right-0' : ''}
-                    ${index > 0 && index < displayMilestones.length - 1 ? 'left-1/2 -translate-x-1/2' : ''}
-                  `}>
+                  
+                  {/* Label with better typography */}
+                  <span 
+                    className={`absolute top-8 text-xs font-medium whitespace-nowrap transition-all duration-300 ${
+                      !isReached && !isActive
+                        ? darkMode 
+                          ? 'text-gray-400' 
+                          : 'text-gray-600'
+                        : 'font-semibold'
+                    } ${index === 0 ? 'left-0' : ''}
+                      ${index === displayMilestones.length - 1 ? 'right-0' : ''}
+                      ${index > 0 && index < displayMilestones.length - 1 ? 'left-1/2 -translate-x-1/2' : ''}
+                    `}
+                    style={{
+                      color: isReached 
+                        ? '#1469a5' // Custom blue for completed
+                        : isActive
+                        ? '#2e93db' // Custom blue for active
+                        : undefined
+                    }}
+                  >
                     {milestone.label}
                   </span>
                 </div>
@@ -49,7 +104,16 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
           </div>
         </div>
       </div>
-      <p className="text-center text-sm mt-8 font-mono">{Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')} / {totalDuration / 60}:00</p>
+      
+      {/* Modern timer display */}
+      <div className="mt-10 flex justify-center">
+        <div className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-800/50 backdrop-blur-sm' : 'bg-white/50 backdrop-blur-sm'} shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+          <p className="text-center font-mono text-lg font-semibold">
+            <span className="text-2xl">{Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}</span>
+            <span className="text-sm opacity-60 ml-2">/ {totalDuration / 60}:00</span>
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
