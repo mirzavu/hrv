@@ -4,7 +4,14 @@ export interface User {
   $id: string;
   name: string;
   email: string;
-  [key: string]: any;
+  prefs?: Record<string, unknown>;
+  registration?: string;
+  status?: boolean;
+  labels?: string[];
+  passwordUpdate?: string;
+  emailVerification?: boolean;
+  phoneVerification?: boolean;
+  mfa?: boolean;
 }
 
 export interface UserProfile {
@@ -12,10 +19,16 @@ export interface UserProfile {
   authUserId: string;
   name: string;
   email: string;
+  age?: number;
+  gender?: string;
+  weight?: number;
+  height?: number;
+  purpose?: string;
   profileCompleted: boolean;
   createdAt: string;
   lastLoginAt: string;
-  [key: string]: any;
+  onboardingCompletedAt?: string;
+  updatedAt?: string;
 }
 
 export interface HRVMetric {
@@ -53,6 +66,32 @@ export interface BluetoothDevice {
   name: string;
   connected: boolean;
 }
+
+export interface HrvSession {
+  $id: string;
+  sessionType: string;
+  date: string;
+  duration: number;
+  totalBeats: number;
+  meanHR: number;
+  meanRR: number;
+  rmssd: number;
+  sdnn: number;
+  pnn50: number;
+  mxdmn: number;
+  cv: number;
+  mo: number;
+  amo50: number;
+  user: string;
+  createdAt: string;
+}
+
+export interface RrInterval {
+  timestamp: number;
+  interval: number;
+}
+
+export type HrvSummary = SessionSummary;
 
 // Database IDs (from your existing setup)
 export const DATABASE_ID = '68d3feeb0010a759c201';

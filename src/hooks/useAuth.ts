@@ -83,7 +83,7 @@ export const useAuth = (addToast: (message: string) => void) => {
         await syncUserToDatabase(userData);
         setLoading(false);
         return;
-      } catch (e) {
+      } catch (_e) {
         console.log("Failed to parse temporary user data, proceeding with normal flow");
         localStorage.removeItem('temp_auth_user');
       }
@@ -96,13 +96,13 @@ export const useAuth = (addToast: (message: string) => void) => {
       
       // Sync user to database
       await syncUserToDatabase(currentUser);
-    } catch (error: any) {
+      } catch (error: unknown) {
       // Only show "no session" message for 401 errors (not logged in)
       // Avoid showing for other errors like network issues
-      if (error.code === 401) {
+      if (error && typeof error === 'object' && 'code' in error && error.code === 401) {
         console.log("No active session - user not logged in.");
       } else {
-        console.log("Session check failed:", error.message);
+        console.log("Session check failed:", error instanceof Error ? error.message : 'Unknown error');
       }
       setUser(null);
       setShowLoginModal(true);
@@ -146,7 +146,7 @@ export const useAuth = (addToast: (message: string) => void) => {
   }, [addToast, loadUser, syncUserToDatabase]);
 
   // Handle onboarding completion
-  const handleOnboardingComplete = useCallback((profileData: any) => {
+  const handleOnboardingComplete = useCallback((_profileData: Record<string, unknown>) => {
     setShowOnboardingModal(false);
     addToast('Profile setup completed successfully!');
     // Refresh user profile data

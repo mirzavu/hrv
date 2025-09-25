@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { AuthProvider, useAuthContext } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import MetricCard from '@/components/ui/MetricCard';
@@ -38,8 +39,8 @@ function ReportsContent() {
         
         const data = await response.json();
         setSessions(data.sessions || []);
-      } catch (err: any) {
-        setError(err.message);
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
       } finally {
         setLoading(false);
       }
@@ -78,7 +79,7 @@ function ReportsContent() {
               <p className="text-yellow-700 mb-4">
                 Reports are only available for registered users. Guest sessions are stored locally.
               </p>
-              <a href="/" className="text-blue-500 hover:underline">Go back to home</a>
+              <Link href="/" className="text-blue-500 hover:underline">Go back to home</Link>
             </div>
           </div>
         </div>
@@ -117,9 +118,9 @@ function ReportsContent() {
           <p className="text-lg text-gray-600">
             Your HRV session history and analytics
           </p>
-          <a href="/" className="text-blue-500 hover:underline mt-2 inline-block">
+          <Link href="/" className="text-blue-500 hover:underline mt-2 inline-block">
             ← Back to HRV Monitor
-          </a>
+          </Link>
         </header>
 
         {error && (
@@ -133,14 +134,14 @@ function ReportsContent() {
             <div className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto">
               <h2 className="text-xl font-semibold mb-4">No Sessions Yet</h2>
               <p className="text-gray-600 mb-4">
-                You haven't recorded any HRV sessions yet. Start your first session to see reports here.
+                You haven&apos;t recorded any HRV sessions yet. Start your first session to see reports here.
               </p>
-              <a 
+              <Link 
                 href="/" 
                 className="inline-block px-6 py-3 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
               >
                 Start First Session
-              </a>
+              </Link>
             </div>
           </div>
         ) : (

@@ -47,10 +47,10 @@ export async function GET(request: NextRequest) {
       offset
     });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching sessions:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch sessions', details: error.message },
+      { error: 'Failed to fetch sessions', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -93,10 +93,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ session }, { status: 201 });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating session:', error);
     return NextResponse.json(
-      { error: 'Failed to create session', details: error.message },
+      { error: 'Failed to create session', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

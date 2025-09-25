@@ -26,10 +26,10 @@ export async function GET(request: NextRequest) {
     const userProfile = userDocs.documents[0];
     return NextResponse.json({ profile: userProfile });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching user profile:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch user profile', details: error.message },
+      { error: 'Failed to fetch user profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
@@ -68,10 +68,10 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ profile: updatedProfile });
 
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating user profile:', error);
     return NextResponse.json(
-      { error: 'Failed to update user profile', details: error.message },
+      { error: 'Failed to update user profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }

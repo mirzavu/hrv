@@ -2,11 +2,12 @@
 
 import React, { useState } from 'react';
 import { account } from '@/lib/appwrite';
+import { User } from '@/types';
 
 interface LoginModalProps {
   darkMode: boolean;
   onClose: () => void;
-  onLoginSuccess: (user?: any) => void;
+  onLoginSuccess: (user?: User) => void;
 }
 
 const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSuccess }) => {
@@ -23,9 +24,9 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
         `${window.location.origin}/auth/callback`, // success URL
         `${window.location.origin}/?error=true`  // failure URL
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('[FRONTEND ERROR] Google login initiation failed:', err);
-      setError(err.message || 'Login initiation failed');
+      setError(err instanceof Error ? err.message : 'Login initiation failed');
       setLoading(false);
     }
   };

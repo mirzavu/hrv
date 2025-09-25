@@ -42,13 +42,12 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
     latestSessionData.current = { elapsedTime, rrIntervals, sessionActive };
   }, [elapsedTime, rrIntervals, sessionActive]);
 
-  const {
-    isConnected,
-    statusMessage,
-    setStatusMessage,
-    startRealSession,
-    disconnectDevice,
-  } = useBluetooth(
+    const {
+        statusMessage,
+        setStatusMessage,
+        startRealSession,
+        disconnectDevice,
+    } = useBluetooth(
     setSessionActive, 
     setRrIntervals, 
     setHr, 

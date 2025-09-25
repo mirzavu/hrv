@@ -114,9 +114,9 @@ const UserOnboardingModal: React.FC<UserOnboardingModalProps> = ({ darkMode, use
 
       console.log('User profile updated successfully');
       onComplete(formData);
-    } catch (err: any) {
+      } catch (err: unknown) {
       console.error('Error updating user profile:', err);
-      setError(err.message || 'Failed to save profile. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to save profile. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -265,7 +265,7 @@ const UserOnboardingModal: React.FC<UserOnboardingModalProps> = ({ darkMode, use
 
           {step === 2 && (
             <div className="space-y-4">
-              <h3 className="text-lg font-semibold mb-4">What's your primary purpose?</h3>
+              <h3 className="text-lg font-semibold mb-4">What&apos;s your primary purpose?</h3>
               <p className={`text-sm mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                 This helps us customize your experience and provide relevant insights.
               </p>

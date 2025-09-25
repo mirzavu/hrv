@@ -90,18 +90,18 @@ export const useBluetooth = (
       setSessionActive(true);
       setStatusMessage(`Connected to ${btDevice.name}. Session running...`);
       addToast(`Successfully connected to ${btDevice.name}`);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Connection failed:', error);
       let errorMessage = 'Connection failed';
       
-      if (error.name === 'NotFoundError') {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'NotFoundError') {
         errorMessage = 'No compatible heart rate device found';
-      } else if (error.name === 'SecurityError') {
+      } else if (error && typeof error === 'object' && 'name' in error && error.name === 'SecurityError') {
         errorMessage = 'Bluetooth access denied';
-      } else if (error.name === 'NetworkError') {
+      } else if (error && typeof error === 'object' && 'name' in error && error.name === 'NetworkError') {
         errorMessage = 'Connection lost during pairing';
       } else {
-        errorMessage = error.message || 'Unknown connection error';
+        errorMessage = error instanceof Error ? error.message : 'Unknown connection error';
       }
       
       setStatusMessage(`Error: ${errorMessage}`);

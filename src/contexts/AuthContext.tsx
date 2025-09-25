@@ -12,7 +12,7 @@ interface AuthContextType {
   loading: boolean;
   handleLoginSuccess: (userFromCallback?: User | null) => Promise<void>;
   handleLogout: () => Promise<void>;
-  handleOnboardingComplete: (profileData: any) => void;
+  handleOnboardingComplete: (profileData: Record<string, unknown>) => void;
   handleOnboardingSkip: () => void;
   setShowLoginModal: (show: boolean) => void;
 }
