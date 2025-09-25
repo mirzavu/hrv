@@ -1,0 +1,35 @@
+{
+  "name": "hrv-analysis-app",
+  "version": "1.0.0",
+  "description": "HRV Analysis and Tracking App with Polar H10 support",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:frontend\" \"npm run dev:backend\"",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev:backend": "cd backend && npm run dev",
+    "build": "npm run build:frontend && npm run build:backend",
+    "build:frontend": "cd frontend && npm run build",
+    "build:backend": "cd backend && npm run build",
+    "install:all": "npm install && cd frontend && npm install && cd ../backend && npm install",
+    "migrate": "cd appwrite/migrations && node run-migrations.js"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "dotenv": "^17.2.2",
+    "node-appwrite": "^13.0.0"
+  },
+  "keywords": [
+    "hrv",
+    "heart-rate-variability",
+    "polar-h10",
+    "bluetooth",
+    "health-tracking"
+  ],
+  "author": "HRV App Team",
+  "license": "MIT"
+}
