@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
@@ -11,6 +11,7 @@ import LoginModal from '@/components/auth/LoginModal';
 import UserOnboardingModal from '@/components/UserOnboardingModal';
 import AuthCallback from '@/components/auth/AuthCallback';
 import Toast from '@/components/ui/Toast';
+import MetricCard from '@/components/ui/MetricCard';
 import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -21,7 +22,6 @@ const AppContent = () => {
     
     const { 
         user, 
-        userProfile,
         showLoginModal, 
         showOnboardingModal,
         handleLoginSuccess, 
@@ -81,6 +81,15 @@ const AppContent = () => {
     }, [rrIntervals]);
 
     const startDemoSession = () => {
+        // Clear any existing intervals first
+        if (demoDataGenerator.current) {
+            clearInterval(demoDataGenerator.current);
+        }
+        
+        // Reset session data
+        resetSession();
+        setHr(null);
+        
         setSessionActive(true);
         setStatusMessage('Demo session running...');
 
@@ -95,6 +104,11 @@ const AppContent = () => {
     };
 
     const resetApp = () => {
+        // Clear demo data generator
+        if (demoDataGenerator.current) {
+            clearInterval(demoDataGenerator.current);
+        }
+        
         disconnectDevice();
         resetSession();
         setHr(null);
@@ -137,7 +151,8 @@ const AppContent = () => {
                 handleLogout={handleLogout} 
                 handleViewReport={handleViewReport}
                 toggleDarkMode={() => setDarkMode(!darkMode)} 
-                darkMode={darkMode} 
+                darkMode={darkMode}
+                onLoginClick={() => setShowLoginModal(true)}
             />
             
             {/* Simple HomePage without charts for now */}
@@ -182,22 +197,10 @@ const AppContent = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                        <h3 className="text-sm font-medium opacity-75">Live HR</h3>
-                        <p className="text-2xl font-bold">{hr || '--'} <span className="text-sm font-normal">BPM</span></p>
-                    </div>
-                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                        <h3 className="text-sm font-medium opacity-75">Live RMSSD</h3>
-                        <p className="text-2xl font-bold">{liveHrvMetrics.rmssd?.toFixed(1) || '--'} <span className="text-sm font-normal">ms</span></p>
-                    </div>
-                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                        <h3 className="text-sm font-medium opacity-75">Live SDNN</h3>
-                        <p className="text-2xl font-bold">{liveHrvMetrics.sdnn?.toFixed(1) || '--'} <span className="text-sm font-normal">ms</span></p>
-                    </div>
-                    <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                        <h3 className="text-sm font-medium opacity-75">Live pNN50</h3>
-                        <p className="text-2xl font-bold">{liveHrvMetrics.pnn50?.toFixed(1) || '--'} <span className="text-sm font-normal">%</span></p>
-                    </div>
+                    <MetricCard title="Live HR" value={hr} unit="BPM" darkMode={darkMode} />
+                    <MetricCard title="Live RMSSD" value={liveHrvMetrics.rmssd} unit="ms" darkMode={darkMode} />
+                    <MetricCard title="Live SDNN" value={liveHrvMetrics.sdnn} unit="ms" darkMode={darkMode} />
+                    <MetricCard title="Live pNN50" value={liveHrvMetrics.pnn50} unit="%" darkMode={darkMode} />
                 </div>
 
                 <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
