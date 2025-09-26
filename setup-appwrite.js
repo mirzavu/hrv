@@ -199,9 +199,31 @@ async function setup() {
         const BUCKET_ID = 'heart-rate-data';
         const BUCKET_NAME = 'Heart Rate Data';
         
+        const desiredExtensions = ['csv', 'gz'];
+
         try {
-            await storage.getBucket(BUCKET_ID);
+            const existingBucket = await storage.getBucket(BUCKET_ID);
             console.log(`✅ Storage bucket '${BUCKET_NAME}' already exists`);
+
+            const allowedExtensions = existingBucket.allowedFileExtensions ?? [];
+            const needsExtensionUpdate =
+                desiredExtensions.some((ext) => !allowedExtensions.includes(ext)) ||
+                allowedExtensions.some((ext) => !desiredExtensions.includes(ext));
+
+            if (needsExtensionUpdate) {
+                await storage.updateBucket(
+                    BUCKET_ID,
+                    existingBucket.name,
+                    undefined,
+                    undefined,
+                    undefined,
+                    undefined,
+                    desiredExtensions
+                );
+                console.log(`  🔄 Updated allowed extensions to: ${desiredExtensions.join(', ')}`);
+            } else {
+                console.log('  - Allowed extensions already include csv/gz.');
+            }
         } catch (e) {
             if (e.code === 404) {
                 await storage.createBucket(
@@ -216,7 +238,7 @@ async function setup() {
                     false, // fileSecurity
                     true,  // enabled
                     undefined, // maximumFileSize (use default)
-                    ['json'], // allowedFileExtensions
+                    desiredExtensions, // allowedFileExtensions
                     undefined, // compression
                     undefined, // encryption
                     undefined  // antivirus
@@ -231,7 +253,7 @@ async function setup() {
         console.log("\n📝 Next steps:");
         console.log("1. Update your environment variables with the IDs above");
         console.log("2. The storage bucket 'heart-rate-data' is ready for raw data files");
-        console.log("3. Sessions will now store raw heart rate data in JSON files");
+    console.log("3. Sessions will now store raw heart rate data as gzipped CSV files");
         console.log("\n🔒 No duplicate databases will be created - using fixed IDs!");
 
     } catch (error) {
