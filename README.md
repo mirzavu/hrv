@@ -120,8 +120,9 @@ APPWRITE_API_KEY=your-api-key
 
 1. **Connect Device** (optional): Click "Start Session" to connect your Polar H10
 2. **Demo Mode**: Click "Start Demo" to test with simulated data
-3. **Monitor Progress**: Watch real-time HRV metrics and progress bar
-4. **End Session**: Click "End Session" to view summary and save data
+3. **Pause/Resume**: Use the pause button to temporarily stop recording and resume when you're ready
+4. **Monitor Progress**: Watch real-time HRV metrics and progress bar
+5. **End Session**: Click "End Session" to view summary and save data
 
 ### Viewing Reports
 
