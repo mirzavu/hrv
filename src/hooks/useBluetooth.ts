@@ -12,6 +12,7 @@ interface SessionData {
   elapsedTime: number;
   rawHeartData: RawHeartData[];
   sessionActive: boolean;
+  sessionPaused: boolean;
 }
 
 export const useBluetooth = (
@@ -33,6 +34,10 @@ export const useBluetooth = (
 
     const flags = value.getUint8(0);
     const heartRate = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
+    if (latestSessionData.current.sessionPaused) {
+      return;
+    }
+
     setHr(heartRate);
 
     // Store raw heart data with all available information
@@ -58,7 +63,7 @@ export const useBluetooth = (
     }
 
     addRawHeartData(rawData);
-  }, [setHr, addRawHeartData]);
+  }, [setHr, addRawHeartData, latestSessionData]);
   
   const onDisconnected = useCallback(() => {
     if (latestSessionData.current.sessionActive) {
