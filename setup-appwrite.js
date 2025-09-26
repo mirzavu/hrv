@@ -1,41 +1,39 @@
-const { Client, Databases, Storage, ID, Permission, Role } = require('node-appwrite');
+/* eslint-disable @typescript-eslint/no-require-imports */
+const { Client, Databases, Storage, Permission, Role } = require('node-appwrite');
 const dotenv = require('dotenv');
-const path = require('path');
 
 // Load environment variables from various possible locations
 dotenv.config({ path: '.env.local' });
 dotenv.config({ path: '.env' });
 dotenv.config();
 
-// Use environment variables with fallbacks
-const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT || process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || 'http://localhost/v1';
-const APPWRITE_PROJECT_ID = process.env.APPWRITE_PROJECT_ID || process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || 'hrv-app';
-const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY;
+const REQUIRED_ENV_VARS = [
+    'APPWRITE_ENDPOINT',
+    'APPWRITE_PROJECT_ID',
+    'APPWRITE_API_KEY',
+    'APPWRITE_DATABASE_ID',
+    'APPWRITE_USERS_COLLECTION_ID',
+    'APPWRITE_SESSIONS_COLLECTION_ID'
+];
 
-if (!APPWRITE_API_KEY) {
-    console.error("❌ Error: Missing APPWRITE_API_KEY environment variable");
-    console.error("");
-    console.error("📋 To fix this, you need to:");
-    console.error("1. Make sure your Appwrite server is running");
-    console.error("2. Go to your Appwrite console (usually http://localhost/console)");
-    console.error("3. Navigate to Settings > API Keys");
-    console.error("4. Create a new API key with full permissions");
-    console.error("5. Set the APPWRITE_API_KEY environment variable:");
-    console.error("");
-    console.error("   Option 1: Create a .env.local file in your project root:");
-    console.error("   APPWRITE_API_KEY=your_api_key_here");
-    console.error("   NEXT_PUBLIC_APPWRITE_ENDPOINT=http://localhost/v1");
-    console.error("   NEXT_PUBLIC_APPWRITE_PROJECT_ID=your_project_id");
-    console.error("");
-    console.error("   Option 2: Set as environment variable:");
-    console.error("   export APPWRITE_API_KEY=your_api_key_here");
-    console.error("");
-    console.error(`📊 Current config:`);
-    console.error(`   Endpoint: ${APPWRITE_ENDPOINT}`);
-    console.error(`   Project ID: ${APPWRITE_PROJECT_ID}`);
-    console.error(`   API Key: ${APPWRITE_API_KEY ? '✅ Set' : '❌ Missing'}`);
+const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+
+if (missingEnvVars.length > 0) {
+    console.error('❌ Error: Missing required environment variables');
+    console.error('');
+    console.error('The following variables must be set before running this script:');
+    missingEnvVars.forEach((key) => console.error(`  - ${key}`));
+    console.error('');
+    console.error('Set them in your environment or add them to your .env.local file.');
     process.exit(1);
 }
+
+const APPWRITE_ENDPOINT = process.env.APPWRITE_ENDPOINT;
+const APPWRITE_PROJECT_ID = process.env.APPWRITE_PROJECT_ID;
+const APPWRITE_API_KEY = process.env.APPWRITE_API_KEY;
+const DATABASE_ID_TARGET = process.env.APPWRITE_DATABASE_ID;
+const SESSIONS_COLLECTION_ID = process.env.APPWRITE_SESSIONS_COLLECTION_ID;
+const USERS_COLLECTION_ID = process.env.APPWRITE_USERS_COLLECTION_ID;
 
 const client = new Client()
     .setEndpoint(APPWRITE_ENDPOINT)
@@ -47,9 +45,6 @@ const storage = new Storage(client);
 
 // FIXED IDs to prevent duplicates
 const DATABASE_NAME = 'HRV Data';
-const DATABASE_ID_FIXED = 'hrv-data-main'; // Fixed ID
-const SESSIONS_COLLECTION_ID = 'sessions-collection'; // Fixed ID
-const USERS_COLLECTION_ID = 'users-collection'; // Fixed ID
 const COLLECTION_NAME = 'sessions';
 const USERS_COLLECTION_NAME = 'users';
 
@@ -60,14 +55,14 @@ async function setup() {
         // 1. Check if Database exists by ID first, then create if needed
         let database;
         try {
-            // Try to get database by fixed ID first
-            database = await databases.get(DATABASE_ID_FIXED);
-            console.log(`✅ Database '${DATABASE_NAME}' already exists (ID: ${DATABASE_ID_FIXED})`);
+            // Try to get database by configured ID first
+            database = await databases.get(DATABASE_ID_TARGET);
+            console.log(`✅ Database '${DATABASE_NAME}' already exists (ID: ${DATABASE_ID_TARGET})`);
         } catch (e) {
             if (e.code === 404) { // Database doesn't exist
                 try {
-                    database = await databases.create(DATABASE_ID_FIXED, DATABASE_NAME);
-                    console.log(`✅ Database '${DATABASE_NAME}' created successfully (ID: ${DATABASE_ID_FIXED})`);
+                    database = await databases.create(DATABASE_ID_TARGET, DATABASE_NAME);
+                    console.log(`✅ Database '${DATABASE_NAME}' created successfully (ID: ${DATABASE_ID_TARGET})`);
                 } catch (createError) {
                     if (createError.code === 409) {
                         // ID conflict, try to find by name
@@ -87,13 +82,12 @@ async function setup() {
         const DATABASE_ID = database.$id;
 
         // 2. Create Sessions Collection with fixed ID
-        let collection;
         try {
-            collection = await databases.getCollection(DATABASE_ID, SESSIONS_COLLECTION_ID);
+            await databases.getCollection(DATABASE_ID, SESSIONS_COLLECTION_ID);
             console.log(`✅ Sessions collection already exists`);
         } catch (e) {
             if (e.code === 404) {
-                collection = await databases.createCollection(DATABASE_ID, SESSIONS_COLLECTION_ID, COLLECTION_NAME, [
+                await databases.createCollection(DATABASE_ID, SESSIONS_COLLECTION_ID, COLLECTION_NAME, [
                     Permission.read(Role.users()),
                     Permission.create(Role.users()),
                     Permission.update(Role.users()),
@@ -106,13 +100,12 @@ async function setup() {
         }
 
         // 3. Create Users Collection with fixed ID
-        let usersCollection;
         try {
-            usersCollection = await databases.getCollection(DATABASE_ID, USERS_COLLECTION_ID);
+            await databases.getCollection(DATABASE_ID, USERS_COLLECTION_ID);
             console.log(`✅ Users collection already exists`);
         } catch (e) {
             if (e.code === 404) {
-                usersCollection = await databases.createCollection(DATABASE_ID, USERS_COLLECTION_ID, USERS_COLLECTION_NAME, [
+                await databases.createCollection(DATABASE_ID, USERS_COLLECTION_ID, USERS_COLLECTION_NAME, [
                     Permission.read(Role.users()),
                     Permission.create(Role.users()),
                     Permission.update(Role.users()),
@@ -130,7 +123,11 @@ async function setup() {
         console.log(`SESSIONS_COLLECTION_ID: '${SESSIONS_COLLECTION_ID}'`);
         console.log(`USERS_COLLECTION_ID:    '${USERS_COLLECTION_ID}'`);
         console.log("------------------------------------");
-        console.log("ACTION: Copy these IDs into src/types/index.ts\n");
+        if (DATABASE_ID !== DATABASE_ID_TARGET) {
+            console.warn(`⚠️  Warning: Database ID in Appwrite ('${DATABASE_ID}') differs from APPWRITE_DATABASE_ID ('${DATABASE_ID_TARGET}'). Update your environment variable to match.`);
+        } else {
+            console.log("ACTION: Confirm these IDs match your APPWRITE_* and NEXT_PUBLIC_APPWRITE_* environment variables.\n");
+        }
 
         // 4. Create Attributes for Users Collection
         console.log("- Checking and creating users collection attributes...");

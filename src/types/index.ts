@@ -75,11 +75,20 @@ export interface RawHeartData {
   heartRate?: number; // BPM
   rrInterval?: number; // milliseconds
   rawValue?: number; // raw sensor value
+  flags?: number;
+  rawBytes?: number[];
+  allRrIntervals?: number[];
 }
 
 export type HrvSummary = SessionSummary;
 
-// Database IDs (from your existing setup)
-export const DATABASE_ID = '68d3feeb0010a759c201';
-export const USERS_COLLECTION_ID = '68d3feeb001653eb83a6';
-export const SESSIONS_COLLECTION_ID = '68d3feeb0014bf0c49a4';
+const requireEnv = (value: string | undefined, key: string) => {
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+};
+
+export const DATABASE_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID, 'NEXT_PUBLIC_APPWRITE_DATABASE_ID');
+export const USERS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
+export const SESSIONS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID');

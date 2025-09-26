@@ -25,30 +25,34 @@ export const useAuth = (addToast: (message: string) => void) => {
       let userDoc: UserProfile;
       if (existingUsers.documents.length === 0) {
         // User doesn't exist in users collection, create them
-        userDoc = await databases.createDocument(
+        const newUserPayload: Record<string, unknown> = {
+          authUserId: authUser.$id,
+          name: authUser.name || '',
+          email: authUser.email || '',
+          createdAt: new Date().toISOString(),
+          lastLoginAt: new Date().toISOString(),
+          profileCompleted: false,
+        };
+
+        userDoc = (await databases.createDocument(
           DATABASE_ID,
           USERS_COLLECTION_ID,
           AppwriteID.unique(),
-          {
-            authUserId: authUser.$id,
-            name: authUser.name || '',
-            email: authUser.email || '',
-            createdAt: new Date().toISOString(),
-            lastLoginAt: new Date().toISOString(),
-            profileCompleted: false,
-          }
-        ) as UserProfile;
+          newUserPayload
+        )) as unknown as UserProfile;
         console.log('User synced to database');
       } else {
         // User exists, update last login time
-        userDoc = await databases.updateDocument(
+        const lastLoginUpdate: Record<string, unknown> = {
+          lastLoginAt: new Date().toISOString(),
+        };
+
+        userDoc = (await databases.updateDocument(
           DATABASE_ID,
           USERS_COLLECTION_ID,
           existingUsers.documents[0].$id,
-          {
-            lastLoginAt: new Date().toISOString(),
-          }
-        ) as UserProfile;
+          lastLoginUpdate
+        )) as unknown as UserProfile;
         console.log('User last login updated');
       }
 
@@ -83,7 +87,7 @@ export const useAuth = (addToast: (message: string) => void) => {
         await syncUserToDatabase(userData);
         setLoading(false);
         return;
-      } catch (_e) {
+      } catch {
         console.log("Failed to parse temporary user data, proceeding with normal flow");
         localStorage.removeItem('temp_auth_user');
       }
@@ -96,7 +100,7 @@ export const useAuth = (addToast: (message: string) => void) => {
       
       // Sync user to database
       await syncUserToDatabase(currentUser);
-      } catch (error: unknown) {
+    } catch (error: unknown) {
       // Only show "no session" message for 401 errors (not logged in)
       // Avoid showing for other errors like network issues
       if (error && typeof error === 'object' && 'code' in error && error.code === 401) {
@@ -146,9 +150,35 @@ export const useAuth = (addToast: (message: string) => void) => {
   }, [addToast, loadUser, syncUserToDatabase]);
 
   // Handle onboarding completion
-  const handleOnboardingComplete = useCallback((_profileData: Record<string, unknown>) => {
+  const handleOnboardingComplete = useCallback((
+    profileData: {
+      name: string;
+      age: string;
+      gender: string;
+      weight: string;
+      height: string;
+      purpose: string;
+    }
+  ) => {
     setShowOnboardingModal(false);
     addToast('Profile setup completed successfully!');
+    setUserProfile(prev => {
+      if (!prev) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        name: profileData.name.trim() || prev.name,
+        age: Number.parseInt(profileData.age, 10) || prev.age,
+        gender: profileData.gender || prev.gender,
+        weight: Number.parseFloat(profileData.weight) || prev.weight,
+        height: Number.parseFloat(profileData.height) || prev.height,
+        purpose: profileData.purpose || prev.purpose,
+        profileCompleted: true,
+        onboardingCompletedAt: new Date().toISOString(),
+      };
+    });
     // Refresh user profile data
     if (user) {
       syncUserToDatabase(user);

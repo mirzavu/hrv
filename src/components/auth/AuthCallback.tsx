@@ -30,11 +30,11 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onAuthComplete }) => {
           window.location.href = '/';
         }, 100);
 
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Auth callback error:', err);
-        setStatus(`Authentication failed: ${err.message}`);
+        setStatus(`Authentication failed: ${err instanceof Error ? err.message : "Unknown error"}`);
         setTimeout(() => {
-          window.location.href = '/?error=' + encodeURIComponent(err.message);
+          window.location.href = '/?error=' + encodeURIComponent(err instanceof Error ? err.message : "Unknown error");
         }, 3000);
       }
     };

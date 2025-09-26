@@ -1,7 +1,7 @@
 'use client';
+import Link from "next/link";
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/link';
 import { AuthProvider, useAuthContext } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import MetricCard from '@/components/ui/MetricCard';
@@ -62,7 +62,7 @@ function ReportsContent() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold mb-4">Please log in to view reports</h1>
-          <a href="/" className="text-blue-500 hover:underline">Go back to home</a>
+          <Link href="/" className="text-blue-500 hover:underline">Go back to home</Link>
         </div>
       </div>
     );

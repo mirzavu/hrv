@@ -1,5 +1,6 @@
 'use client';
 
+import { OAuthProvider } from "appwrite";
 import React, { useState } from 'react';
 import { account } from '@/lib/appwrite';
 import { User } from '@/types';
@@ -20,7 +21,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
     try {
       // This will redirect the user to Google's login page
       account.createOAuth2Session(
-        'google', // provider
+        OAuthProvider.Google, // provider
         `${window.location.origin}/auth/callback`, // success URL
         `${window.location.origin}/?error=true`  // failure URL
       );
@@ -33,7 +34,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
 
   const handleSkipLogin = () => {
     // Guest access logic will be managed by useAuth hook now
-    onLoginSuccess({ $id: 'guest', name: 'Guest User' });
+    onLoginSuccess({ $id: 'guest', name: 'Guest User', email: 'guest@example.com' });
     onClose();
   };
 

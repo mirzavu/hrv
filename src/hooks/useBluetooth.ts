@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, MutableRefObject } from 'react';
+import { Dispatch, MutableRefObject, SetStateAction, useCallback, useState } from 'react';
+import { RawHeartData } from '@/types';
 
 const POLAR_HR_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
 const POLAR_HR_CHARACTERISTIC_UUID = '00002a37-0000-1000-8000-00805f9b34fb';
@@ -9,15 +10,15 @@ const RR_INTERVAL_MAX_MS = 2800;
 
 interface SessionData {
   elapsedTime: number;
-  rawHeartData: any[];
+  rawHeartData: RawHeartData[];
   sessionActive: boolean;
 }
 
 export const useBluetooth = (
   setSessionActive: (active: boolean) => void,
-  addRawHeartData: (data: any) => void,
-  setHr: (hr: number) => void,
-  endSession: (elapsedTime: number, rawHeartData: any[]) => void,
+  addRawHeartData: (data: RawHeartData) => void,
+  setHr: Dispatch<SetStateAction<number | null>>,
+  endSession: (elapsedTime: number, rawHeartData: RawHeartData[]) => void,
   addToast: (message: string) => void,
   latestSessionData: MutableRefObject<SessionData> // Accept the ref as an argument
 ) => {
@@ -35,10 +36,10 @@ export const useBluetooth = (
     setHr(heartRate);
 
     // Store raw heart data with all available information
-    const rawData = {
+    const rawData: RawHeartData = {
       timestamp: Date.now(),
-      heartRate: heartRate,
-      flags: flags,
+      heartRate,
+      flags,
       rawBytes: Array.from(new Uint8Array(value.buffer)),
     };
 

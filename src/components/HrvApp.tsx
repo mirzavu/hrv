@@ -6,6 +6,7 @@ import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
 // HRV calculations removed - now collecting raw data only
 import MetricCard from '@/components/ui/MetricCard';
+import { RawHeartData } from '@/types';
 
 interface HrvAppProps {
   addToast: (message: string) => void;
@@ -33,9 +34,9 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
   } = useHrvSession(user, addToast);
 
   // Create a ref to hold the latest session data for callbacks
-  const latestSessionData = useRef({
+  const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean }>({
     elapsedTime: 0,
-    rawHeartData: [] as any[],
+    rawHeartData: [],
     sessionActive: false,
   });
 
@@ -230,12 +231,10 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
                 unit="s"
                 darkMode={darkMode}
               />
-              <MetricCard
-                title="Status"
-                value={liveMetrics.status}
-                unit=""
-                darkMode={darkMode}
-              />
+              <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
+                <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</h3>
+                <p className="text-2xl md:text-3xl font-bold">{liveMetrics.status}</p>
+              </div>
             </div>
             
             <div className="mt-6 text-center">
