@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { gzip } from 'pako';
 import { databases, storage, AppwriteID } from '@/lib/appwrite';
-import { Query } from 'appwrite';
+import { AppwriteException, Query } from 'appwrite';
 import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID } from '@/types';
 
 const MAX_SESSION_DURATION = 900;
@@ -13,8 +14,54 @@ const SESSION_MILESTONES: SessionMilestone[] = [
   { label: 'Full Analysis', value: 900 },
 ];
 
+const CSV_HEADERS = ['timestamp', 'heartRate', 'rrInterval', 'rawValue', 'flags', 'rawBytes', 'allRrIntervals'] as const;
+
+type CsvHeaderKey = typeof CSV_HEADERS[number];
+
+const formatCsvValue = (value: unknown): string => {
+  if (value === undefined || value === null) {
+    return '';
+  }
+
+  let normalized: string;
+
+  if (Array.isArray(value) || typeof value === 'object') {
+    normalized = JSON.stringify(value);
+  } else {
+    normalized = String(value);
+  }
+
+  if (/[",\n]/.test(normalized)) {
+    return `"${normalized.replace(/"/g, '""')}"`;
+  }
+
+  return normalized;
+};
+
+const buildSessionCsv = (
+  finalRawData: RawHeartData[],
+  metadata: { startTime: string | null; endTime: string; duration: number; dataPoints: number }
+) => {
+  const lines = [
+    `# sessionStartTime=${metadata.startTime ?? ''}`,
+    `# sessionEndTime=${metadata.endTime}`,
+    `# durationSeconds=${metadata.duration}`,
+    `# dataPoints=${metadata.dataPoints}`,
+    CSV_HEADERS.join(',')
+  ];
+
+  for (const entry of finalRawData) {
+    const record = entry as Record<CsvHeaderKey, unknown>;
+    const row = CSV_HEADERS.map((header) => formatCsvValue(record[header]));
+    lines.push(row.join(','));
+  }
+
+  return lines.join('\n');
+};
+
 export const useHrvSession = (user: User | null, addToast: (message: string) => void) => {
   const [sessionActive, setSessionActive] = useState(false);
+  const [sessionPaused, setSessionPaused] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [rawHeartData, setRawHeartData] = useState<RawHeartData[]>([]);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
@@ -23,11 +70,19 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   const milestonesReached = useRef(new Set<number>());
   const sessionTimer = useRef<NodeJS.Timeout | null>(null);
   const demoDataGenerator = useRef<NodeJS.Timeout | null>(null);
+  const sessionPausedRef = useRef(false);
+
+  useEffect(() => {
+    sessionPausedRef.current = sessionPaused;
+  }, [sessionPaused]);
 
   const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[]) => {
     setSessionActive(false);
+    setSessionPaused(false);
+    sessionPausedRef.current = false;
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
+      demoDataGenerator.current = null;
     }
     
     const endTime = new Date().toISOString();
@@ -57,20 +112,19 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
         const userDoc = existingUsers.documents[0];
 
-        // Create raw data file content
-        const rawDataContent = JSON.stringify({
-          sessionInfo: {
-            startTime: sessionStartTime,
-            endTime: endTime,
-            duration: finalElapsedTime,
-            dataPoints: finalRawData.length
-          },
-          rawData: finalRawData
+        // Create raw data file content (CSV compressed with gzip)
+        const csvContent = buildSessionCsv(finalRawData, {
+          startTime: sessionStartTime,
+          endTime,
+          duration: finalElapsedTime,
+          dataPoints: finalRawData.length
         });
 
+        const compressedContent = gzip(csvContent);
+
         // Upload raw data to Appwrite Storage
-        const file = new File([rawDataContent], `session-${Date.now()}.json`, {
-          type: 'application/json'
+        const file = new File([compressedContent], `session-${Date.now()}.csv.gz`, {
+          type: 'application/gzip'
         });
 
         // Create a bucket ID for heart rate data (you'll need to create this bucket in Appwrite)
@@ -82,7 +136,20 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           rawFileId = uploadedFile.$id;
         } catch (storageError) {
           console.error('Error uploading raw data file:', storageError);
-          addToast('Warning: Could not save raw data file. Session metadata saved.');
+
+          let toastMessage = 'Warning: Could not save raw data file. Session metadata saved.';
+          const messageFromError =
+            storageError instanceof AppwriteException
+              ? storageError.message
+              : storageError instanceof Error
+                ? storageError.message
+                : undefined;
+
+          if (messageFromError && /extension not allowed/i.test(messageFromError)) {
+            toastMessage = 'Warning: Storage bucket is missing csv/gz extensions. Re-run setup-appwrite to update it.';
+          }
+
+          addToast(toastMessage);
         }
 
         // Create session record in database
@@ -118,22 +185,24 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   }, [addToast, user, sessionStartTime]);
 
   useEffect(() => {
-    if (sessionActive) {
+    if (sessionActive && !sessionPaused) {
       sessionTimer.current = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
     } else {
       if (sessionTimer.current) {
         clearInterval(sessionTimer.current);
+        sessionTimer.current = null;
       }
     }
     return () => {
       if (sessionTimer.current) {
         clearInterval(sessionTimer.current);
+        sessionTimer.current = null;
       }
     };
-  }, [sessionActive]);
+  }, [sessionActive, sessionPaused]);
 
   useEffect(() => {
-    if (!sessionActive) return;
+    if (!sessionActive || sessionPaused) return;
     const milestone = SESSION_MILESTONES.find(d => d.value === elapsedTime);
     if (milestone && !milestonesReached.current.has(elapsedTime)) {
       addToast(`${milestone.label} data collection complete!`);
@@ -142,16 +211,19 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     if (elapsedTime >= MAX_SESSION_DURATION) {
       endSession(elapsedTime, rawHeartData);
     }
-  }, [elapsedTime, sessionActive, addToast, endSession, rawHeartData]);
+  }, [elapsedTime, sessionActive, sessionPaused, addToast, endSession, rawHeartData]);
 
   const resetSession = useCallback(() => {
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
+      demoDataGenerator.current = null;
     }
     setRawHeartData([]);
     setElapsedTime(0);
     setSessionSummary(null);
     setSessionStartTime(null);
+    setSessionPaused(false);
+    sessionPausedRef.current = false;
     milestonesReached.current.clear();
   }, []);
 
@@ -160,16 +232,47 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setSessionStartTime(new Date().toISOString());
     setRawHeartData([]);
     setElapsedTime(0);
+    setSessionPaused(false);
+    sessionPausedRef.current = false;
     milestonesReached.current.clear();
   }, []);
 
   const addRawHeartData = useCallback((data: RawHeartData) => {
+    if (sessionPausedRef.current) {
+      return;
+    }
     setRawHeartData(prev => [...prev, data]);
   }, []);
+
+  const pauseSession = useCallback(() => {
+    if (!sessionActive || sessionPausedRef.current) {
+      return;
+    }
+    sessionPausedRef.current = true;
+    setSessionPaused(true);
+  }, [sessionActive]);
+
+  const resumeSession = useCallback(() => {
+    if (!sessionActive || !sessionPausedRef.current) {
+      return;
+    }
+    sessionPausedRef.current = false;
+    setSessionPaused(false);
+  }, [sessionActive]);
+
+  useEffect(() => {
+    if (!sessionActive) {
+      setSessionPaused(false);
+      sessionPausedRef.current = false;
+    }
+  }, [sessionActive]);
 
   return {
     sessionActive,
     setSessionActive,
+    sessionPaused,
+    pauseSession,
+    resumeSession,
     startSession,
     elapsedTime,
     rawHeartData,
