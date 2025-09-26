@@ -1,19 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { databases, AppwriteID } from '@/lib/appwrite';
+import { databases, storage, AppwriteID } from '@/lib/appwrite';
 import { Query } from 'appwrite';
-import { User, SessionSummary, SessionMilestone, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID } from '@/types';
-import {
-  calculateRMSSD,
-  calculateSDNN,
-  calculatePNN50,
-  calculateMeanHR,
-  calculateMode,
-  calculateAMo50,
-  calculateCV,
-  calculateMxDMn
-} from '@/utils/hrv';
+import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID } from '@/types';
 
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES: SessionMilestone[] = [
@@ -26,51 +16,30 @@ const SESSION_MILESTONES: SessionMilestone[] = [
 export const useHrvSession = (user: User | null, addToast: (message: string) => void) => {
   const [sessionActive, setSessionActive] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
-  const [rrIntervals, setRrIntervals] = useState<number[]>([]);
+  const [rawHeartData, setRawHeartData] = useState<RawHeartData[]>([]);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
   
   const milestonesReached = useRef(new Set<number>());
   const sessionTimer = useRef<NodeJS.Timeout | null>(null);
   const demoDataGenerator = useRef<NodeJS.Timeout | null>(null);
 
-  const endSession = useCallback(async (finalElapsedTime: number, finalRrIntervals: number[]) => {
+  const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[]) => {
     setSessionActive(false);
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
     }
     
-    const meanRR = finalRrIntervals.length > 0 ? finalRrIntervals.reduce((a, b) => a + b, 0) / finalRrIntervals.length : null;
-    const sdnn = calculateSDNN(finalRrIntervals);
-    const mode = calculateMode(finalRrIntervals);
-
+    const endTime = new Date().toISOString();
+    
+    // Create summary with dummy data for now
     const summary: SessionSummary = {
       duration: { label: 'Duration', value: finalElapsedTime, unit: 's' },
-      totalBeats: { label: 'Total Beats', value: finalRrIntervals.length, unit: '' },
-      meanHR: { label: 'Mean HR', value: calculateMeanHR(finalRrIntervals), unit: 'bpm' },
-      meanRR: { label: 'Mean RR', value: meanRR, unit: 'ms' },
-      rmssd: { label: 'RMSSD', value: calculateRMSSD(finalRrIntervals), unit: 'ms' },
-      sdnn: { label: 'SDNN', value: sdnn, unit: 'ms' },
-      pnn50: { label: 'pNN50', value: calculatePNN50(finalRrIntervals), unit: '%' },
-      mxdmn: { label: 'MxDMn', value: calculateMxDMn(finalRrIntervals), unit: 'ms' },
-      cv: { label: 'CV', value: calculateCV(sdnn, meanRR), unit: '%' },
-      mo: { label: 'Mode (Mo)', value: mode, unit: 'ms' },
-      amo50: { label: 'AMo50', value: calculateAMo50(finalRrIntervals, mode), unit: '%' },
+      totalBeats: { label: 'Data Points', value: finalRawData.length, unit: '' },
+      heartRate: { label: 'Avg Heart Rate', value: 75, unit: 'bpm' }, // dummy data
+      dataPoints: { label: 'Raw Samples', value: finalRawData.length, unit: '' },
     };
     setSessionSummary(summary);
-
-    let sessionType = 'custom';
-    for (let i = SESSION_MILESTONES.length - 1; i >= 0; i--) {
-      if (finalElapsedTime >= SESSION_MILESTONES[i].value) {
-        sessionType = SESSION_MILESTONES[i].label;
-        break;
-      }
-    }
-
-    const sessionDataToSave = {
-      sessionType,
-      date: new Date().toISOString(),
-      ...Object.fromEntries(Object.entries(summary).map(([key, { value }]) => [key, value]))
-    };
 
     if (user && user.$id !== 'guest') {
       try {
@@ -88,26 +57,65 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
         const userDoc = existingUsers.documents[0];
 
-        // Use Appwrite SDK to create the document
+        // Create raw data file content
+        const rawDataContent = JSON.stringify({
+          sessionInfo: {
+            startTime: sessionStartTime,
+            endTime: endTime,
+            duration: finalElapsedTime,
+            dataPoints: finalRawData.length
+          },
+          rawData: finalRawData
+        });
+
+        // Upload raw data to Appwrite Storage
+        const file = new File([rawDataContent], `session-${Date.now()}.json`, {
+          type: 'application/json'
+        });
+
+        // Create a bucket ID for heart rate data (you'll need to create this bucket in Appwrite)
+        const BUCKET_ID = 'heart-rate-data'; // This needs to be created in Appwrite
+        
+        let rawFileId = '';
+        try {
+          const uploadedFile = await storage.createFile(BUCKET_ID, AppwriteID.unique(), file);
+          rawFileId = uploadedFile.$id;
+        } catch (storageError) {
+          console.error('Error uploading raw data file:', storageError);
+          addToast('Warning: Could not save raw data file. Session metadata saved.');
+        }
+
+        // Create session record in database
         await databases.createDocument(
           DATABASE_ID,
           SESSIONS_COLLECTION_ID,
-          AppwriteID.unique(), // Let Appwrite generate a unique ID
+          AppwriteID.unique(),
           {
-            ...sessionDataToSave,
-            user: userDoc.$id // Link to the user document via relation
+            userId: userDoc.$id,
+            startTime: sessionStartTime,
+            endTime: endTime,
+            rawFileId: rawFileId
           }
         );
+        
         addToast('Session saved successfully!');
       } catch (error) {
         console.error('Error saving session to Appwrite:', error);
         addToast('Error: Could not save session to database.');
       }
     } else {
-      localStorage.setItem('hrv_guest_session', JSON.stringify(sessionDataToSave));
+      // For guest users, save to localStorage
+      const guestSessionData = {
+        startTime: sessionStartTime,
+        endTime: endTime,
+        duration: finalElapsedTime,
+        dataPoints: finalRawData.length,
+        rawData: finalRawData
+      };
+      localStorage.setItem('hrv_guest_session', JSON.stringify(guestSessionData));
       addToast('Session saved locally!');
     }
-  }, [addToast, user]);
+  }, [addToast, user, sessionStartTime]);
 
   useEffect(() => {
     if (sessionActive) {
@@ -128,30 +136,44 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     if (!sessionActive) return;
     const milestone = SESSION_MILESTONES.find(d => d.value === elapsedTime);
     if (milestone && !milestonesReached.current.has(elapsedTime)) {
-      addToast(`${milestone.label} analysis complete!`);
+      addToast(`${milestone.label} data collection complete!`);
       milestonesReached.current.add(elapsedTime);
     }
     if (elapsedTime >= MAX_SESSION_DURATION) {
-      endSession(elapsedTime, rrIntervals);
+      endSession(elapsedTime, rawHeartData);
     }
-  }, [elapsedTime, sessionActive, addToast, endSession, rrIntervals]);
+  }, [elapsedTime, sessionActive, addToast, endSession, rawHeartData]);
 
   const resetSession = useCallback(() => {
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
     }
-    setRrIntervals([]);
+    setRawHeartData([]);
     setElapsedTime(0);
     setSessionSummary(null);
+    setSessionStartTime(null);
     milestonesReached.current.clear();
+  }, []);
+
+  const startSession = useCallback(() => {
+    setSessionActive(true);
+    setSessionStartTime(new Date().toISOString());
+    setRawHeartData([]);
+    setElapsedTime(0);
+    milestonesReached.current.clear();
+  }, []);
+
+  const addRawHeartData = useCallback((data: RawHeartData) => {
+    setRawHeartData(prev => [...prev, data]);
   }, []);
 
   return {
     sessionActive,
     setSessionActive,
+    startSession,
     elapsedTime,
-    rrIntervals,
-    setRrIntervals,
+    rawHeartData,
+    addRawHeartData,
     sessionSummary,
     setSessionSummary,
     endSession,

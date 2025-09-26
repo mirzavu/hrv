@@ -40,6 +40,12 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           </div>
         ))}
       </div>
+      
+      <div className={`p-4 rounded-lg mb-6 ${darkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
+        <p className="text-sm text-gray-400 mb-2">Raw Data</p>
+        <p className="text-lg font-semibold">✅ Saved to storage</p>
+        <p className="text-xs text-gray-500 mt-1">Heart rate data collected and stored securely</p>
+      </div>
 
       {isGuest && (
         <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">

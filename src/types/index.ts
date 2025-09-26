@@ -40,15 +40,9 @@ export interface HRVMetric {
 export interface SessionSummary {
   duration: HRVMetric;
   totalBeats: HRVMetric;
-  meanHR: HRVMetric;
-  meanRR: HRVMetric;
-  rmssd: HRVMetric;
-  sdnn: HRVMetric;
-  pnn50: HRVMetric;
-  mxdmn: HRVMetric;
-  cv: HRVMetric;
-  mo: HRVMetric;
-  amo50: HRVMetric;
+  // Keeping structure for now with dummy data
+  heartRate: HRVMetric;
+  dataPoints: HRVMetric;
 }
 
 export interface SessionMilestone {
@@ -67,28 +61,20 @@ export interface BluetoothDevice {
   connected: boolean;
 }
 
-export interface HrvSession {
+export interface Session {
   $id: string;
-  sessionType: string;
-  date: string;
-  duration: number;
-  totalBeats: number;
-  meanHR: number;
-  meanRR: number;
-  rmssd: number;
-  sdnn: number;
-  pnn50: number;
-  mxdmn: number;
-  cv: number;
-  mo: number;
-  amo50: number;
-  user: string;
+  userId: string; // reference to users collection
+  startTime: string; // ISO datetime string
+  endTime: string; // ISO datetime string
+  rawFileId: string; // Appwrite Storage file ID for raw data
   createdAt: string;
 }
 
-export interface RrInterval {
+export interface RawHeartData {
   timestamp: number;
-  interval: number;
+  heartRate?: number; // BPM
+  rrInterval?: number; // milliseconds
+  rawValue?: number; // raw sensor value
 }
 
 export type HrvSummary = SessionSummary;

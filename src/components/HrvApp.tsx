@@ -4,7 +4,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
-import { calculateRMSSD, calculateSDNN, calculatePNN50, calculateMeanHR } from '@/utils/hrv';
+// HRV calculations removed - now collecting raw data only
 import MetricCard from '@/components/ui/MetricCard';
 
 interface HrvAppProps {
@@ -19,9 +19,10 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
   const {
     sessionActive,
     setSessionActive,
+    startSession,
     elapsedTime,
-    rrIntervals,
-    setRrIntervals,
+    rawHeartData,
+    addRawHeartData,
     sessionSummary,
     setSessionSummary,
     endSession,
@@ -34,13 +35,13 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
   // Create a ref to hold the latest session data for callbacks
   const latestSessionData = useRef({
     elapsedTime: 0,
-    rrIntervals: [] as number[],
+    rawHeartData: [] as any[],
     sessionActive: false,
   });
 
   useEffect(() => {
-    latestSessionData.current = { elapsedTime, rrIntervals, sessionActive };
-  }, [elapsedTime, rrIntervals, sessionActive]);
+    latestSessionData.current = { elapsedTime, rawHeartData, sessionActive };
+  }, [elapsedTime, rawHeartData, sessionActive]);
 
     const {
         statusMessage,
@@ -49,36 +50,42 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
         disconnectDevice,
     } = useBluetooth(
     setSessionActive, 
-    setRrIntervals, 
+    addRawHeartData, 
     setHr, 
     endSession, 
     addToast,
     latestSessionData
   );
 
-  const liveHrvMetrics = useMemo(() => {
-    const latestRR = rrIntervals.slice(-128);
+  // Live metrics now show dummy data - calculations removed
+  const liveMetrics = useMemo(() => {
     return {
-      rmssd: calculateRMSSD(latestRR),
-      sdnn: calculateSDNN(latestRR),
-      pnn50: calculatePNN50(latestRR),
-      meanHR: calculateMeanHR(latestRR),
+      dataPoints: rawHeartData.length,
+      avgHeartRate: hr || 0,
+      sessionTime: elapsedTime,
+      status: sessionActive ? 'Recording' : 'Idle',
     };
-  }, [rrIntervals]);
+  }, [rawHeartData.length, hr, elapsedTime, sessionActive]);
 
   const startDemoSession = useCallback(() => {
-    setSessionActive(true);
+    startSession();
     setStatusMessage('Demo session running...');
 
     demoDataGenerator.current = setInterval(() => {
       const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
       const baseRr = 60000 / baseHr;
       const newRr = baseRr + (Math.random() - 0.5) * 80;
+      const currentHr = Math.round(60000 / newRr);
       
-      setHr(Math.round(60000 / newRr));
-      setRrIntervals(prev => [...prev, newRr]);
+      setHr(currentHr);
+      addRawHeartData({
+        timestamp: Date.now(),
+        heartRate: currentHr,
+        rrInterval: newRr,
+        rawValue: Math.random() * 1000 // dummy raw sensor value
+      });
     }, 900);
-  }, [setSessionActive, setStatusMessage, setRrIntervals, demoDataGenerator]);
+  }, [startSession, setStatusMessage, addRawHeartData, demoDataGenerator]);
 
   const resetApp = useCallback(() => {
     disconnectDevice();
@@ -184,7 +191,7 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
               </>
             ) : (
               <button
-                onClick={() => endSession(elapsedTime, rrIntervals)}
+                onClick={() => endSession(elapsedTime, rawHeartData)}
                 className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold"
               >
                 End Session
@@ -201,9 +208,9 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
         </div>
 
         {/* Live Metrics */}
-        {(sessionActive || rrIntervals.length > 0) && (
+        {(sessionActive || rawHeartData.length > 0) && (
           <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6 mb-8`}>
-            <h2 className="text-2xl font-semibold mb-6">Live HRV Metrics</h2>
+            <h2 className="text-2xl font-semibold mb-6">Live Session Data</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard
                 title="Heart Rate"
@@ -212,28 +219,28 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
                 darkMode={darkMode}
               />
               <MetricCard
-                title="RMSSD"
-                value={liveHrvMetrics.rmssd}
-                unit="ms"
+                title="Data Points"
+                value={liveMetrics.dataPoints}
+                unit=""
                 darkMode={darkMode}
               />
               <MetricCard
-                title="SDNN"
-                value={liveHrvMetrics.sdnn}
-                unit="ms"
+                title="Session Time"
+                value={liveMetrics.sessionTime}
+                unit="s"
                 darkMode={darkMode}
               />
               <MetricCard
-                title="pNN50"
-                value={liveHrvMetrics.pnn50}
-                unit="%"
+                title="Status"
+                value={liveMetrics.status}
+                unit=""
                 darkMode={darkMode}
               />
             </div>
             
             <div className="mt-6 text-center">
               <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                RR Intervals Collected: {rrIntervals.length} | 
+                Raw Data Points Collected: {rawHeartData.length} | 
                 Session Duration: {formatTime(elapsedTime)}
               </p>
             </div>

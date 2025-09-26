@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
-import { calculateRMSSD, calculateSDNN, calculatePNN50, calculateMeanHR } from '@/utils/hrv';
+// HRV calculations removed - now collecting raw data only
 
 import Header from '@/components/ui/Header';
 import LoginModal from '@/components/auth/LoginModal';
@@ -37,9 +37,10 @@ const AppContent = () => {
     const {
         sessionActive,
         setSessionActive,
+        startSession,
         elapsedTime,
-        rrIntervals,
-        setRrIntervals,
+        rawHeartData,
+        addRawHeartData,
         sessionSummary,
         setSessionSummary,
         endSession,
@@ -50,8 +51,8 @@ const AppContent = () => {
     // Create a ref to hold the latest session data for callbacks
     const latestSessionData = useRef({});
     useEffect(() => {
-        latestSessionData.current = { elapsedTime, rrIntervals, sessionActive };
-    }, [elapsedTime, rrIntervals, sessionActive]);
+        latestSessionData.current = { elapsedTime, rawHeartData, sessionActive };
+    }, [elapsedTime, rawHeartData, sessionActive]);
 
     const {
         isConnected,
@@ -61,7 +62,7 @@ const AppContent = () => {
         disconnectDevice,
     } = useBluetooth(
         setSessionActive, 
-        setRrIntervals, 
+        addRawHeartData, 
         (hr) => setHr(hr), 
         endSession, 
         addToast,
@@ -70,15 +71,15 @@ const AppContent = () => {
 
     const [hr, setHr] = useState<number | null>(null);
 
-    const liveHrvMetrics = useMemo(() => {
-        const latestRR = rrIntervals.slice(-128);
+    // Live metrics now show dummy data - calculations removed
+    const liveMetrics = useMemo(() => {
         return {
-            rmssd: calculateRMSSD(latestRR),
-            sdnn: calculateSDNN(latestRR),
-            pnn50: calculatePNN50(latestRR),
-            meanHR: calculateMeanHR(latestRR),
+            dataPoints: rawHeartData.length,
+            avgHeartRate: hr || 0,
+            sessionTime: elapsedTime,
+            status: sessionActive ? 'Recording' : 'Idle',
         };
-    }, [rrIntervals]);
+    }, [rawHeartData.length, hr, elapsedTime, sessionActive]);
 
     const startDemoSession = () => {
         // Clear any existing intervals first
@@ -90,16 +91,22 @@ const AppContent = () => {
         resetSession();
         setHr(null);
         
-        setSessionActive(true);
+        startSession();
         setStatusMessage('Demo session running...');
 
         demoDataGenerator.current = setInterval(() => {
             const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
             const baseRr = 60000 / baseHr;
             const newRr = baseRr + (Math.random() - 0.5) * 80;
+            const currentHr = Math.round(60000 / newRr);
             
-            setHr(Math.round(60000 / newRr));
-            setRrIntervals(prev => [...prev, newRr]);
+            setHr(currentHr);
+            addRawHeartData({
+                timestamp: Date.now(),
+                heartRate: currentHr,
+                rrInterval: newRr,
+                rawValue: Math.random() * 1000 // dummy raw sensor value
+            });
         }, 900);
     };
 
@@ -183,7 +190,7 @@ const AppContent = () => {
                                 </button>
                             </div>
                         ) : (
-                            <button onClick={() => endSession(elapsedTime, rrIntervals)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+                            <button onClick={() => endSession(elapsedTime, rawHeartData)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
                                 End Session
                             </button>
                         )}
@@ -198,13 +205,13 @@ const AppContent = () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <MetricCard title="Live HR" value={hr} unit="BPM" darkMode={darkMode} />
-                    <MetricCard title="Live RMSSD" value={liveHrvMetrics.rmssd} unit="ms" darkMode={darkMode} />
-                    <MetricCard title="Live SDNN" value={liveHrvMetrics.sdnn} unit="ms" darkMode={darkMode} />
-                    <MetricCard title="Live pNN50" value={liveHrvMetrics.pnn50} unit="%" darkMode={darkMode} />
+                    <MetricCard title="Data Points" value={liveMetrics.dataPoints} unit="" darkMode={darkMode} />
+                    <MetricCard title="Session Time" value={liveMetrics.sessionTime} unit="s" darkMode={darkMode} />
+                    <MetricCard title="Status" value={liveMetrics.status} unit="" darkMode={darkMode} />
                 </div>
 
                 <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                    <h2 className="text-xl font-semibold mb-4">Live RR Intervals (Total: {rrIntervals.length})</h2>
+                    <h2 className="text-xl font-semibold mb-4">Raw Heart Data (Total: {rawHeartData.length})</h2>
                     <div className="flex items-center justify-center h-[300px]">
                         <p className="text-gray-500">{sessionActive ? "Chart will be added later..." : "Start a session to see the chart."}</p>
                     </div>

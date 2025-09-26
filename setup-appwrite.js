@@ -1,6 +1,6 @@
-import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
-import dotenv from 'dotenv';
-import path from 'path';
+const { Client, Databases, Storage, ID, Permission, Role } = require('node-appwrite');
+const dotenv = require('dotenv');
+const path = require('path');
 
 // Load environment variables from the backend's .env file
 dotenv.config({ path: path.resolve(process.cwd(), '..', '..', 'backend', '.env.development') });
@@ -24,9 +24,10 @@ const client = new Client()
     .setKey(APPWRITE_API_KEY);
 
 const databases = new Databases(client);
+const storage = new Storage(client);
 
         const DATABASE_NAME = 'HRV Data';
-        const COLLECTION_NAME = 'hrv_sessions';
+        const COLLECTION_NAME = 'sessions';
         const USERS_COLLECTION_NAME = 'users';
 
 async function setup() {
@@ -134,24 +135,14 @@ async function setup() {
             }
         }
 
-        // 4. Create Attributes for HRV Sessions Collection
-        console.log("- Checking and creating HRV sessions collection attributes...");
+        // 4. Create Attributes for Sessions Collection
+        console.log("- Checking and creating sessions collection attributes...");
 
         const sessionAttributes = [
-            { key: 'sessionType', type: 'string', required: true, size: 50 },
-            { key: 'date', type: 'datetime', required: true },
-            { key: 'duration', type: 'float', required: true },
-            { key: 'totalBeats', type: 'integer', required: true },
-            { key: 'meanHR', type: 'float', required: false },
-            { key: 'meanRR', type: 'float', required: false },
-            { key: 'rmssd', type: 'float', required: false },
-            { key: 'sdnn', type: 'float', required: false },
-            { key: 'pnn50', type: 'float', required: false },
-            { key: 'mxdmn', type: 'float', required: false },
-            { key: 'cv', type: 'float', required: false },
-            { key: 'mo', type: 'float', required: false },
-            { key: 'amo50', type: 'float', required: false },
-            { key: 'user', type: 'relation', required: true },
+            { key: 'userId', type: 'relation', required: true },
+            { key: 'startTime', type: 'datetime', required: true },
+            { key: 'endTime', type: 'datetime', required: true },
+            { key: 'rawFileId', type: 'string', required: true, size: 255 },
         ];
 
         for (const attr of sessionAttributes) {
@@ -183,8 +174,45 @@ async function setup() {
                 }
             }
         }
+
+        // 5. Create Storage Bucket for Raw Heart Rate Data
+        console.log("- Checking and creating storage bucket for raw heart rate data...");
+        
+        const BUCKET_ID = 'heart-rate-data';
+        const BUCKET_NAME = 'Heart Rate Data';
+        
+        try {
+            await storage.createBucket(
+                BUCKET_ID,
+                BUCKET_NAME,
+                [
+                    Permission.read(Role.users()),
+                    Permission.create(Role.users()),
+                    Permission.update(Role.users()),
+                    Permission.delete(Role.users()),
+                ],
+                false, // fileSecurity
+                true,  // enabled
+                undefined, // maximumFileSize (use default)
+                ['json'], // allowedFileExtensions
+                undefined, // compression
+                undefined, // encryption
+                undefined  // antivirus
+            );
+            console.log(`✅ Storage bucket '${BUCKET_NAME}' created successfully.`);
+        } catch (e) {
+            if (e.code === 409) {
+                console.log(`- Storage bucket '${BUCKET_NAME}' already exists. Skipping.`);
+            } else {
+                console.error(`❌ Failed to create storage bucket '${BUCKET_NAME}':`, e.message);
+            }
+        }
         
         console.log("\n🎉 Appwrite setup complete!");
+        console.log("\n📝 Next steps:");
+        console.log("1. Update your environment variables with the IDs above");
+        console.log("2. The storage bucket 'heart-rate-data' is ready for raw data files");
+        console.log("3. Sessions will now store raw heart rate data in JSON files");
 
     } catch (error) {
         console.error("\n❌ An error occurred during setup:", error);

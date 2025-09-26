@@ -9,15 +9,15 @@ const RR_INTERVAL_MAX_MS = 2800;
 
 interface SessionData {
   elapsedTime: number;
-  rrIntervals: number[];
+  rawHeartData: any[];
   sessionActive: boolean;
 }
 
 export const useBluetooth = (
   setSessionActive: (active: boolean) => void,
-  setRrIntervals: (intervals: number[] | ((prev: number[]) => number[])) => void,
+  addRawHeartData: (data: any) => void,
   setHr: (hr: number) => void,
-  endSession: (elapsedTime: number, rrIntervals: number[]) => void,
+  endSession: (elapsedTime: number, rawHeartData: any[]) => void,
   addToast: (message: string) => void,
   latestSessionData: MutableRefObject<SessionData> // Accept the ref as an argument
 ) => {
@@ -31,29 +31,40 @@ export const useBluetooth = (
     if (!value) return;
 
     const flags = value.getUint8(0);
-    setHr(flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1));
+    const heartRate = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
+    setHr(heartRate);
 
+    // Store raw heart data with all available information
+    const rawData = {
+      timestamp: Date.now(),
+      heartRate: heartRate,
+      flags: flags,
+      rawBytes: Array.from(new Uint8Array(value.buffer)),
+    };
+
+    // If RR intervals are present, add them to the raw data
     if ((flags >> 4) & 0x01) {
-      const newRrIntervals: number[] = [];
+      const rrIntervals: number[] = [];
       for (let i = 2; i < value.byteLength; i += 2) {
         const rrRaw = value.getUint16(i, true);
         const rrMs = (rrRaw / 1024) * 1000;
         if (rrMs >= RR_INTERVAL_MIN_MS && rrMs <= RR_INTERVAL_MAX_MS) {
-          newRrIntervals.push(rrMs);
+          rrIntervals.push(rrMs);
         }
       }
-      if (newRrIntervals.length > 0) {
-        setRrIntervals(prev => [...prev, ...newRrIntervals]);
-      }
+      rawData.rrInterval = rrIntervals.length > 0 ? rrIntervals[0] : undefined; // Take first RR interval
+      rawData.allRrIntervals = rrIntervals; // Store all RR intervals
     }
-  }, [setHr, setRrIntervals]);
+
+    addRawHeartData(rawData);
+  }, [setHr, addRawHeartData]);
   
   const onDisconnected = useCallback(() => {
     if (latestSessionData.current.sessionActive) {
       addToast("Device disconnected unexpectedly!");
       // Use the ref to get the most up-to-date data
-      const { elapsedTime, rrIntervals } = latestSessionData.current;
-      endSession(elapsedTime, rrIntervals);
+      const { elapsedTime, rawHeartData } = latestSessionData.current;
+      endSession(elapsedTime, rawHeartData);
     }
     setIsConnected(false);
     setDevice(null);
@@ -137,3 +148,4 @@ export const useBluetooth = (
     disconnectDevice,
   };
 };
+
