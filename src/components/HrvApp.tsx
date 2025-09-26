@@ -19,8 +19,11 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
 
   const {
     sessionActive,
+    sessionPaused,
     setSessionActive,
     startSession,
+    pauseSession,
+    resumeSession,
     elapsedTime,
     rawHeartData,
     addRawHeartData,
@@ -34,15 +37,22 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
   } = useHrvSession(user, addToast);
 
   // Create a ref to hold the latest session data for callbacks
-  const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean }>({
+  const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean; sessionPaused: boolean }>({
     elapsedTime: 0,
     rawHeartData: [],
     sessionActive: false,
+    sessionPaused: false,
   });
 
   useEffect(() => {
-    latestSessionData.current = { elapsedTime, rawHeartData, sessionActive };
-  }, [elapsedTime, rawHeartData, sessionActive]);
+    latestSessionData.current = { elapsedTime, rawHeartData, sessionActive, sessionPaused };
+  }, [elapsedTime, rawHeartData, sessionActive, sessionPaused]);
+
+  const sessionPausedRef = useRef(sessionPaused);
+
+  useEffect(() => {
+    sessionPausedRef.current = sessionPaused;
+  }, [sessionPaused]);
 
     const {
         statusMessage,
@@ -64,11 +74,12 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
       dataPoints: rawHeartData.length,
       avgHeartRate: hr || 0,
       sessionTime: elapsedTime,
-      status: sessionActive ? 'Recording' : 'Idle',
+      status: sessionActive ? (sessionPaused ? 'Paused' : 'Recording') : 'Idle',
     };
-  }, [rawHeartData.length, hr, elapsedTime, sessionActive]);
+  }, [rawHeartData.length, hr, elapsedTime, sessionActive, sessionPaused]);
 
   const startDemoSession = useCallback(() => {
+    sessionPausedRef.current = false;
     startSession();
     setStatusMessage('Demo session running...');
 
@@ -77,6 +88,10 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
       const baseRr = 60000 / baseHr;
       const newRr = baseRr + (Math.random() - 0.5) * 80;
       const currentHr = Math.round(60000 / newRr);
+      
+      if (sessionPausedRef.current) {
+        return;
+      }
       
       setHr(currentHr);
       addRawHeartData({
@@ -149,8 +164,8 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-2xl font-semibold">Session Status</h2>
             <div className="flex items-center gap-2">
-              <div className={`w-3 h-3 rounded-full ${sessionActive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
-              <span className="text-sm">{sessionActive ? 'Recording' : 'Idle'}</span>
+              <div className={`w-3 h-3 rounded-full ${sessionActive ? (sessionPaused ? 'bg-yellow-400' : 'bg-green-500 animate-pulse') : 'bg-gray-400'}`}></div>
+              <span className="text-sm">{sessionActive ? (sessionPaused ? 'Paused' : 'Recording') : 'Idle'}</span>
             </div>
           </div>
           
@@ -178,7 +193,10 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
             {!sessionActive ? (
               <>
                 <button
-                  onClick={startRealSession}
+                  onClick={() => {
+                    sessionPausedRef.current = false;
+                    startRealSession();
+                  }}
                   className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold"
                 >
                   Start Real Session
@@ -191,12 +209,35 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
                 </button>
               </>
             ) : (
-              <button
-                onClick={() => endSession(elapsedTime, rawHeartData)}
-                className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold"
-              >
-                End Session
-              </button>
+              <>
+                {!sessionPaused ? (
+                  <button
+                    onClick={() => {
+                      pauseSession();
+                      setStatusMessage('Session paused. Click resume to continue recording.');
+                    }}
+                    className="px-6 py-3 bg-yellow-400 text-gray-900 rounded-lg hover:bg-yellow-500 transition-colors font-semibold"
+                  >
+                    Pause
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => {
+                      resumeSession();
+                      setStatusMessage('Session resumed.');
+                    }}
+                    className="px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors font-semibold"
+                  >
+                    Resume
+                  </button>
+                )}
+                <button
+                  onClick={() => endSession(elapsedTime, rawHeartData)}
+                  className="px-6 py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-semibold"
+                >
+                  End Session
+                </button>
+              </>
             )}
             
             <button
@@ -220,9 +261,10 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
                 darkMode={darkMode}
               />
               <MetricCard
-                title="Data Points"
+                title="Beats"
                 value={liveMetrics.dataPoints}
                 unit=""
+                precision={0}
                 darkMode={darkMode}
               />
               <MetricCard

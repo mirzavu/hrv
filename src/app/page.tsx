@@ -16,6 +16,7 @@ import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
+import { RawHeartData } from '@/types';
 
 const AppContent = () => {
     const [darkMode, setDarkMode] = useState(false);
@@ -36,8 +37,11 @@ const AppContent = () => {
     // authToken is no longer needed here
     const {
         sessionActive,
+        sessionPaused,
         setSessionActive,
         startSession,
+        pauseSession,
+        resumeSession,
         elapsedTime,
         rawHeartData,
         addRawHeartData,
@@ -49,10 +53,21 @@ const AppContent = () => {
     } = useHrvSession(user, addToast); // Pass user and addToast
 
     // Create a ref to hold the latest session data for callbacks
-    const latestSessionData = useRef({});
+    const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean; sessionPaused: boolean }>({
+        elapsedTime: 0,
+        rawHeartData: [],
+        sessionActive: false,
+        sessionPaused: false,
+    });
     useEffect(() => {
-        latestSessionData.current = { elapsedTime, rawHeartData, sessionActive };
-    }, [elapsedTime, rawHeartData, sessionActive]);
+        latestSessionData.current = { elapsedTime, rawHeartData, sessionActive, sessionPaused };
+    }, [elapsedTime, rawHeartData, sessionActive, sessionPaused]);
+
+    const sessionPausedRef = useRef(sessionPaused);
+
+    useEffect(() => {
+        sessionPausedRef.current = sessionPaused;
+    }, [sessionPaused]);
 
     const {
         isConnected,
@@ -63,7 +78,11 @@ const AppContent = () => {
     } = useBluetooth(
         setSessionActive, 
         addRawHeartData, 
-        (hr) => setHr(hr), 
+        (incomingHr) => {
+            if (!sessionPausedRef.current) {
+                setHr(incomingHr);
+            }
+        }, 
         endSession, 
         addToast,
         latestSessionData // Pass the ref to the hook
@@ -77,12 +96,14 @@ const AppContent = () => {
             dataPoints: rawHeartData.length,
             avgHeartRate: hr || 0,
             sessionTime: elapsedTime,
-            status: sessionActive ? 'Recording' : 'Idle',
+            status: sessionActive ? (sessionPaused ? 'Paused' : 'Recording') : 'Idle',
         };
-    }, [rawHeartData.length, hr, elapsedTime, sessionActive]);
+    }, [rawHeartData.length, hr, elapsedTime, sessionActive, sessionPaused]);
 
     const startDemoSession = () => {
         // Clear any existing intervals first
+        sessionPausedRef.current = false;
+
         if (demoDataGenerator.current) {
             clearInterval(demoDataGenerator.current);
         }
@@ -95,6 +116,10 @@ const AppContent = () => {
         setStatusMessage('Demo session running...');
 
         demoDataGenerator.current = setInterval(() => {
+            if (!latestSessionData.current.sessionActive || sessionPausedRef.current) {
+                return;
+            }
+
             const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
             const baseRr = 60000 / baseHr;
             const newRr = baseRr + (Math.random() - 0.5) * 80;
@@ -119,6 +144,7 @@ const AppContent = () => {
         disconnectDevice();
         resetSession();
         setHr(null);
+        sessionPausedRef.current = false;
         setStatusMessage('Click "Start Session" to begin.');
     };
 
@@ -177,12 +203,25 @@ const AppContent = () => {
                 <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 rounded-full ${isConnected ? 'bg-green-500 animate-pulse' : 'bg-red-500'}`}></div>
+                            <div className={`w-4 h-4 rounded-full ${
+                                sessionActive
+                                    ? (sessionPaused ? 'bg-yellow-400' : 'bg-green-500 animate-pulse')
+                                    : isConnected
+                                        ? 'bg-green-500'
+                                        : 'bg-red-500'
+                            }`}></div>
                             <p className="text-sm text-center sm:text-left">{statusMessage}</p>
                         </div>
                         {!sessionActive ? (
                             <div className="flex gap-2">
-                                <button onClick={startRealSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                <button
+                                    onClick={() => {
+                                        sessionPausedRef.current = false;
+                                        startRealSession();
+                                    }}
+                                    disabled={sessionSummary !== null}
+                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                >
                                     Start Session
                                 </button>
                                 <button onClick={startDemoSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
@@ -190,9 +229,32 @@ const AppContent = () => {
                                 </button>
                             </div>
                         ) : (
-                            <button onClick={() => endSession(elapsedTime, rawHeartData)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
-                                End Session
-                            </button>
+                            <div className="flex gap-2 flex-wrap justify-center sm:justify-end">
+                                {!sessionPaused ? (
+                                    <button
+                                        onClick={() => {
+                                            pauseSession();
+                                            setStatusMessage('Session paused. Click resume to continue recording.');
+                                        }}
+                                        className="px-4 py-2 bg-yellow-400 text-gray-900 font-semibold rounded-lg shadow-md hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-300 focus:ring-opacity-75 transition-transform transform hover:scale-105"
+                                    >
+                                        Pause
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={() => {
+                                            resumeSession();
+                                            setStatusMessage('Session resumed.');
+                                        }}
+                                        className="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-opacity-75 transition-transform transform hover:scale-105"
+                                    >
+                                        Resume
+                                    </button>
+                                )}
+                                <button onClick={() => endSession(elapsedTime, rawHeartData)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+                                    End Session
+                                </button>
+                            </div>
                         )}
                     </div>
                     {sessionActive && (
@@ -205,9 +267,12 @@ const AppContent = () => {
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <MetricCard title="Live HR" value={hr} unit="BPM" darkMode={darkMode} />
-                    <MetricCard title="Data Points" value={liveMetrics.dataPoints} unit="" darkMode={darkMode} />
+                    <MetricCard title="Beats" value={liveMetrics.dataPoints} unit="" precision={0} darkMode={darkMode} />
                     <MetricCard title="Session Time" value={liveMetrics.sessionTime} unit="s" darkMode={darkMode} />
-                    <MetricCard title="Status" value={liveMetrics.status} unit="" darkMode={darkMode} />
+                    <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
+                        <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</h3>
+                        <p className="text-2xl md:text-3xl font-bold">{liveMetrics.status}</p>
+                    </div>
                 </div>
 
                 <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
