@@ -16,6 +16,44 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
   const displayMilestones = useMemo(() => [{ label: 'Start', value: 0 }, ...SESSION_MILESTONES], []);
   const totalDuration = SESSION_MILESTONES[SESSION_MILESTONES.length - 1].value;
 
+  const currentProgressPercent = Math.min((elapsedTime / totalDuration) * 100, 100);
+
+  const computeMilestonePositionStyle = (progress: number) => {
+    if (progress <= 0) {
+      return { left: '0%', transform: 'translateX(0%)' };
+    }
+
+    if (progress >= 100) {
+      return { left: '100%', transform: 'translateX(-100%)' };
+    }
+
+    return { left: `${progress}%`, transform: 'translateX(-50%)' };
+  };
+
+  const getContainerAlignmentClass = (progress: number) => {
+    if (progress <= 0) {
+      return 'items-start';
+    }
+
+    if (progress >= 100) {
+      return 'items-end';
+    }
+
+    return 'items-center';
+  };
+
+  const getLabelAlignmentClass = (progress: number) => {
+    if (progress <= 0) {
+      return 'text-left';
+    }
+
+    if (progress >= 100) {
+      return 'text-right';
+    }
+
+    return 'text-center';
+  };
+
   return (
     <div className="mt-6 pt-6 flex flex-col items-center">
       <div className="w-full px-4">
@@ -38,21 +76,28 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
           ></div>
           
           {/* Milestone points and labels container */}
-          <div className="absolute top-1/2 -translate-y-1/2 w-full flex justify-between">
-            {displayMilestones.map((milestone, index) => {
+          <div className="absolute top-1/2 w-full">
+            {displayMilestones.map((milestone) => {
               // Calculate the progress percentage for this milestone
               const milestoneProgress = (milestone.value / totalDuration) * 100;
-              const currentProgress = Math.min((elapsedTime / totalDuration) * 100, 100);
+              const currentProgress = currentProgressPercent;
               
               // Only mark as reached when progress bar has visually reached this point
               const isReached = currentProgress >= milestoneProgress;
               const isActive = currentProgress >= milestoneProgress - 2 && currentProgress < milestoneProgress && !isReached;
+              const containerAlignment = getContainerAlignmentClass(milestoneProgress);
+              const labelAlignment = getLabelAlignmentClass(milestoneProgress);
               
               return (
-                <div key={milestone.label} className="relative flex flex-col items-center">
-                  {/* Circle with custom blue design */}
-                  <div 
-                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-700 transform ${
+                <div
+                  key={milestone.label}
+                  className="absolute top-1/2"
+                  style={computeMilestonePositionStyle(milestoneProgress)}
+                >
+                  <div className={`relative flex flex-col ${containerAlignment}`}>
+                    {/* Circle with custom blue design */}
+                    <div 
+                    className={`w-6 h-6 rounded-full flex items-center justify-center transition-all duration-700 transform -translate-y-1/2 ${
                       !isReached && !isActive
                         ? darkMode 
                           ? 'bg-gray-600 hover:bg-gray-500' 
@@ -74,30 +119,28 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
                     ) : (
                       <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-white animate-ping' : 'bg-white/60'}`}></div>
                     )}
+                    </div>
+                    
+                    {/* Label with better typography */}
+                    <span 
+                      className={`mt-1 text-xs font-medium whitespace-nowrap transition-all duration-300 ${
+                        !isReached && !isActive
+                          ? darkMode 
+                            ? 'text-gray-400' 
+                            : 'text-gray-600'
+                          : 'font-semibold'
+                      } ${labelAlignment}`}
+                      style={{
+                        color: isReached 
+                          ? '#1469a5' // Custom blue for completed
+                          : isActive
+                          ? '#2e93db' // Custom blue for active
+                          : undefined
+                      }}
+                    >
+                      {milestone.label}
+                    </span>
                   </div>
-                  
-                  {/* Label with better typography */}
-                  <span 
-                    className={`absolute top-8 text-xs font-medium whitespace-nowrap transition-all duration-300 ${
-                      !isReached && !isActive
-                        ? darkMode 
-                          ? 'text-gray-400' 
-                          : 'text-gray-600'
-                        : 'font-semibold'
-                    } ${index === 0 ? 'left-0' : ''}
-                      ${index === displayMilestones.length - 1 ? 'right-0' : ''}
-                      ${index > 0 && index < displayMilestones.length - 1 ? 'left-1/2 -translate-x-1/2' : ''}
-                    `}
-                    style={{
-                      color: isReached 
-                        ? '#1469a5' // Custom blue for completed
-                        : isActive
-                        ? '#2e93db' // Custom blue for active
-                        : undefined
-                    }}
-                  >
-                    {milestone.label}
-                  </span>
                 </div>
               );
             })}
