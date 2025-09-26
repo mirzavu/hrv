@@ -10,7 +10,10 @@
   },
   "dependencies": {
     "appwrite": "^20.1.0",
+    "dotenv": "^17.2.2",
     "next": "15.5.4",
+    "node-appwrite": "^19.1.0",
+    "pako": "^2.1.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "recharts": "^3.2.1"
@@ -19,8 +22,10 @@
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pako": "^2.0.4",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/web-bluetooth": "^0.0.21",
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
