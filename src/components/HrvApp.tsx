@@ -288,32 +288,7 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
           </div>
         )}
 
-        {/* Session Summary */}
-        {sessionSummary && (
-          <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg shadow-lg p-6`}>
-            <h2 className="text-2xl font-semibold mb-6">Session Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.entries(sessionSummary).map(([key, metric]) => (
-                <MetricCard
-                  key={key}
-                  title={metric.label}
-                  value={metric.value}
-                  unit={metric.unit}
-                  darkMode={darkMode}
-                />
-              ))}
-            </div>
-            
-            <div className="mt-6 text-center">
-              <button
-                onClick={() => setSessionSummary(null)}
-                className={`px-6 py-2 ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'} rounded-lg transition-colors`}
-              >
-                Close Summary
-              </button>
-            </div>
-          </div>
-        )}
+
       </div>
     </div>
   );

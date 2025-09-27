@@ -2,7 +2,7 @@ import React from 'react';
 
 interface MetricCardProps {
   title: string;
-  value: number | null;
+  value: number | string | null;
   unit?: string;
   precision?: number;
   darkMode: boolean;
@@ -10,7 +10,15 @@ interface MetricCardProps {
 
 const MetricCard: React.FC<MetricCardProps> = ({ title, value, unit, precision = 2, darkMode }) => {
   const displayTitle = unit ? `${title} (${unit})` : title;
-  const formattedValue = typeof value === 'number' ? value.toFixed(precision) : '00';
+  let formattedValue: string;
+
+  if (typeof value === 'number') {
+    formattedValue = value.toFixed(precision);
+  } else if (typeof value === 'string') {
+    formattedValue = value;
+  } else {
+    formattedValue = '—';
+  }
 
   return (
     <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
