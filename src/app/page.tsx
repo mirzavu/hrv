@@ -14,6 +14,7 @@ import Toast from '@/components/ui/Toast';
 import MetricCard from '@/components/ui/MetricCard';
 import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
+import LegacyHeartRateChart from '@/components/session/LegacyHeartRateChart';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import { RawHeartData } from '@/types';
@@ -275,10 +276,51 @@ const AppContent = () => {
                     </div>
                 </div>
 
-                <div className={`p-4 rounded-lg shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                    <h2 className="text-xl font-semibold mb-4">Raw Heart Data (Total: {rawHeartData.length})</h2>
-                    <div className="flex items-center justify-center h-[300px]">
-                        <p className="text-gray-500">{sessionActive ? "Chart will be added later..." : "Start a session to see the chart."}</p>
+                <div className={`rounded-lg p-6 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                            <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+                                Live Heartbeat Stream
+                            </h2>
+                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                                Total samples {rawHeartData.length}
+                            </p>
+                        </div>
+                        <span
+                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
+                                sessionActive
+                                    ? sessionPaused
+                                        ? darkMode
+                                            ? 'border-amber-400 text-amber-200'
+                                            : 'border-amber-300 text-amber-600'
+                                        : darkMode
+                                            ? 'border-emerald-400 text-emerald-200'
+                                            : 'border-emerald-400 text-emerald-600'
+                                    : darkMode
+                                        ? 'border-slate-600 text-slate-300'
+                                        : 'border-slate-300 text-slate-600'
+                            }`}
+                        >
+                            <span className="h-2 w-2 rounded-full bg-current"></span>
+                            {sessionActive ? (sessionPaused ? 'Paused' : 'Streaming') : 'Idle'}
+                        </span>
+                    </div>
+                    <div
+                        className={`relative rounded-md border border-dashed p-2 ${
+                            darkMode ? 'border-gray-700 bg-gray-900/70' : 'border-gray-300 bg-white/90'
+                        }`}
+                    >
+                        <LegacyHeartRateChart
+                            data={rawHeartData}
+                            darkMode={darkMode}
+                            sessionActive={sessionActive}
+                            emptyMessage={sessionActive ? 'Waiting for live heart rate data…' : 'Start a session to see the chart.'}
+                        />
+                        {sessionPaused && rawHeartData.length > 0 && (
+                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold uppercase tracking-[0.32em] text-white">
+                                Paused
+                            </div>
+                        )}
                     </div>
                 </div>
 

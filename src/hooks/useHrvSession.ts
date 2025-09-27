@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { gzip } from 'pako';
+import { zipSync, strToU8 } from 'fflate';
 import { databases, storage, AppwriteID } from '@/lib/appwrite';
 import { AppwriteException, Query } from 'appwrite';
 import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID, SESSION_SUMMARY_COLLECTION_ID } from '@/types';
@@ -113,7 +113,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
         const userDoc = existingUsers.documents[0];
 
-        // Create raw data file content (CSV compressed with gzip)
+        // Create raw data file content (CSV archived in a ZIP)
         const csvContent = buildSessionCsv(finalRawData, {
           startTime: sessionStartTime,
           endTime,
@@ -121,11 +121,12 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           dataPoints: finalRawData.length
         });
 
-        const compressedContent = gzip(csvContent);
+        const timestamp = Date.now();
+        const archiveBytes = zipSync({ [`session-${timestamp}.csv`]: strToU8(csvContent) }) as Uint8Array;
 
         // Upload raw data to Appwrite Storage
-        const file = new File([compressedContent], `session-${Date.now()}.csv.gz`, {
-          type: 'application/gzip'
+        const file = new File([archiveBytes], `session-${timestamp}.zip`, {
+          type: 'application/zip'
         });
 
         // Create a bucket ID for heart rate data (you'll need to create this bucket in Appwrite)
@@ -147,7 +148,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
                 : undefined;
 
           if (messageFromError && /extension not allowed/i.test(messageFromError)) {
-            toastMessage = 'Warning: Storage bucket is missing csv/gz extensions. Re-run setup-appwrite to update it.';
+            toastMessage = 'Warning: Storage bucket is missing .zip in its allowed extensions. Re-run setup-appwrite to update it.';
           }
 
           addToast(toastMessage);
