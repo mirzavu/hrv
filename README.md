@@ -7,7 +7,7 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 - **Real-time HRV Analysis** - Live RMSSD, SDNN, pNN50, and Mean HR calculations
 - **Polar H10 Support** - Connect via Web Bluetooth API for accurate heart rate data
 - **Demo Mode** - Test the app without hardware using simulated data
-- **Session Management** - Save and track HRV sessions with detailed metrics
+- **Session Management** - Save and track HRV sessions with detailed metrics and persistent summaries
 - **Progress Tracking** - Visual milestone progress bar with modern animations
 - **User Authentication** - Google OAuth and guest mode support
 - **Reports Dashboard** - View session history and analytics
@@ -95,24 +95,62 @@ hrv/
 Create a `.env.local` file with:
 
 ```env
-# Appwrite Configuration
+# Appwrite Configuration (client)
 NEXT_PUBLIC_APPWRITE_ENDPOINT=http://localhost/v1
 NEXT_PUBLIC_APPWRITE_PROJECT_ID=your-project-id
+NEXT_PUBLIC_APPWRITE_DATABASE_ID=your-database-id
+NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=users-collection-id
+NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID=sessions-collection-id
+NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID=session-summary-collection-id
+
+# Appwrite Configuration (server tooling)
+APPWRITE_ENDPOINT=http://localhost/v1
+APPWRITE_PROJECT_ID=your-project-id
+APPWRITE_DATABASE_ID=your-database-id
+APPWRITE_USERS_COLLECTION_ID=users-collection-id
+APPWRITE_SESSIONS_COLLECTION_ID=sessions-collection-id
+APPWRITE_SESSION_SUMMARY_COLLECTION_ID=session-summary-collection-id
+APPWRITE_API_KEY=your-api-key
 
 # App Configuration
 NEXT_PUBLIC_APP_TITLE=HRV Analysis App
 NEXT_PUBLIC_ENVIRONMENT=development
 NEXT_PUBLIC_DEBUG_MODE=true
-
-# API Configuration
-APPWRITE_API_KEY=your-api-key
 ```
 
 ### Appwrite Setup
 
-1. Follow the setup instructions in the `appwrite/` directory
+1. Follow the setup instructions in the `appwrite/` directory or run `node setup-appwrite.js`
 2. Configure authentication providers (Google OAuth)
-3. Set up database collections for users and sessions
+3. Confirm the script created the following collections in your database:
+   - `users`
+   - `sessions`
+   - `session_summary`
+
+### Session Summary Collection Schema
+
+The `session_summary` collection persists post-session analytics with the following attributes:
+
+| Column | Type | Description |
+| --- | --- | --- |
+| `session_id` | relation (sessions) | Linked session document |
+| `user_id` | relation (users) | Owner of the session |
+| `rmssd_session_ms` | float | RMSSD over entire session RR series |
+| `sdnn_session_ms` | float | SDNN over entire RR series |
+| `pnn50_percent` | float | Percentage of successive RR differences > 50 ms |
+| `session_mean_hr` | float | Average heart rate for the session |
+| `amode_50` | float | AMo50 amplitude (modal 50 ms RR bin) |
+| `AMo50_count` | integer | Count of beats in modal 50 ms RR bin |
+| `rr_max_ms` | integer | Maximum RR interval |
+| `rr_min_ms` | integer | Minimum RR interval |
+| `mxdmn_ms` | integer | MxDMn (max RR - min RR) |
+| `rmssd_start_ms` | float | RMSSD over the first 2 minutes |
+| `rmssd_end_ms` | float | RMSSD over the final 2 minutes |
+| `time_to_stabilize_seconds` | integer | Seconds until HR variance stabilizes |
+| `resp_coherence_score` | float | Composite respiration coherence score |
+| `restoration_index` | float | 0–100 restorative response score |
+| `session_stress_index` | float | Stress index ((AMo50 / MxDMn) * 100) |
+| `createdAt` | datetime | Timestamp of summary creation |
 
 ## 📱 Usage
 
@@ -138,6 +176,7 @@ APPWRITE_API_KEY=your-api-key
 - `npm run build` - Build for production
 - `npm run start` - Start production server
 - `npm run lint` - Run ESLint
+- `npm run test` - Run Vitest unit tests for analytics utilities
 
 ### Key Components
 
@@ -149,12 +188,17 @@ APPWRITE_API_KEY=your-api-key
 
 ## 🔬 HRV Metrics
 
-The app calculates standard HRV metrics:
+The app calculates standard and extended HRV metrics:
 
 - **RMSSD** - Root Mean Square of Successive Differences
 - **SDNN** - Standard Deviation of NN intervals
 - **pNN50** - Percentage of successive RR intervals that differ by more than 50ms
 - **Mean HR** - Average heart rate during session
+- **AMo50 / AMo50 Count** - Amplitude and count of the modal 50 ms RR bin
+- **MxDMn** - Difference between maximum and minimum RR intervals
+- **Respiration Coherence** - Composite score using RMSSD, SDNN, and pNN50
+- **Restoration Index** - Weighted composite of vagal recovery and stability
+- **Session Stress Index** - Baevsky-style stress indicator
 
 ## 🚀 Deployment
 
