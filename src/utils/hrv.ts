@@ -37,3 +37,9 @@ export const calculateCV = (sdnn: number | null, meanRR: number | null): number 
 
 export const calculateMxDMn = (rr: number[]): number | null => 
     (rr.length < 2) ? null : Math.max(...rr) - Math.min(...rr);
+
+export const calculateVariance = (values: number[]): number | null => {
+    if (values.length < 2) return null;
+    const mean = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return values.reduce((acc, value) => acc + Math.pow(value - mean, 2), 0) / (values.length - 1);
+};
