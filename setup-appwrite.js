@@ -238,6 +238,7 @@ async function setup() {
             { key: 'session_id', type: 'relation', required: true, relatedCollection: SESSIONS_COLLECTION_ID },
             { key: 'user_id', type: 'relation', required: true, relatedCollection: USERS_COLLECTION_ID },
             { key: 'rmssd_session_ms', type: 'float', required: false },
+            { key: 'rmssd_cv_percent', type: 'float', required: false },
             { key: 'sdnn_session_ms', type: 'float', required: false },
             { key: 'pnn50_percent', type: 'float', required: false },
             { key: 'session_mean_hr', type: 'float', required: false },
@@ -296,7 +297,7 @@ async function setup() {
         const BUCKET_ID = 'heart-rate-data';
         const BUCKET_NAME = 'Heart Rate Data';
         
-        const desiredExtensions = ['csv', 'gz'];
+        const desiredExtensions = ['csv', 'zip'];
 
         try {
             const existingBucket = await storage.getBucket(BUCKET_ID);
@@ -319,7 +320,7 @@ async function setup() {
                 );
                 console.log(`  🔄 Updated allowed extensions to: ${desiredExtensions.join(', ')}`);
             } else {
-                console.log('  - Allowed extensions already include csv/gz.');
+                console.log('  - Allowed extensions already include csv/zip.');
             }
         } catch (e) {
             if (e.code === 404) {
