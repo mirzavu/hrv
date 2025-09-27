@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { gzip } from 'pako';
 import { databases, storage, AppwriteID } from '@/lib/appwrite';
 import { AppwriteException, Query } from 'appwrite';
-import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID } from '@/types';
+import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID, SESSION_SUMMARY_COLLECTION_ID } from '@/types';
+import { computeSessionSummaryPayload } from '@/utils/sessionSummary';
 
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES: SessionMilestone[] = [
@@ -153,7 +154,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         }
 
         // Create session record in database
-        await databases.createDocument(
+        const sessionRecord = await databases.createDocument(
           DATABASE_ID,
           SESSIONS_COLLECTION_ID,
           AppwriteID.unique(),
@@ -164,6 +165,29 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
             rawFileId: rawFileId
           }
         );
+
+        try {
+          const summaryPayload = computeSessionSummaryPayload({
+            rawData: finalRawData,
+            sessionStartTime,
+            durationSeconds: finalElapsedTime,
+            userId: userDoc.$id,
+            sessionId: sessionRecord.$id,
+          });
+
+          await databases.createDocument(
+            DATABASE_ID,
+            SESSION_SUMMARY_COLLECTION_ID,
+            AppwriteID.unique(),
+            {
+              ...summaryPayload,
+              createdAt: new Date().toISOString(),
+            }
+          );
+        } catch (summaryError) {
+          console.error('Error saving session summary:', summaryError);
+          addToast('Warning: Session saved but summary metrics could not be stored.');
+        }
         
         addToast('Session saved successfully!');
       } catch (error) {
