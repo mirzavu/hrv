@@ -38,11 +38,28 @@ export interface HRVMetric {
 }
 
 export interface SessionSummary {
+  // Core session metrics
   duration: HRVMetric;
-  totalBeats: HRVMetric;
-  // Keeping structure for now with dummy data
-  heartRate: HRVMetric;
+  meanHR: HRVMetric;
+  
+  // HRV metrics
+  sessionRMSSD: HRVMetric;
+  startRMSSD: HRVMetric;
+  endRMSSD: HRVMetric;
+  rmssdDelta: HRVMetric;
+  hrvStability: HRVMetric;
+  
+  // Performance metrics
+  timeToStabilize: HRVMetric;
+  respCoherence: HRVMetric;
+  restorationIndex: HRVMetric;
+  sessionStressIndex: HRVMetric;
+  
+  // Data quality
   dataPoints: HRVMetric;
+  
+  // Raw data for visualization
+  rrIntervals: Array<{ timestamp: number; value: number }>;
 }
 
 export interface SessionSummaryRecord {
@@ -50,6 +67,7 @@ export interface SessionSummaryRecord {
   session_id: string;
   user_id: string;
   rmssd_session_ms: number | null;
+  rmssd_cv_percent?: number | null;
   sdnn_session_ms: number | null;
   pnn50_percent: number | null;
   session_mean_hr: number | null;

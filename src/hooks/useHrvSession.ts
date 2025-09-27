@@ -6,6 +6,7 @@ import { databases, storage, AppwriteID } from '@/lib/appwrite';
 import { AppwriteException, Query } from 'appwrite';
 import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID, SESSION_SUMMARY_COLLECTION_ID } from '@/types';
 import { computeSessionSummaryPayload } from '@/utils/sessionSummary';
+import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES: SessionMilestone[] = [
@@ -88,13 +89,17 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     
     const endTime = new Date().toISOString();
     
-    // Create summary with dummy data for now
-    const summary: SessionSummary = {
-      duration: { label: 'Duration', value: finalElapsedTime, unit: 's' },
-      totalBeats: { label: 'Data Points', value: finalRawData.length, unit: '' },
-      heartRate: { label: 'Avg Heart Rate', value: 75, unit: 'bpm' }, // dummy data
-      dataPoints: { label: 'Raw Samples', value: finalRawData.length, unit: '' },
-    };
+    // Compute session metrics
+    const summaryPayload = computeSessionSummaryPayload({
+      rawData: finalRawData,
+      sessionStartTime,
+      durationSeconds: finalElapsedTime,
+      userId: user?.$id || 'guest',
+      sessionId: 'temp', // Will be updated after session creation
+    });
+    
+    // Build display summary
+    const summary = buildSessionSummary(summaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
     setSessionSummary(summary);
 
     if (user && user.$id !== 'guest') {
@@ -122,10 +127,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         });
 
         const timestamp = Date.now();
-        const archiveBytes = zipSync({ [`session-${timestamp}.csv`]: strToU8(csvContent) }) as Uint8Array;
+        const archiveBytes = zipSync({ [`session-${timestamp}.csv`]: strToU8(csvContent) });
 
         // Upload raw data to Appwrite Storage
-        const file = new File([archiveBytes], `session-${timestamp}.zip`, {
+        const file = new File([new Uint8Array(archiveBytes)], `session-${timestamp}.zip`, {
           type: 'application/zip'
         });
 
@@ -168,7 +173,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         );
 
         try {
-          const summaryPayload = computeSessionSummaryPayload({
+          const finalSummaryPayload = computeSessionSummaryPayload({
             rawData: finalRawData,
             sessionStartTime,
             durationSeconds: finalElapsedTime,
@@ -181,10 +186,14 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
             SESSION_SUMMARY_COLLECTION_ID,
             AppwriteID.unique(),
             {
-              ...summaryPayload,
+              ...finalSummaryPayload,
               createdAt: new Date().toISOString(),
             }
           );
+          
+          // Update the displayed summary with the final sessionId
+          const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
+          setSessionSummary(finalSummary);
         } catch (summaryError) {
           console.error('Error saving session summary:', summaryError);
           addToast('Warning: Session saved but summary metrics could not be stored.');

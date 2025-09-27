@@ -168,6 +168,47 @@ const computeRestorationIndex = (
   return Number((0.45 * rmssdComponent + 0.35 * coherenceComponent + 0.2 * timeComponent).toFixed(2));
 };
 
+const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimestamp: number): number | null => {
+  if (rrSeries.length < 2) {
+    return null;
+  }
+
+  const oneMinuteMs = 60 * 1000;
+  const endTimestamp = rrSeries[rrSeries.length - 1].timestamp;
+  const sessionEndTimestamp = sessionStartTimestamp + (endTimestamp - sessionStartTimestamp);
+
+  // Calculate 1-minute RMSSD windows
+  const rmssdWindows: number[] = [];
+  
+  for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - oneMinuteMs; windowStart += oneMinuteMs) {
+    const windowEnd = windowStart + oneMinuteMs;
+    const windowData = rrSeries
+      .filter(sample => sample.timestamp >= windowStart && sample.timestamp <= windowEnd)
+      .map(sample => sample.value);
+    
+    if (windowData.length >= 2) {
+      const windowRmssd = calculateRMSSD(windowData);
+      if (windowRmssd !== null) {
+        rmssdWindows.push(windowRmssd);
+      }
+    }
+  }
+
+  if (rmssdWindows.length < 2) {
+    return null;
+  }
+
+  // Calculate coefficient of variation (CV = std / mean * 100)
+  const mean = rmssdWindows.reduce((sum, value) => sum + value, 0) / rmssdWindows.length;
+  if (mean === 0) return null;
+
+  const variance = rmssdWindows.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / rmssdWindows.length;
+  const standardDeviation = Math.sqrt(variance);
+  const coefficientOfVariation = (standardDeviation / mean) * 100;
+
+  return Number(coefficientOfVariation.toFixed(2));
+};
+
 export const computeSessionSummaryPayload = ({
   rawData,
   sessionStartTime,
@@ -198,6 +239,7 @@ export const computeSessionSummaryPayload = ({
 
   const timeToStabilize = computeTimeToStabilize(rawData, sessionStartTimestamp, meanHr);
   const respCoherence = computeRespCoherenceScore(rmssdSession, sdnnSession, pnn50);
+  const hrvStability = computeHrvStability(rrSeries, sessionStartTimestamp);
 
   let sessionStressIndex: number | null = null;
   if (amode50 !== null && mxDmN && mxDmN !== 0) {
@@ -206,10 +248,14 @@ export const computeSessionSummaryPayload = ({
 
   const restorationIndex = computeRestorationIndex(rmssdSession, respCoherence, timeToStabilize);
 
+  // Calculate RMSSD Delta (End - Start)
+  const rmssdDelta = (rmssdEnd !== null && rmssdStart !== null) ? rmssdEnd - rmssdStart : null;
+
   return {
     session_id: sessionId,
     user_id: userId,
     rmssd_session_ms: rmssdSession !== null ? Number(rmssdSession.toFixed(2)) : null,
+    ...(hrvStability !== null && { rmssd_cv_percent: hrvStability }),
     sdnn_session_ms: sdnnSession !== null ? Number(sdnnSession.toFixed(2)) : null,
     pnn50_percent: pnn50 !== null ? Number(pnn50.toFixed(2)) : null,
     session_mean_hr: meanHr !== null ? Number(meanHr.toFixed(2)) : null,
