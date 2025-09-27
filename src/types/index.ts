@@ -45,6 +45,30 @@ export interface SessionSummary {
   dataPoints: HRVMetric;
 }
 
+export interface SessionSummaryRecord {
+  $id: string;
+  session_id: string;
+  user_id: string;
+  rmssd_session_ms: number | null;
+  sdnn_session_ms: number | null;
+  pnn50_percent: number | null;
+  session_mean_hr: number | null;
+  amode_50: number | null;
+  AMo50_count: number | null;
+  rr_max_ms: number | null;
+  rr_min_ms: number | null;
+  mxdmn_ms: number | null;
+  rmssd_start_ms: number | null;
+  rmssd_end_ms: number | null;
+  time_to_stabilize_seconds: number | null;
+  resp_coherence_score: number | null;
+  restoration_index: number | null;
+  session_stress_index: number | null;
+  createdAt: string;
+}
+
+export type SessionSummaryPayload = Omit<SessionSummaryRecord, '$id' | 'createdAt'>;
+
 export interface SessionMilestone {
   label: string;
   value: number;
@@ -92,3 +116,4 @@ const requireEnv = (value: string | undefined, key: string) => {
 export const DATABASE_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID, 'NEXT_PUBLIC_APPWRITE_DATABASE_ID');
 export const USERS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
 export const SESSIONS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID');
+export const SESSION_SUMMARY_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID');
