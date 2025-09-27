@@ -9,6 +9,9 @@
     "lint": "eslint",
     "test": "vitest run"
   },
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "dependencies": {
     "appwrite": "18.2.0",
     "chart.js": "^4.5.0",
@@ -34,6 +37,6 @@
     "jsdom": "^22.1.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^2.1.4"
+    "vitest": "^3.2.4"
   }
 }
