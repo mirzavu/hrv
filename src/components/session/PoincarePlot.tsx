@@ -117,6 +117,7 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data }) => {
                 <RechartsTooltip
                   content={renderPoincareTooltip}
                   cursor={{ stroke: '#94a3b8', strokeDasharray: '4 4' }}
+                  animationDuration={0}
                 />
                 <Scatter
                   dataKey="rrn1"
@@ -125,7 +126,6 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data }) => {
                   stroke="#2563eb"
                   strokeWidth={1}
                 />
-                {/* Add identity line (RR(n) = RR(n+1)) */}
                 <ReferenceLine
                   segment={[{ x: minRR, y: minRR }, { x: maxRR, y: maxRR }]}
                   stroke="#64748b"

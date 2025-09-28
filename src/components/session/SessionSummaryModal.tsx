@@ -4,6 +4,9 @@ import { X, Heart, Activity, TrendingUp, Clock, Waves, Target } from 'lucide-rea
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
+import RestorationIndexGauge from './RestorationIndexGauge';
+import StressIndexGauge from './StressIndexGauge';
+import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -60,7 +63,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   }, [summary.rrIntervals]);
 
   const poincareData = useMemo(() => {
-    const intervals = summary.rrIntervals ?? [];
+        const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
       (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
     );
@@ -83,6 +86,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
     return points;
   }, [summary.rrIntervals]);
+
 
   const stabilizationTime =
     typeof summary.timeToStabilize?.value === 'number'
@@ -108,7 +112,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         </header>
 
         <main className="p-8 space-y-8">
-          {/* Key Metrics Section */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-blue-600" />
@@ -137,7 +140,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           <div className="flex flex-col gap-8">
             <section className="space-y-8">
-              {/* HRV Analysis */}
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <Waves className="w-6 h-6 text-blue-600" />
@@ -166,7 +168,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 </div>
               </section>
 
-              {/* Detailed Metrics Section - Placeholder for future graphs */}
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -179,25 +180,21 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   />
                   <PoincarePlot data={poincareData} />
 
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-                    <div className="bg-slate-100 rounded-2xl p-6 text-center">
-                      <p className="text-slate-600 mb-2">
-                        📊 Additional Visualizations Coming Soon
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        Stress Index Gauge • Restoration Gauge • Breathing Coherence
-                        Wave • Signal Quality Timeline
-                      </p>
-                    </div>
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <RestorationIndexGauge score={summary.restorationIndex.value} />
+                    <StressIndexGauge score={summary.sessionStressIndex.value} />
                   </div>
+                  
+                  {/* New Breathing Coherence Chart */}
+                  <BreathingCoherenceChart data={heartRateData} />
+
                 </div>
               </section>
             </section>
           </div>
         </main>
-
+        
         <footer className="sticky bottom-0 bg-white/70 backdrop-blur-md rounded-b-3xl border-t border-slate-200 p-5 mt-auto">
-          {/* Guest Login Prompt */}
           {isGuest && (
             <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
               <div className="flex items-start gap-3">
