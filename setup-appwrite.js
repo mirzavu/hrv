@@ -237,6 +237,8 @@ async function setup() {
         const summaryAttributes = [
             { key: 'session_id', type: 'relation', required: true, relatedCollection: SESSIONS_COLLECTION_ID },
             { key: 'user_id', type: 'relation', required: true, relatedCollection: USERS_COLLECTION_ID },
+            
+            // Existing time-domain metrics
             { key: 'rmssd_session_ms', type: 'float', required: false },
             { key: 'rmssd_cv_percent', type: 'float', required: false },
             { key: 'sdnn_session_ms', type: 'float', required: false },
@@ -253,6 +255,26 @@ async function setup() {
             { key: 'resp_coherence_score', type: 'float', required: false },
             { key: 'restoration_index', type: 'float', required: false },
             { key: 'session_stress_index', type: 'float', required: false },
+            
+            // New time-domain metrics
+            { key: 'mean_rr_ms', type: 'float', required: false },
+            
+            // Frequency-domain metrics
+            { key: 'lf_power_ms2', type: 'float', required: false },
+            { key: 'hf_power_ms2', type: 'float', required: false },
+            { key: 'lfhf_ratio', type: 'float', required: false },
+            { key: 'total_power_ms2', type: 'float', required: false },
+            
+            // Nonlinear/Poincaré plot metrics
+            { key: 'sd1_ms', type: 'float', required: false },
+            { key: 'sd2_ms', type: 'float', required: false },
+            
+            // Full Baevsky Stress Index components
+            { key: 'baevsky_mo', type: 'float', required: false },
+            { key: 'baevsky_amo', type: 'float', required: false },
+            { key: 'baevsky_mxdmn_ms', type: 'float', required: false },
+            { key: 'baevsky_stress_index', type: 'float', required: false },
+            
             { key: 'createdAt', type: 'datetime', required: true },
         ];
 

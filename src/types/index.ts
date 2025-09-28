@@ -66,6 +66,8 @@ export interface SessionSummaryRecord {
   $id: string;
   session_id: string;
   user_id: string;
+  
+  // Existing time-domain metrics
   rmssd_session_ms: number | null;
   rmssd_cv_percent?: number | null;
   sdnn_session_ms: number | null;
@@ -82,6 +84,26 @@ export interface SessionSummaryRecord {
   resp_coherence_score: number | null;
   restoration_index: number | null;
   session_stress_index: number | null;
+  
+  // New time-domain metrics
+  mean_rr_ms?: number | null;
+  
+  // Frequency-domain metrics
+  lf_power_ms2?: number | null;
+  hf_power_ms2?: number | null;
+  lfhf_ratio?: number | null;
+  total_power_ms2?: number | null;
+  
+  // Nonlinear/Poincaré plot metrics
+  sd1_ms?: number | null;
+  sd2_ms?: number | null;
+  
+  // Full Baevsky Stress Index components
+  baevsky_mo?: number | null;
+  baevsky_amo?: number | null;
+  baevsky_mxdmn_ms?: number | null;
+  baevsky_stress_index?: number | null;
+  
   createdAt: string;
 }
 
