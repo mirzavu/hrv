@@ -4,7 +4,10 @@ import {
   calculateSDNN,
   calculatePNN50,
   calculateMeanHR,
-  calculateMxDMn
+  calculateMxDMn,
+  calculateFrequencyDomain,
+  calculatePoincareMetrics,
+  calculateBaevskyMetrics
 } from '@/utils/hrv';
 
 interface TimestampedRR {
@@ -173,15 +176,15 @@ const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimestamp: n
     return null;
   }
 
-  const oneMinuteMs = 60 * 1000;
+  const windowSizeMs = 30 * 1000; // Use 30-second windows for shorter sessions
   const endTimestamp = rrSeries[rrSeries.length - 1].timestamp;
   const sessionEndTimestamp = sessionStartTimestamp + (endTimestamp - sessionStartTimestamp);
 
-  // Calculate 1-minute RMSSD windows
+  // Calculate RMSSD windows
   const rmssdWindows: number[] = [];
   
-  for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - oneMinuteMs; windowStart += oneMinuteMs) {
-    const windowEnd = windowStart + oneMinuteMs;
+  for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - windowSizeMs; windowStart += windowSizeMs) {
+    const windowEnd = windowStart + windowSizeMs;
     const windowData = rrSeries
       .filter(sample => sample.timestamp >= windowStart && sample.timestamp <= windowEnd)
       .map(sample => sample.value);
@@ -220,6 +223,7 @@ export const computeSessionSummaryPayload = ({
   const rrSeries = flattenRrSeries(rawData, sessionStartTimestamp);
   const rrValues = rrSeries.map((item) => item.value);
 
+  // Calculate existing metrics
   const rmssdSession = calculateRMSSD(rrValues);
   const sdnnSession = calculateSDNN(rrValues);
   const pnn50 = calculatePNN50(rrValues);
@@ -228,6 +232,18 @@ export const computeSessionSummaryPayload = ({
   const mxDmN = calculateMxDMn(rrValues);
   const rrMax = rrValues.length ? Math.max(...rrValues) : null;
   const rrMin = rrValues.length ? Math.min(...rrValues) : null;
+  
+  // Calculate mean RR in milliseconds
+  const meanRR = rrValues.length ? rrValues.reduce((sum, rr) => sum + rr, 0) / rrValues.length : null;
+  
+  // Calculate new frequency domain metrics
+  const frequencyMetrics = calculateFrequencyDomain(rrValues);
+  
+  // Calculate Poincaré plot metrics
+  const poincareMetrics = calculatePoincareMetrics(rrValues);
+  
+  // Calculate full Baevsky metrics
+  const baevskyMetrics = calculateBaevskyMetrics(rrValues);
 
   const windowMs = START_END_WINDOW_SECONDS * 1000;
   const endTimestamp = rrSeries.length ? rrSeries[rrSeries.length - 1].timestamp : sessionStartTimestamp + durationSeconds * 1000;
@@ -251,6 +267,8 @@ export const computeSessionSummaryPayload = ({
   return {
     session_id: sessionId,
     user_id: userId,
+    
+    // Existing time-domain metrics
     rmssd_session_ms: rmssdSession !== null ? Number(rmssdSession.toFixed(2)) : null,
     ...(hrvStability !== null && { rmssd_cv_percent: hrvStability }),
     sdnn_session_ms: sdnnSession !== null ? Number(sdnnSession.toFixed(2)) : null,
@@ -267,5 +285,24 @@ export const computeSessionSummaryPayload = ({
     resp_coherence_score: respCoherence,
     restoration_index: restorationIndex,
     session_stress_index: sessionStressIndex,
+    
+    // New time-domain metrics
+    mean_rr_ms: meanRR !== null ? Number(meanRR.toFixed(2)) : null,
+    
+    // Frequency-domain metrics
+    lf_power_ms2: frequencyMetrics.lfPower,
+    hf_power_ms2: frequencyMetrics.hfPower,
+    lfhf_ratio: frequencyMetrics.lfhfRatio,
+    total_power_ms2: frequencyMetrics.totalPower,
+    
+    // Poincaré plot metrics
+    sd1_ms: poincareMetrics.sd1,
+    sd2_ms: poincareMetrics.sd2,
+    
+    // Full Baevsky Stress Index components
+    baevsky_mo: baevskyMetrics.mo,
+    baevsky_amo: baevskyMetrics.amo,
+    baevsky_mxdmn_ms: baevskyMetrics.mxdmn,
+    baevsky_stress_index: baevskyMetrics.bsi,
   };
 };

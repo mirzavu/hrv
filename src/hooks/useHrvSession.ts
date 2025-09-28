@@ -181,6 +181,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
             sessionId: sessionRecord.$id,
           });
 
+
           await databases.createDocument(
             DATABASE_ID,
             SESSION_SUMMARY_COLLECTION_ID,
