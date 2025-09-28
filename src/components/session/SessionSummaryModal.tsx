@@ -7,6 +7,7 @@ import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
 import StressIndexGauge from './StressIndexGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
+import TachogramChart from './TachogramChart';
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -90,6 +91,37 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     }
 
     return points;
+  }, [summary.rrIntervals]);
+
+  const tachogramData = useMemo(() => {
+    const intervals = summary.rrIntervals ?? [];
+    const valid = intervals.filter(
+      (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
+    );
+    if (!valid.length) {
+      return [];
+    }
+
+    const startTimestamp = typeof valid[0].timestamp === 'number' ? valid[0].timestamp : null;
+    let elapsedSeconds = 0;
+
+    return valid.map((interval, index) => {
+      const rr = interval.value ?? 0;
+      
+      if (startTimestamp !== null && typeof interval.timestamp === 'number') {
+        elapsedSeconds = (interval.timestamp - startTimestamp) / 1000;
+      } else if (index === 0) {
+        elapsedSeconds = 0;
+      } else {
+        elapsedSeconds += rr / 1000;
+      }
+
+      return {
+        beatNumber: index + 1,
+        time: Number(elapsedSeconds.toFixed(1)),
+        rrInterval: Number(rr.toFixed(1)),
+      };
+    });
   }, [summary.rrIntervals]);
 
 
@@ -191,6 +223,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   Detailed Metrics
                 </h2>
                 <div className="space-y-6">
+                  <TachogramChart data={tachogramData} />
                   <PoincarePlot data={poincareData} />
                   
                   {/* New Breathing Coherence Chart */}
