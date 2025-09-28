@@ -248,9 +248,6 @@ export const computeSessionSummaryPayload = ({
 
   const restorationIndex = computeRestorationIndex(rmssdSession, respCoherence, timeToStabilize);
 
-  // Calculate RMSSD Delta (End - Start)
-  const rmssdDelta = (rmssdEnd !== null && rmssdStart !== null) ? rmssdEnd - rmssdStart : null;
-
   return {
     session_id: sessionId,
     user_id: userId,

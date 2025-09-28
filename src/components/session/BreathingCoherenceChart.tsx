@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -20,31 +20,57 @@ interface BreathingCoherenceChartProps {
 }
 
 const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data }) => {
-  // Generate a sine wave for the breathing pacer
-  const breathingWaveData = [];
-  const breathsPerMinute = 5.5;
-  const secondsPerBreath = 60 / breathsPerMinute;
-  const amplitude = 10; // BPM range for the wave
-  const verticalOffset = 60; // Center the wave around 60 BPM
+  // Combine user HR data and the generated breathing pacer wave into a single, unified array
+  const combinedData = useMemo(() => {
+    if (data.length < 2) {
+      return [];
+    }
 
-  if (data.length > 0) {
+    const breathsPerMinute = 5.5;
+    const secondsPerBreath = 60 / breathsPerMinute;
+    const amplitude = 10;
+    const verticalOffset = 60;
     const duration = data[data.length - 1].time;
+
+    const finalData = [];
+    let userHrIndex = 0;
+
+    // Create a unified timeline at 0.5-second intervals
     for (let i = 0; i <= duration; i += 0.5) {
-      breathingWaveData.push({
+      // Find the most recent user HR reading for the current time 'i'
+      while (userHrIndex + 1 < data.length && data[userHrIndex + 1].time <= i) {
+        userHrIndex++;
+      }
+
+      finalData.push({
         time: i,
+        // Calculate the pacer value for this time point
         pacer: verticalOffset + amplitude * Math.sin((2 * Math.PI * i) / secondsPerBreath),
+        // Use the most recent bpm value
+        bpm: data[userHrIndex]?.bpm,
       });
     }
-  }
+    return finalData;
+  }, [data]);
+
 
   const renderTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+      const point = payload[0].payload;
+      const userHr = point.bpm;
+      const pacerVal = point.pacer;
+
       return (
         <div className="rounded-xl border border-white/10 bg-slate-900/90 px-4 py-3 text-white shadow-xl backdrop-blur-md">
           <p className="text-xs uppercase tracking-wide text-slate-300">{`Time ${Number(
             label
           ).toFixed(1)}s`}</p>
-          <p className="mt-1 text-sm font-semibold">{`HR: ${payload[0].value.toFixed(1)} bpm`}</p>
+          {userHr != null && (
+             <p className="mt-1 text-sm font-semibold text-[#3b82f6]">{`Your HR: ${userHr.toFixed(1)} bpm`}</p>
+          )}
+          {pacerVal != null && (
+            <p className="mt-1 text-sm font-semibold text-[#a5b4fc]">{`Pacer: ${pacerVal.toFixed(1)} bpm`}</p>
+          )}
         </div>
       );
     }
@@ -61,7 +87,7 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
       </div>
       <div className="h-64">
         <ResponsiveContainer>
-          <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
+          <LineChart data={combinedData} margin={{ top: 10, right: 20, left: 10, bottom: 20 }}>
             <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
             <XAxis
               dataKey="time"
@@ -92,7 +118,6 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
             <ReferenceArea y1={50} y2={70} fill="#bbf7d0" fillOpacity={0.15} strokeOpacity={0} />
             <Line
               type="monotone"
-              data={breathingWaveData}
               dataKey="pacer"
               stroke="#a5b4fc"
               strokeWidth={2}

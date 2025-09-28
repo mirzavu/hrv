@@ -1,5 +1,4 @@
 import { SessionSummary, SessionSummaryPayload } from '@/types';
-import { formatDuration, formatRmssdDelta, formatPercentage, formatScore } from './sessionSummaryFormat';
 
 /**
  * Build a SessionSummary object for display from computed session metrics

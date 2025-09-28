@@ -49,7 +49,6 @@ const RRVisualization: React.FC<RRVisualizationProps> = ({
   const height = 300;
   const margin = 40;
   const plotWidth = width - 2 * margin;
-  const plotHeight = height - 2 * margin;
 
   // Scale function
   const scale = (value: number) => {

@@ -27,8 +27,6 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
     elapsedTime,
     rawHeartData,
     addRawHeartData,
-    sessionSummary,
-    setSessionSummary,
     endSession,
     resetSession,
     demoDataGenerator,

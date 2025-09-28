@@ -59,7 +59,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           bpm: Number((60000 / rr).toFixed(1)),
         };
       })
-      .filter((point) => Boolean(point) && Number.isFinite(point?.bpm));
+      .filter((point): point is { time: number; bpm: number } => 
+        Boolean(point) && Number.isFinite(point?.bpm)
+      );
   }, [summary.rrIntervals]);
 
   const poincareData = useMemo(() => {
@@ -145,7 +147,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   <Waves className="w-6 h-6 text-blue-600" />
                   HRV Analysis
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                   <MetricCard
                     title="Session RMSSD"
                     value={summary.sessionRMSSD.value}
@@ -166,6 +168,11 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     unit="/100"
                   />
                 </div>
+                
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <RestorationIndexGauge score={summary.restorationIndex.value} />
+                  <StressIndexGauge score={summary.sessionStressIndex.value} />
+                </div>
               </section>
 
               <section>
@@ -179,11 +186,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     stabilizationTime={stabilizationTime}
                   />
                   <PoincarePlot data={poincareData} />
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <RestorationIndexGauge score={summary.restorationIndex.value} />
-                    <StressIndexGauge score={summary.sessionStressIndex.value} />
-                  </div>
                   
                   {/* New Breathing Coherence Chart */}
                   <BreathingCoherenceChart data={heartRateData} />
