@@ -1,7 +1,6 @@
 import React from 'react';
 import { SessionSummary } from '@/types';
 import { formatDuration, formatRmssdDelta, formatPercentage, formatScore } from '@/utils/sessionSummaryFormat';
-import { getStressIndexIndicator, getRestorationIndexIndicator } from '@/utils/metricIndicators';
 import RRVisualization from './RRVisualization';
 
 interface SessionSummaryModalProps {
@@ -47,51 +46,6 @@ const MetricCard: React.FC<{
           </span>
         )}
       </div>
-    </div>
-  );
-};
-
-const EnhancedMetricCard: React.FC<{
-  label: string;
-  value: number | null;
-  unit: string;
-  darkMode: boolean;
-  indicator: import('@/utils/metricIndicators').MetricIndicator | null;
-  className?: string;
-}> = ({ label, value, unit, darkMode, indicator, className = '' }) => {
-  const displayValue = value !== null ? value.toFixed(1) : 'N/A';
-
-  return (
-    <div className={`p-5 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-gray-100'} ${className}`}>
-      {/* Header */}
-      <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'} mb-2`}>{label}</p>
-      
-      {/* Main Value */}
-      <div className="flex items-baseline gap-2 mb-3">
-        <span className={`text-3xl font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>
-          {displayValue}
-        </span>
-        {unit && (
-          <span className={`text-lg ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-            {unit}
-          </span>
-        )}
-      </div>
-
-      {/* Indicator Band */}
-      {indicator && (
-        <div className={`p-3 rounded-lg border ${indicator.bgColor} ${indicator.borderColor}`}>
-          <div className="flex items-center gap-2 mb-2">
-            <span className="text-lg">{indicator.icon}</span>
-            <span className={`font-semibold ${indicator.textColor}`}>
-              {indicator.label}
-            </span>
-          </div>
-          <p className={`text-sm ${indicator.textColor} leading-relaxed`}>
-            {indicator.message}
-          </p>
-        </div>
-      )}
     </div>
   );
 };
@@ -222,27 +176,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           <h3 className={`text-xl font-semibold mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>
             Performance Metrics
           </h3>
-          
-          {/* Enhanced Key Metrics */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-            <EnhancedMetricCard
-              label="Session Stress Index"
-              value={summary.sessionStressIndex.value}
-              unit=""
-              darkMode={darkMode}
-              indicator={getStressIndexIndicator(summary.sessionStressIndex.value, darkMode)}
-            />
-            <EnhancedMetricCard
-              label="Restoration Index"
-              value={summary.restorationIndex.value}
-              unit="/100"
-              darkMode={darkMode}
-              indicator={getRestorationIndexIndicator(summary.restorationIndex.value, darkMode)}
-            />
-          </div>
-
-          {/* Supporting Metrics */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <MetricCard
               label="Time to Stabilize"
               value={summary.timeToStabilize.value}
@@ -253,6 +187,18 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               label="Respiratory Coherence"
               value={summary.respCoherence.value}
               unit="/100"
+              darkMode={darkMode}
+            />
+            <MetricCard
+              label="Restoration Index"
+              value={summary.restorationIndex.value}
+              unit="/100"
+              darkMode={darkMode}
+            />
+            <MetricCard
+              label="Stress Index"
+              value={summary.sessionStressIndex.value}
+              unit=""
               darkMode={darkMode}
             />
           </div>
