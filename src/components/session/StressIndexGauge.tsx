@@ -12,6 +12,7 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
 
   let colorClass = 'text-gray-400';
   let bgColorClass = 'bg-gray-200';
+  let borderGradient = 'from-slate-200 to-slate-200';
   let label = 'N/A';
   let description = 'Data not available';
 
@@ -19,28 +20,33 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
     if (score < 50) {
       colorClass = 'text-green-500';
       bgColorClass = 'bg-green-500';
+      borderGradient = 'from-emerald-300 to-green-400';
       label = 'Low Stress';
       description = 'Excellent autonomic balance and low stress.';
     } else if (score < 150) {
       colorClass = 'text-blue-500';
       bgColorClass = 'bg-blue-500';
+      borderGradient = 'from-sky-300 to-blue-400';
       label = 'Normal';
       description = 'Your stress levels are within a normal, healthy range.';
     } else if (score < 300) {
       colorClass = 'text-yellow-500';
       bgColorClass = 'bg-yellow-500';
+      borderGradient = 'from-amber-200 to-yellow-300';
       label = 'Elevated';
       description = 'Elevated stress detected. Consider relaxation.';
     } else {
       colorClass = 'text-red-500';
       bgColorClass = 'bg-red-500';
+      borderGradient = 'from-rose-400 to-red-500';
       label = 'High Stress';
       description = 'High stress levels detected. Prioritize recovery.';
     }
   }
 
   return (
-    <div className="bg-slate-100 rounded-2xl p-6 text-center flex flex-col items-center justify-between h-full">
+    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300`}>
+      <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
       <div>
         <h3 className="text-lg font-semibold text-slate-700 mb-1">Stress Index</h3>
         <p className="text-sm text-slate-500 mb-4">{description}</p>
@@ -94,6 +100,7 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
           {score !== null ? score.toFixed(1) : '--'}
         </span>
         <p className={`font-semibold mt-1 ${colorClass}`}>{label}</p>
+      </div>
       </div>
     </div>
   );

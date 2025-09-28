@@ -176,6 +176,13 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   <RestorationIndexGauge score={summary.restorationIndex.value} />
                   <StressIndexGauge score={summary.sessionStressIndex.value} />
                 </div>
+                
+                <div className="mt-8">
+                  <HeartRateChart
+                    data={heartRateData}
+                    stabilizationTime={stabilizationTime}
+                  />
+                </div>
               </section>
 
               <section>
@@ -184,10 +191,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   Detailed Metrics
                 </h2>
                 <div className="space-y-6">
-                  <HeartRateChart
-                    data={heartRateData}
-                    stabilizationTime={stabilizationTime}
-                  />
                   <PoincarePlot data={poincareData} />
                   
                   {/* New Breathing Coherence Chart */}
