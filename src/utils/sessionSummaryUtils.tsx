@@ -1,0 +1,207 @@
+import React from 'react';
+import {
+  CheckCircle,
+  AlertTriangle,
+  Info,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+} from 'lucide-react';
+
+type SignalType = 'good' | 'warning' | 'alert' | 'info';
+type TrendType = 'up' | 'down' | 'neutral';
+
+interface Signal {
+  type: SignalType;
+  message: string;
+}
+
+export const getSignalIcon = (type: SignalType): React.ReactNode => {
+  const iconProps = { className: 'w-5 h-5' };
+  switch (type) {
+    case 'good':
+      return <CheckCircle {...iconProps} className="w-5 h-5 text-emerald-500" />;
+    case 'warning':
+      return (
+        <AlertTriangle {...iconProps} className="w-5 h-5 text-amber-500" />
+      );
+    case 'alert':
+      return <AlertTriangle {...iconProps} className="w-5 h-5 text-rose-500" />;
+    case 'info':
+      return <Info {...iconProps} className="w-5 h-5 text-sky-500" />;
+  }
+};
+
+export const getSignalGradient = (type: SignalType): string => {
+  switch (type) {
+    case 'good':
+      return 'from-emerald-300 to-green-400';
+    case 'warning':
+      return 'from-amber-200 to-yellow-300';
+    case 'alert':
+      return 'from-rose-400 to-red-500';
+    case 'info':
+      return 'from-sky-300 to-blue-400';
+    default:
+      return 'from-slate-200 to-slate-200';
+  }
+};
+
+export const getTrendIcon = (trend: TrendType): React.ReactNode => {
+  const iconProps = { className: 'w-5 h-5' };
+  switch (trend) {
+    case 'up':
+      return <TrendingUp {...iconProps} className="w-5 h-5 text-emerald-600" />;
+    case 'down':
+      return <TrendingDown {...iconProps} className="w-5 h-5 text-rose-600" />;
+    case 'neutral':
+      return <Minus {...iconProps} className="w-5 h-5 text-slate-500" />;
+  }
+};
+
+export const getMetricSignal = (
+  metricName: string,
+  value: number | null
+): Signal | undefined => {
+  if (value === null) return undefined;
+
+  switch (metricName) {
+    case 'Session Duration':
+      if (value >= 300)
+        return {
+          type: 'good',
+          message: 'Excellent session duration for comprehensive analysis.',
+        };
+      if (value >= 120)
+        return {
+          type: 'info',
+          message: 'Good session length for basic HRV assessment.',
+        };
+      return {
+        type: 'warning',
+        message: 'Short session - consider longer duration for better accuracy.',
+      };
+
+    case 'Mean Heart Rate':
+      if (value >= 60 && value <= 100)
+        return { type: 'good', message: 'Normal resting heart rate range.' };
+      if (value < 60)
+        return {
+          type: 'info',
+          message: 'Low heart rate - common in well-trained athletes.',
+        };
+      return {
+        type: 'warning',
+        message:
+          'Elevated heart rate - ensure you are well-rested during measurement.',
+      };
+
+    case 'Data Points':
+      if (value >= 50)
+        return {
+          type: 'good',
+          message: 'Excellent data quality with sufficient measurement points.',
+        };
+      if (value >= 20)
+        return { type: 'info', message: 'Good data quality for reliable analysis.' };
+      return {
+        type: 'warning',
+        message: 'Limited data points - longer session recommended.',
+      };
+
+    case 'Session RMSSD':
+      if (value >= 50)
+        return {
+          type: 'good',
+          message: 'Excellent HRV indicating good autonomic function.',
+        };
+      if (value >= 30)
+        return { type: 'info', message: 'Good HRV levels within normal range.' };
+      if (value >= 15)
+        return {
+          type: 'warning',
+          message: 'Moderate HRV - consider stress management techniques.',
+        };
+      return {
+        type: 'alert',
+        message: 'Low HRV detected - prioritize recovery and stress reduction.',
+      };
+
+    case 'RMSSD Change':
+      if (Math.abs(value) < 5)
+        return {
+          type: 'good',
+          message: 'Stable HRV throughout session indicates consistency.',
+        };
+      if (value > 0)
+        return {
+          type: 'info',
+          message: 'HRV improved during session - positive adaptation.',
+        };
+      return {
+        type: 'warning',
+        message: 'HRV decreased during session - may indicate fatigue or stress.',
+      };
+
+    case 'Stress Index':
+      if (value < 50)
+        return {
+          type: 'good',
+          message: 'Low stress levels - excellent autonomic balance.',
+        };
+      if (value < 150)
+        return {
+          type: 'info',
+          message: 'Moderate stress levels - within normal range.',
+        };
+      if (value < 300)
+        return {
+          type: 'warning',
+          message: 'Elevated stress detected - consider relaxation techniques.',
+        };
+      return {
+        type: 'alert',
+        message:
+          'High stress levels - prioritize recovery and stress management.',
+      };
+
+    case 'Restoration Index':
+      if (value >= 70)
+        return {
+          type: 'good',
+          message: 'Excellent restoration capacity - well-recovered state.',
+        };
+      if (value >= 50)
+        return {
+          type: 'info',
+          message: 'Good restoration levels indicating adequate recovery.',
+        };
+      if (value >= 30)
+        return {
+          type: 'warning',
+          message: 'Moderate restoration - ensure adequate sleep and recovery.',
+        };
+      return {
+        type: 'alert',
+        message: 'Low restoration score - prioritize rest and recovery activities.',
+      };
+
+    default:
+      return { type: 'info', message: 'Metric recorded successfully.' };
+  }
+};
+
+export const getTrend = (
+  metricName: string,
+  value: number | null
+): TrendType | undefined => {
+  if (value === null) return undefined;
+
+  if (metricName === 'RMSSD Change') {
+    if (value > 2) return 'up';
+    if (value < -2) return 'down';
+    return 'neutral';
+  }
+
+  return undefined;
+};
