@@ -45,7 +45,7 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
   }
 
   return (
-    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300`}>
+    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl hover:shadow-lg transition-shadow duration-300`}>
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
       <div>
         <h3 className="text-lg font-semibold text-slate-700 mb-1">Stress Index</h3>

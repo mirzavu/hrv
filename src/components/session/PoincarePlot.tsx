@@ -58,7 +58,7 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data }) => {
   };
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-200">
+    <div className="rounded-xl bg-white p-6 border border-slate-200">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-700 mb-1">
           Heart Rhythm Analysis

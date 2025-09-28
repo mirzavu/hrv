@@ -96,7 +96,7 @@ const SignalQualityTimeline: React.FC<SignalQualityTimelineProps> = ({ rrInterva
   };
 
   return (
-    <div className="rounded-xl bg-white p-6 shadow-sm border border-slate-200">
+    <div className="rounded-xl bg-white p-6 border border-slate-200">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-700 mb-1">Signal Quality Timeline</h3>
         <p className="text-sm text-slate-500">

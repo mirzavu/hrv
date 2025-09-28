@@ -132,7 +132,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
   return (
     <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="bg-white text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl">
+      <div className="text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl" style={{ backgroundColor: '#f9fafb' }}>
         <header className="sticky top-0 bg-white/70 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-10">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>

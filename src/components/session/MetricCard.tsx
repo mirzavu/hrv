@@ -32,7 +32,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
     <div
       className={`p-[1px] bg-gradient-to-br ${getSignalGradient(
         actualSignal?.type || 'info'
-      )} rounded-2xl shadow-sm hover:shadow-lg transition-shadow duration-300`}
+      )} rounded-2xl hover:shadow-lg transition-shadow duration-300`}
     >
       <div className="bg-white rounded-[15px] p-5 h-full relative group">
         {actualSignal && (

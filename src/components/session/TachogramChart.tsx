@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useCallback, useId, useMemo } from 'react';
 import {
   ResponsiveContainer,
   LineChart,
@@ -8,6 +8,23 @@ import {
   YAxis,
   Tooltip as RechartsTooltip,
 } from 'recharts';
+
+type RGB = [number, number, number];
+
+const GREEN: RGB = [34, 197, 94];
+const YELLOW: RGB = [234, 179, 8];
+const RED: RGB = [239, 68, 68];
+
+const toHex = (value: number) => {
+  const clamped = Math.max(0, Math.min(255, Math.round(value)));
+  return clamped.toString(16).padStart(2, '0');
+};
+
+const blend = (start: RGB, end: RGB, t: number): RGB => {
+  return start.map((component, index) => component + (end[index] - component) * t) as RGB;
+};
+
+const toColor = ([r, g, b]: RGB) => `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 
 type TachogramDataPoint = {
   beatNumber: number;
@@ -39,6 +56,57 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
     return [paddedMin, paddedMax];
   }, [data]);
 
+  const gradientId = useId();
+
+  const getColorForRR = useCallback(
+    (rrValue: number) => {
+      // Green zone (normal range): 700-1000 ms
+      if (rrValue >= 700 && rrValue <= 1000) {
+        return '#22c55e'; // Green
+      }
+
+      // Yellow zones: 600-700 ms and 1000-1200 ms
+      if ((rrValue >= 600 && rrValue < 700) || (rrValue > 1000 && rrValue <= 1200)) {
+        // Calculate transition intensity within yellow range
+        let intensity: number;
+        if (rrValue >= 600 && rrValue < 700) {
+          // Transition from red to yellow as we approach 700
+          intensity = (rrValue - 600) / 100; // 0 to 1 as we go from 600 to 700
+        } else {
+          // Transition from yellow to red as we go from 1000 to 1200
+          intensity = (1200 - rrValue) / 200; // 1 to 0 as we go from 1000 to 1200
+        }
+        const mix = blend(RED, YELLOW, intensity);
+        return toColor(mix);
+      }
+
+      // Red zones: < 600 ms and > 1200 ms
+      return '#ef4444'; // Red
+    },
+    []
+  );
+
+  const gradientStops = useMemo(() => {
+    if (data.length < 2) {
+      return null;
+    }
+
+    return data.map((point, index) => {
+      return {
+        offset: `${(index / (data.length - 1)) * 100}%`,
+        color: getColorForRR(point.rrInterval),
+      };
+    });
+  }, [data, getColorForRR]);
+
+  const latestRRColor = useMemo(() => {
+    if (!data.length) {
+      return '#2563eb';
+    }
+    const lastPoint = data[data.length - 1];
+    return getColorForRR(lastPoint.rrInterval);
+  }, [data, getColorForRR]);
+
   const renderTooltip = (tooltipProps: TachogramTooltipProps) => {
     const { active, payload, label } = tooltipProps;
     if (!active || !payload || !payload.length || label === undefined) {
@@ -62,7 +130,7 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="p-0.5 bg-gradient-to-br from-sky-200 via-blue-200 to-indigo-200 rounded-2xl shadow-sm">
+    <div className="p-0.5 bg-gradient-to-br from-sky-200 via-blue-200 to-indigo-200 rounded-2xl">
       <div className="bg-white rounded-[15px] p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
@@ -77,6 +145,15 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
           <div className="h-64">
             <ResponsiveContainer>
               <LineChart data={data} margin={{ top: 10, right: 20, left: 10, bottom: 10 }}>
+                {gradientStops && (
+                  <defs>
+                    <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
+                      {gradientStops.map((stop) => (
+                        <stop key={stop.offset} offset={stop.offset} stopColor={stop.color} />
+                      ))}
+                    </linearGradient>
+                  </defs>
+                )}
                 <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
                 <XAxis
                   dataKey="beatNumber"
@@ -98,10 +175,10 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
                 <Line
                   type="monotone"
                   dataKey="rrInterval"
-                  stroke="#2563eb"
+                  stroke={gradientStops ? `url(#${gradientId})` : '#2563eb'}
                   strokeWidth={2}
                   dot={false}
-                  activeDot={{ r: 4, fill: '#2563eb' }}
+                  activeDot={{ r: 4, fill: latestRRColor }}
                 />
               </LineChart>
             </ResponsiveContainer>
