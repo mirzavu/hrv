@@ -73,6 +73,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   const sessionTimer = useRef<NodeJS.Timeout | null>(null);
   const demoDataGenerator = useRef<NodeJS.Timeout | null>(null);
   const sessionPausedRef = useRef(false);
+  const sessionStartTimestamp = useRef<number | null>(null);
+  const pausedTime = useRef<number>(0);
 
   useEffect(() => {
     sessionPausedRef.current = sessionPaused;
@@ -221,7 +223,20 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
   useEffect(() => {
     if (sessionActive && !sessionPaused) {
-      sessionTimer.current = setInterval(() => setElapsedTime(prev => prev + 1), 1000);
+      // Use timestamp-based calculation instead of setInterval
+      const updateTimer = () => {
+        if (sessionStartTimestamp.current && !sessionPausedRef.current) {
+          const now = Date.now();
+          const elapsed = Math.floor((now - sessionStartTimestamp.current - pausedTime.current) / 1000);
+          setElapsedTime(elapsed);
+        }
+      };
+      
+      // Update immediately
+      updateTimer();
+      
+      // Then update every second for UI responsiveness
+      sessionTimer.current = setInterval(updateTimer, 1000);
     } else {
       if (sessionTimer.current) {
         clearInterval(sessionTimer.current);
@@ -259,12 +274,17 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setSessionStartTime(null);
     setSessionPaused(false);
     sessionPausedRef.current = false;
+    sessionStartTimestamp.current = null;
+    pausedTime.current = 0;
     milestonesReached.current.clear();
   }, []);
 
   const startSession = useCallback(() => {
     setSessionActive(true);
-    setSessionStartTime(new Date().toISOString());
+    const startTime = new Date().toISOString();
+    setSessionStartTime(startTime);
+    sessionStartTimestamp.current = Date.now();
+    pausedTime.current = 0;
     setRawHeartData([]);
     setElapsedTime(0);
     setSessionPaused(false);
@@ -285,7 +305,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     }
     sessionPausedRef.current = true;
     setSessionPaused(true);
-  }, [sessionActive]);
+    // Record when we paused to calculate total paused time
+    pausedTime.current += Date.now() - (sessionStartTimestamp.current || 0) - (elapsedTime * 1000);
+  }, [sessionActive, elapsedTime]);
 
   const resumeSession = useCallback(() => {
     if (!sessionActive || !sessionPausedRef.current) {
@@ -293,7 +315,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     }
     sessionPausedRef.current = false;
     setSessionPaused(false);
-  }, [sessionActive]);
+    // Update the start timestamp to account for paused time
+    sessionStartTimestamp.current = Date.now() - elapsedTime * 1000 - pausedTime.current;
+  }, [sessionActive, elapsedTime]);
 
   useEffect(() => {
     if (!sessionActive) {
