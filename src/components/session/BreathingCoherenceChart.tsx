@@ -13,7 +13,23 @@ import {
 type HeartRateDataPoint = {
   time: number;
   bpm: number;
+  rr?: number;
 };
+
+interface BreathingTooltipPayload {
+  value: number | string;
+  payload: {
+    time: number;
+    bpm?: number;
+    pacer?: number;
+  };
+}
+
+interface BreathingTooltipProps {
+  active?: boolean;
+  payload?: BreathingTooltipPayload[];
+  label?: number | string;
+}
 
 interface BreathingCoherenceChartProps {
   data: HeartRateDataPoint[];
@@ -53,8 +69,7 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
     return finalData;
   }, [data]);
 
-
-  const renderTooltip = ({ active, payload, label }: any) => {
+  const renderTooltip = ({ active, payload, label }: BreathingTooltipProps) => {
     if (active && payload && payload.length) {
       const point = payload[0].payload;
       const userHr = point.bpm;

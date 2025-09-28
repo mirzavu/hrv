@@ -6,8 +6,7 @@ import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
 import StressIndexGauge from './StressIndexGauge';
-import BreathingCoherenceChart from './BreathingCoherenceChart';
-import SignalQualityTimeline from './SignalQualityTimeline'; // Import the new component
+import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -26,7 +25,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   onClose,
 }) => {
   const heartRateData = useMemo(() => {
-    // ... (logic for heartRateData remains the same)
     const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
       (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
@@ -59,13 +57,17 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         return {
           time: Number(elapsedSeconds.toFixed(1)),
           bpm: Number((60000 / rr).toFixed(1)),
+          rr,
         };
       })
-      .filter((point) => Boolean(point) && Number.isFinite(point?.bpm));
+      .filter((point): point is { time: number; bpm: number; rr: number } => 
+        Boolean(point) &&
+        Number.isFinite(point?.bpm) &&
+        Number.isFinite(point?.rr)
+      );
   }, [summary.rrIntervals]);
 
   const poincareData = useMemo(() => {
-    // ... (logic for poincareData remains the same)
         const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
       (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
@@ -90,6 +92,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     return points;
   }, [summary.rrIntervals]);
 
+
   const stabilizationTime =
     typeof summary.timeToStabilize?.value === 'number'
       ? summary.timeToStabilize.value
@@ -98,7 +101,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="bg-white text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl">
-        {/* ... (Header and other sections remain the same) ... */}
         <header className="sticky top-0 bg-white/70 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-10">
           <div>
             <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
@@ -115,7 +117,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         </header>
 
         <main className="p-8 space-y-8">
-          {/* Key Metrics Section */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-blue-600" />
@@ -136,7 +137,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               />
               <MetricCard
                 icon={<Target className="w-5 h-5 text-slate-400" />}
-                title="Data Points"
+                title="Beats"
                 value={summary.dataPoints.value}
               />
             </div>
@@ -144,13 +145,12 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           <div className="flex flex-col gap-8">
             <section className="space-y-8">
-              {/* HRV Analysis */}
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <Waves className="w-6 h-6 text-blue-600" />
                   HRV Analysis
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
                   <MetricCard
                     title="Session RMSSD"
                     value={summary.sessionRMSSD.value}
@@ -171,9 +171,13 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     unit="/100"
                   />
                 </div>
+                
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <RestorationIndexGauge score={summary.restorationIndex.value} />
+                  <StressIndexGauge score={summary.sessionStressIndex.value} />
+                </div>
               </section>
 
-              {/* Detailed Metrics Section */}
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <TrendingUp className="w-6 h-6 text-blue-600" />
@@ -185,26 +189,16 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     stabilizationTime={stabilizationTime}
                   />
                   <PoincarePlot data={poincareData} />
-
-                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                    <RestorationIndexGauge score={summary.restorationIndex.value} />
-                    <StressIndexGauge score={summary.sessionStressIndex.value} />
-                  </div>
                   
+                  {/* New Breathing Coherence Chart */}
                   <BreathingCoherenceChart data={heartRateData} />
 
-                  {/* New Signal Quality Timeline */}
-                  <SignalQualityTimeline 
-                    rrIntervals={summary.rrIntervals} 
-                    duration={summary.duration.value ?? 0}
-                  />
                 </div>
               </section>
             </section>
           </div>
         </main>
         
-        {/* ... (Footer remains the same) */}
         <footer className="sticky bottom-0 bg-white/70 backdrop-blur-md rounded-b-3xl border-t border-slate-200 p-5 mt-auto">
           {isGuest && (
             <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">

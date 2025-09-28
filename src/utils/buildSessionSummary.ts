@@ -84,14 +84,14 @@ export const buildSessionSummary = (
       unit: '/100'
     },
     sessionStressIndex: {
-      label: 'Session Stress Index',
+      label: 'Stress Index',
       value: payload.session_stress_index,
       unit: ''
     },
 
     // Data quality
     dataPoints: {
-      label: 'Data Points',
+      label: 'Beats',
       value: dataPointsCount,
       unit: ''
     },

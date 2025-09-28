@@ -198,7 +198,7 @@ The app calculates standard and extended HRV metrics:
 - **MxDMn** - Difference between maximum and minimum RR intervals
 - **Respiration Coherence** - Composite score using RMSSD, SDNN, and pNN50
 - **Restoration Index** - Weighted composite of vagal recovery and stability
-- **Session Stress Index** - Baevsky-style stress indicator
+- **Stress Index** - Baevsky-style stress indicator
 
 ## 🚀 Deployment
 

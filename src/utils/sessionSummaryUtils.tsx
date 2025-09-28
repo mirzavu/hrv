@@ -96,7 +96,7 @@ export const getMetricSignal = (
           'Elevated heart rate - ensure you are well-rested during measurement.',
       };
 
-    case 'Data Points':
+    case 'Beats':
       if (value >= 50)
         return {
           type: 'good',
@@ -200,7 +200,7 @@ export const getTrend = (
   if (metricName === 'RMSSD Change') {
     if (value > 2) return 'up';
     if (value < -2) return 'down';
-    return 'neutral';
+    return undefined; // No icon when change is minimal (between -2 and 2)
   }
 
   return undefined;

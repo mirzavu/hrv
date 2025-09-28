@@ -20,6 +20,8 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
     value !== null
       ? title === 'RMSSD Change'
         ? formatRmssdDelta(value).value
+        : title === 'Beats'
+        ? Math.round(value).toString()
         : value.toFixed(1)
       : 'N/A';
 

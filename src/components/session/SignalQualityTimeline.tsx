@@ -6,8 +6,6 @@ import {
   XAxis,
   YAxis,
   Tooltip as RechartsTooltip,
-  ReferenceArea,
-  ZAxis,
 } from 'recharts';
 
 type RRInterval = {
@@ -25,6 +23,22 @@ type ArtifactPoint = {
   rr: number;
   type: 'artifact' | 'clean';
 };
+
+interface SignalQualityTooltipPayload {
+  value: number | string;
+  payload: ArtifactPoint;
+}
+
+interface SignalQualityTooltipArgs {
+  active?: boolean;
+  payload?: SignalQualityTooltipPayload[];
+}
+
+interface SignalQualityScatterShapeProps {
+  cx?: number;
+  cy?: number;
+  payload?: ArtifactPoint;
+}
 
 const SignalQualityTimeline: React.FC<SignalQualityTimelineProps> = ({ rrIntervals, duration }) => {
   const artifactData = useMemo<ArtifactPoint[]>(() => {
@@ -53,7 +67,7 @@ const SignalQualityTimeline: React.FC<SignalQualityTimelineProps> = ({ rrInterva
   const artifactPercentage =
     (artifactData.filter((p) => p.type === 'artifact').length / (artifactData.length || 1)) * 100;
 
-  const renderTooltip = ({ active, payload }: any) => {
+  const renderTooltip = ({ active, payload }: SignalQualityTooltipArgs) => {
     if (active && payload && payload.length) {
       const point = payload[0].payload;
       return (
@@ -66,6 +80,19 @@ const SignalQualityTimeline: React.FC<SignalQualityTimelineProps> = ({ rrInterva
       );
     }
     return null;
+  };
+
+  const renderPoint = (props: unknown) => {
+    const { cx = 0, cy = 0, payload } = (props as SignalQualityScatterShapeProps) ?? {};
+    if (!payload) {
+      return <></>;
+    }
+
+    const radius = payload.type === 'artifact' ? 6 : 3;
+    const fill = payload.type === 'artifact' ? '#ef4444' : '#22c55e';
+    const opacity = payload.type === 'artifact' ? 0.8 : 0.4;
+
+    return <circle cx={cx} cy={cy} r={radius} fill={fill} fillOpacity={opacity} />;
   };
 
   return (
@@ -94,20 +121,8 @@ const SignalQualityTimeline: React.FC<SignalQualityTimelineProps> = ({ rrInterva
               tick={false}
               axisLine={false}
             />
-            <ZAxis dataKey="type" range={[8, 40]} />
             <RechartsTooltip content={renderTooltip} cursor={{ strokeDasharray: '3 3' }} />
-            <Scatter data={artifactData} shape="dot">
-              {artifactData.map((entry, index) => (
-                <circle
-                  key={`cell-${index}`}
-                  cx={0}
-                  cy={0}
-                  r={entry.type === 'artifact' ? 6 : 3}
-                  fill={entry.type === 'artifact' ? '#ef4444' : '#22c55e'}
-                  fillOpacity={entry.type === 'artifact' ? 0.8 : 0.4}
-                />
-              ))}
-            </Scatter>
+            <Scatter data={artifactData} shape={renderPoint} />
           </ScatterChart>
         </ResponsiveContainer>
       </div>
