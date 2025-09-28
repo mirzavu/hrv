@@ -5,7 +5,7 @@ import { zipSync, strToU8 } from 'fflate';
 import { databases, storage, AppwriteID } from '@/lib/appwrite';
 import { AppwriteException, Query } from 'appwrite';
 import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID, SESSION_SUMMARY_COLLECTION_ID } from '@/types';
-import { computeSessionSummaryPayload } from '@/utils/sessionSummary';
+// import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
 const MAX_SESSION_DURATION = 900;
@@ -91,14 +91,38 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     
     const endTime = new Date().toISOString();
     
-    // Compute session metrics
-    const summaryPayload = computeSessionSummaryPayload({
-      rawData: finalRawData,
-      sessionStartTime,
-      durationSeconds: finalElapsedTime,
-      userId: user?.$id || 'guest',
-      sessionId: 'temp', // Will be updated after session creation
-    });
+    // For display purposes, we'll create a temporary summary
+    // The real calculations will be done server-side after session is saved
+    const summaryPayload = {
+      session_id: 'temp',
+      user_id: user?.$id || 'guest',
+      rmssd_session_ms: null,
+      sdnn_session_ms: null,
+      pnn50_percent: null,
+      session_mean_hr: null,
+      amode_50: null,
+      AMo50_count: null,
+      rr_max_ms: null,
+      rr_min_ms: null,
+      mxdmn_ms: null,
+      rmssd_start_ms: null,
+      rmssd_end_ms: null,
+      time_to_stabilize_seconds: null,
+      resp_coherence_score: null,
+      restoration_index: null,
+      session_stress_index: null,
+      mean_rr_ms: null,
+      lf_power_ms2: null,
+      hf_power_ms2: null,
+      lfhf_ratio: null,
+      total_power_ms2: null,
+      sd1_ms: null,
+      sd2_ms: null,
+      baevsky_mo: null,
+      baevsky_amo: null,
+      baevsky_mxdmn_ms: null,
+      baevsky_stress_index: null,
+    };
     
     // Build display summary
     const summary = buildSessionSummary(summaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
@@ -175,13 +199,26 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         );
 
         try {
-          const finalSummaryPayload = computeSessionSummaryPayload({
-            rawData: finalRawData,
-            sessionStartTime,
-            durationSeconds: finalElapsedTime,
-            userId: userDoc.$id,
-            sessionId: sessionRecord.$id,
+          // Call server-side API for calculations
+          const response = await fetch('/api/sessions/analyze', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              rawData: finalRawData,
+              sessionStartTime,
+              durationSeconds: finalElapsedTime,
+              userId: userDoc.$id,
+              sessionId: sessionRecord.$id,
+            }),
           });
+
+          if (!response.ok) {
+            throw new Error(`API call failed: ${response.status}`);
+          }
+
+          const finalSummaryPayload = await response.json();
 
 
           await databases.createDocument(
