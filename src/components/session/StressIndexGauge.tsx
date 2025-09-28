@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface StressIndexGaugeProps {
-  score: number | null;
+  score: number | null | undefined;
 }
 
 const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
@@ -16,7 +16,7 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
   let label = 'N/A';
   let description = 'Data not available';
 
-  if (score !== null) {
+  if (score !== null && score !== undefined) {
     if (score < 50) {
       colorClass = 'text-green-500';
       bgColorClass = 'bg-green-500';
@@ -97,7 +97,7 @@ const StressIndexGauge: React.FC<StressIndexGaugeProps> = ({ score }) => {
       </div>
       <div className="mt-2">
         <span className={`text-4xl font-bold ${colorClass}`}>
-          {score !== null ? score.toFixed(1) : '--'}
+          {score !== null && score !== undefined ? score.toFixed(1) : '--'}
         </span>
         <p className={`font-semibold mt-1 ${colorClass}`}>{label}</p>
       </div>

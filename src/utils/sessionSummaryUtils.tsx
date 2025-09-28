@@ -61,9 +61,9 @@ export const getTrendIcon = (trend: TrendType): React.ReactNode => {
 
 export const getMetricSignal = (
   metricName: string,
-  value: number | null
+  value: number | null | undefined
 ): Signal | undefined => {
-  if (value === null) return undefined;
+  if (value === null || value === undefined) return undefined;
 
   switch (metricName) {
     case 'Session Duration':
@@ -193,9 +193,9 @@ export const getMetricSignal = (
 
 export const getTrend = (
   metricName: string,
-  value: number | null
+  value: number | null | undefined
 ): TrendType | undefined => {
-  if (value === null) return undefined;
+  if (value === null || value === undefined) return undefined;
 
   if (metricName === 'RMSSD Change') {
     if (value > 2) return 'up';

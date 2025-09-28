@@ -33,7 +33,7 @@ export interface UserProfile {
 
 export interface HRVMetric {
   label: string;
-  value: number | null;
+  value: number | null | undefined;
   unit: string;
 }
 
@@ -54,6 +54,12 @@ export interface SessionSummary {
   respCoherence: HRVMetric;
   restorationIndex: HRVMetric;
   sessionStressIndex: HRVMetric;
+  
+  // New 4-score metrics
+  energyScore: HRVMetric;
+  stressScore: HRVMetric;
+  healthScore: HRVMetric;
+  focusScore: HRVMetric;
   
   // Data quality
   dataPoints: HRVMetric;
@@ -103,6 +109,12 @@ export interface SessionSummaryRecord {
   baevsky_amo?: number | null;
   baevsky_mxdmn_ms?: number | null;
   baevsky_stress_index?: number | null;
+  
+  // New 4-Score metrics
+  energy_score?: number | null;
+  stress_score?: number | null;
+  health_score?: number | null;
+  focus_score?: number | null;
   
   createdAt: string;
 }

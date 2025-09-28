@@ -41,6 +41,12 @@ interface SessionSummaryPayload {
   baevsky_amo?: number | null;
   baevsky_mxdmn_ms?: number | null;
   baevsky_stress_index?: number | null;
+  
+  // New 4-Score metrics
+  energy_score?: number | null;
+  stress_score?: number | null;
+  health_score?: number | null;
+  focus_score?: number | null;
 }
 
 interface TimestampedRR {
@@ -295,6 +301,159 @@ const calculateBaevskyMetrics = (rrIntervals: number[]): {
     }
 };
 
+// --- 4-Score Calculation Functions ---
+
+/**
+ * Normalize a value to [0,1] range using min-max normalization
+ */
+const normalizeMinMax = (value: number, min: number, max: number): number => {
+    if (max === min) return 0.5; // Avoid division by zero
+    return Math.max(0, Math.min(1, (value - min) / (max - min)));
+};
+
+/**
+ * Normalize LF/HF ratio using log scale
+ */
+const normalizeLFHF = (lfhfRatio: number): number => {
+    const logValue = Math.log10(lfhfRatio);
+    const min = -0.7;
+    const max = 0.9;
+    return normalizeMinMax(logValue, min, max);
+};
+
+/**
+ * Calculate the 4 main scores (Energy, Stress, Health, Focus) from HRV metrics
+ */
+const calculateFourScores = (metrics: {
+    rmssd: number | null;
+    sdnn: number | null;
+    meanHR: number | null;
+    lfhfRatio: number | null;
+    bsi: number | null;
+    totalPower: number | null;
+    sleepRecovery?: number;
+    shortTermRRStd?: number | null;
+}): {
+    energyScore: number | null;
+    stressScore: number | null;
+    healthScore: number | null;
+    focusScore: number | null;
+} => {
+    const {
+        rmssd,
+        sdnn,
+        meanHR,
+        lfhfRatio,
+        bsi,
+        totalPower,
+        sleepRecovery = 0.6,
+        shortTermRRStd
+    } = metrics;
+
+    // Check if we have the minimum required metrics
+    if (rmssd === null || sdnn === null || meanHR === null) {
+        return {
+            energyScore: null,
+            stressScore: null,
+            healthScore: null,
+            focusScore: null
+        };
+    }
+
+    try {
+        // Define normalization ranges
+        const RMSSD_MIN = 10;
+        const RMSSD_MAX = 120;
+        const SDNN_MIN = 10;
+        const SDNN_MAX = 150;
+        const HR_MIN = 40;
+        const HR_MAX = 110;
+        const BSI_MIN = 10;
+        const BSI_MAX = 120;
+        const TOTAL_POWER_MIN = 100;
+        const TOTAL_POWER_MAX = 5000;
+
+        // Calculate normalized components
+        const p_RMSSD = normalizeMinMax(rmssd, RMSSD_MIN, RMSSD_MAX);
+        const p_SDNN = normalizeMinMax(sdnn, SDNN_MIN, SDNN_MAX);
+        const p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN); // Inverted: higher HR reduces score
+        const p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
+
+        // Calculate LF/HF normalization
+        let p_LFHF = 0.5; // Default neutral value
+        if (lfhfRatio !== null && lfhfRatio > 0) {
+            p_LFHF = normalizeLFHF(lfhfRatio);
+        }
+
+        // Calculate BSI normalization
+        let p_BSI = 0.5; // Default neutral value
+        if (bsi !== null) {
+            p_BSI = normalizeMinMax(bsi, BSI_MIN, BSI_MAX);
+        }
+
+        // Calculate Energy Score
+        const energyRaw = 0.5 * p_RMSSD + 0.25 * p_SDNN + 0.15 * p_HR + 0.10 * p_totalPower;
+        const energyScore = Math.max(0, Math.min(100, energyRaw * 100));
+
+        // Calculate Stress Score
+        const stressRaw = 0.5 * (1 - p_RMSSD) + 0.25 * p_BSI + 0.25 * p_LFHF;
+        const stressScore = Math.max(0, Math.min(100, stressRaw * 100));
+
+        // Calculate Health Score
+        const healthRaw = 0.4 * p_SDNN + 0.3 * p_RMSSD + 0.2 * sleepRecovery + 0.1 * p_HR;
+        const healthScore = Math.max(0, Math.min(100, healthRaw * 100));
+
+        // Calculate Focus Score
+        let focusScore = null;
+        if (shortTermRRStd !== null && shortTermRRStd !== undefined) {
+            const arousal = p_HR;
+            const stability = 1 - normalizeMinMax(shortTermRRStd, 0, 50);
+            const focusRaw = 0.6 * arousal + 0.4 * stability;
+            
+            let adjustedFocus = focusRaw;
+            if (stressScore > 70) {
+                adjustedFocus *= 0.7;
+            }
+            if (meanHR > 90) {
+                adjustedFocus *= 0.8;
+            }
+            
+            focusScore = Math.max(0, Math.min(100, adjustedFocus * 100));
+        } else {
+            // Fallback calculation without short-term variability
+            const arousal = p_HR;
+            const stability = p_RMSSD; // Use RMSSD as stability proxy
+            const focusRaw = 0.6 * arousal + 0.4 * stability;
+            
+            let adjustedFocus = focusRaw;
+            if (stressScore > 70) {
+                adjustedFocus *= 0.7;
+            }
+            if (meanHR > 90) {
+                adjustedFocus *= 0.8;
+            }
+            
+            focusScore = Math.max(0, Math.min(100, adjustedFocus * 100));
+        }
+
+        return {
+            energyScore: Number(energyScore.toFixed(1)),
+            stressScore: Number(stressScore.toFixed(1)),
+            healthScore: Number(healthScore.toFixed(1)),
+            focusScore: Number(focusScore.toFixed(1))
+        };
+
+    } catch (error) {
+        console.error('Error calculating four scores:', error);
+        return {
+            energyScore: null,
+            stressScore: null,
+            healthScore: null,
+            focusScore: null
+        };
+    }
+};
+
 // Additional calculation functions
 const START_END_WINDOW_SECONDS = 120;
 const STABILITY_WINDOW_SECONDS = 30;
@@ -540,6 +699,18 @@ const computeSessionSummaryPayload = ({
 
     const restorationIndex = computeRestorationIndex(rmssdSession, respCoherence, timeToStabilize);
 
+    // Calculate the 4 main scores
+    const fourScores = calculateFourScores({
+        rmssd: rmssdSession,
+        sdnn: sdnnSession,
+        meanHR: meanHr,
+        lfhfRatio: frequencyMetrics.lfhfRatio,
+        bsi: baevskyMetrics.bsi,
+        totalPower: frequencyMetrics.totalPower,
+        sleepRecovery: 0.6, // Default value - can be made configurable later
+        shortTermRRStd: null // Not available in current data structure
+    });
+
     return {
         session_id: sessionId,
         user_id: userId,
@@ -580,6 +751,12 @@ const computeSessionSummaryPayload = ({
         baevsky_amo: baevskyMetrics.amo,
         baevsky_mxdmn_ms: baevskyMetrics.mxdmn,
         baevsky_stress_index: baevskyMetrics.bsi,
+        
+        // New 4-Score metrics
+        energy_score: fourScores.energyScore,
+        stress_score: fourScores.stressScore,
+        health_score: fourScores.healthScore,
+        focus_score: fourScores.focusScore,
     };
 };
 

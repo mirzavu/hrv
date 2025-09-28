@@ -275,6 +275,12 @@ async function setup() {
             { key: 'baevsky_mxdmn_ms', type: 'float', required: false },
             { key: 'baevsky_stress_index', type: 'float', required: false },
             
+            // New 4-Score metrics
+            { key: 'energy_score', type: 'float', required: false },
+            { key: 'stress_score', type: 'float', required: false },
+            { key: 'health_score', type: 'float', required: false },
+            { key: 'focus_score', type: 'float', required: false },
+            
             { key: 'createdAt', type: 'datetime', required: true },
         ];
 

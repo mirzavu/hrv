@@ -304,3 +304,6 @@ export const calculateBaevskyMetrics = (rrIntervals: number[]): {
         return { mo: null, amo: null, mxdmn: null, bsi: null };
     }
 };
+
+// Note: 4-Score calculations moved to server-side API (/api/sessions/analyze/route.ts)
+// Client-side calculations removed to ensure consistency and reduce bundle size

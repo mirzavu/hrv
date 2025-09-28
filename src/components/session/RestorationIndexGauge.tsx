@@ -1,7 +1,7 @@
 import React from 'react';
 
 interface RestorationIndexGaugeProps {
-  score: number | null;
+  score: number | null | undefined;
 }
 
 const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) => {
@@ -14,7 +14,7 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
   let label = 'N/A';
   let description = 'Data not available';
 
-  if (score !== null) {
+  if (score !== null && score !== undefined) {
     if (score < 30) {
       colorClass = 'text-red-500';
       bgColorClass = 'bg-red-500';
@@ -89,7 +89,7 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
       </div>
       <div className="mt-2">
         <span className={`text-4xl font-bold ${colorClass}`}>
-          {score !== null ? score.toFixed(1) : '--'}
+          {score !== null && score !== undefined ? score.toFixed(1) : '--'}
         </span>
         <span className="text-lg text-slate-500">/100</span>
         <p className={`font-semibold mt-1 ${colorClass}`}>{label}</p>

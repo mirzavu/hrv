@@ -11,13 +11,13 @@ import { formatRmssdDelta } from '@/utils/sessionSummaryFormat';
 interface MetricCardProps {
   icon?: React.ReactNode;
   title: string;
-  value: number | null;
+  value: number | null | undefined;
   unit?: string;
 }
 
 const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => {
   const displayValue =
-    value !== null
+    value !== null && value !== undefined
       ? title === 'RMSSD Change'
         ? formatRmssdDelta(value).value
         : title === 'Beats'

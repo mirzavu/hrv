@@ -27,6 +27,8 @@ export const buildSessionSummary = (
       rrIntervals.push({ timestamp: entry.timestamp, value: entry.rrInterval });
     }
   });
+
+  // Use server-calculated 4 scores from database
   return {
     // Core session metrics
     duration: {
@@ -87,6 +89,28 @@ export const buildSessionSummary = (
       label: 'Stress Index',
       value: payload.session_stress_index,
       unit: ''
+    },
+
+    // New 4-score metrics (from server calculation)
+    energyScore: {
+      label: 'Energy Score',
+      value: payload.energy_score,
+      unit: '/100'
+    },
+    stressScore: {
+      label: 'Stress Score',
+      value: payload.stress_score,
+      unit: '/100'
+    },
+    healthScore: {
+      label: 'Health Score',
+      value: payload.health_score,
+      unit: '/100'
+    },
+    focusScore: {
+      label: 'Focus Score',
+      value: payload.focus_score,
+      unit: '/100'
     },
 
     // Data quality

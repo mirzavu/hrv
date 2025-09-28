@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { SessionSummary } from '@/types';
-import { X, Heart, Activity, TrendingUp, Clock, Waves, Target } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
@@ -177,6 +177,40 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           <div className="flex flex-col gap-8">
             <section className="space-y-8">
+              {/* Wellness Scores Section - Above HRV Analysis */}
+              <section>
+                <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                  Wellness Scores
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <MetricCard
+                    icon={<Zap className="w-5 h-5 text-yellow-500" />}
+                    title="Energy Score"
+                    value={summary.energyScore.value}
+                    unit={summary.energyScore.unit}
+                  />
+                  <MetricCard
+                    icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+                    title="Stress Score"
+                    value={summary.stressScore.value}
+                    unit={summary.stressScore.unit}
+                  />
+                  <MetricCard
+                    icon={<Shield className="w-5 h-5 text-green-500" />}
+                    title="Health Score"
+                    value={summary.healthScore.value}
+                    unit={summary.healthScore.unit}
+                  />
+                  <MetricCard
+                    icon={<Brain className="w-5 h-5 text-blue-500" />}
+                    title="Focus Score"
+                    value={summary.focusScore.value}
+                    unit={summary.focusScore.unit}
+                  />
+                </div>
+              </section>
+
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <Waves className="w-6 h-6 text-blue-600" />
