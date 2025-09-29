@@ -10,6 +10,7 @@ interface CalendarSession {
   time: string; // HH:MM format
   rmssd: number;
   durationMin: number;
+  hrvScore?: number; // HRV Score (0-100)
   notes?: string;
 }
 

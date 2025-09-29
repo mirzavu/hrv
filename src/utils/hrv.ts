@@ -305,5 +305,78 @@ export const calculateBaevskyMetrics = (rrIntervals: number[]): {
     }
 };
 
+/**
+ * Calculate HRV Score (0-100) based on normalized RMSSD, SDNN, and pNN50
+ * @param rrIntervals - Array of RR intervals in milliseconds
+ * @returns HRV score as integer between 0-100, or null if insufficient data
+ */
+export const calculateHRVScore = (rrIntervals: number[]): number | null => {
+  // Edge case: insufficient data
+  if (rrIntervals.length < 2) {
+    return null;
+  }
+
+  try {
+    // Step 1: Calculate individual metrics
+    const rmssd = calculateRMSSD(rrIntervals);
+    const sdnn = calculateSDNN(rrIntervals);
+    const pnn50 = calculatePNN50(rrIntervals);
+
+    // Step 2: Normalize each metric to 0-1 range using min-max values
+    const normalizeMetric = (value: number | null, min: number, max: number): number => {
+      if (value === null || value === undefined || Number.isNaN(value)) {
+        return 0;
+      }
+      return Math.max(0, Math.min(1, (value - min) / (max - min)));
+    };
+
+    const normRMSSD = normalizeMetric(rmssd, 10, 120);  // RMSSD range: 10-120 ms
+    const normSDNN = normalizeMetric(sdnn, 10, 150);     // SDNN range: 10-150 ms
+    const normPNN50 = normalizeMetric(pnn50, 0, 50);     // pNN50 range: 0-50%
+
+    // Step 3: Count valid metrics for weight adjustment
+    const validMetrics = [rmssd, sdnn, pnn50].filter(val => val !== null && !Number.isNaN(val)).length;
+    
+    if (validMetrics === 0) {
+      return null;
+    }
+
+    // Step 4: Adjust weights based on available metrics
+    let weights = { rmssd: 0.6, sdnn: 0.3, pnn50: 0.1 };
+    
+    if (validMetrics === 2) {
+      // If only 2 metrics available, redistribute weights
+      if (rmssd === null || Number.isNaN(rmssd)) {
+        weights = { rmssd: 0, sdnn: 0.7, pnn50: 0.3 };
+      } else if (sdnn === null || Number.isNaN(sdnn)) {
+        weights = { rmssd: 0.7, sdnn: 0, pnn50: 0.3 };
+      } else if (pnn50 === null || Number.isNaN(pnn50)) {
+        weights = { rmssd: 0.7, sdnn: 0.3, pnn50: 0 };
+      }
+    } else if (validMetrics === 1) {
+      // If only 1 metric available, use it exclusively
+      if (rmssd !== null && !Number.isNaN(rmssd)) {
+        weights = { rmssd: 1, sdnn: 0, pnn50: 0 };
+      } else if (sdnn !== null && !Number.isNaN(sdnn)) {
+        weights = { rmssd: 0, sdnn: 1, pnn50: 0 };
+      } else if (pnn50 !== null && !Number.isNaN(pnn50)) {
+        weights = { rmssd: 0, sdnn: 0, pnn50: 1 };
+      }
+    }
+
+    // Step 5: Calculate weighted HRV score
+    const weightedScore = weights.rmssd * normRMSSD + weights.sdnn * normSDNN + weights.pnn50 * normPNN50;
+
+    // Step 6: Scale to 0-100 and round
+    const hrvScore = Math.round(weightedScore * 100);
+
+    return hrvScore;
+
+  } catch (error) {
+    console.error('Error calculating HRV score:', error);
+    return null;
+  }
+};
+
 // Note: 4-Score calculations moved to server-side API (/api/sessions/analyze/route.ts)
 // Client-side calculations removed to ensure consistency and reduce bundle size

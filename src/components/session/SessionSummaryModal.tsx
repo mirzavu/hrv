@@ -188,7 +188,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Activity className="w-6 h-6 text-blue-600" />
               Key Metrics
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <MetricCard
                 icon={<Clock className="w-5 h-5 text-slate-400" />}
                 title="Session Duration"
@@ -205,6 +205,12 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 icon={<Target className="w-5 h-5 text-slate-400" />}
                 title="Beats"
                 value={summary.dataPoints.value}
+              />
+              <MetricCard
+                icon={<Sparkles className="w-5 h-5 text-purple-500" />}
+                title="HRV Score"
+                value={summary.hrvScore?.value ?? null}
+                unit={summary.hrvScore?.unit ?? ''}
               />
             </div>
             

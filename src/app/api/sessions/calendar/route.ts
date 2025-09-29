@@ -21,6 +21,7 @@ interface CalendarSession {
   time: string; // HH:MM format
   rmssd: number;
   durationMin: number;
+  hrvScore?: number; // HRV Score (0-100)
   notes?: string;
 }
 
@@ -124,6 +125,7 @@ export async function GET(request: NextRequest) {
       // Get summary if available
       const summary = summaryMap.get(session.$id);
       const rmssd = summary?.rmssd_session_ms || 0;
+      const hrvScore = summary?.hrv_score || null;
       
       return {
         id: session.$id,
@@ -131,6 +133,7 @@ export async function GET(request: NextRequest) {
         time,
         rmssd: Math.round(rmssd),
         durationMin,
+        hrvScore: hrvScore !== null ? Math.round(hrvScore) : undefined,
         notes: summary ? `Session ${session.$id.slice(-4)}` : `Session ${session.$id.slice(-4)} (No data)`
       };
     });

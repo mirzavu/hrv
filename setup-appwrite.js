@@ -281,6 +281,9 @@ async function setup() {
             { key: 'health_score', type: 'float', required: false },
             { key: 'focus_score', type: 'float', required: false },
             
+            // HRV Score (0-100)
+            { key: 'hrv_score', type: 'integer', required: false },
+            
             { key: 'createdAt', type: 'datetime', required: true },
         ];
 

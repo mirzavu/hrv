@@ -7,7 +7,8 @@ import {
   calculateMxDMn,
   calculateFrequencyDomain,
   calculatePoincareMetrics,
-  calculateBaevskyMetrics
+  calculateBaevskyMetrics,
+  calculateHRVScore
 } from '@/utils/hrv';
 
 interface TimestampedRR {
@@ -244,6 +245,9 @@ export const computeSessionSummaryPayload = ({
   
   // Calculate full Baevsky metrics
   const baevskyMetrics = calculateBaevskyMetrics(rrValues);
+  
+  // Calculate HRV Score (0-100)
+  const hrvScore = calculateHRVScore(rrValues);
 
   const windowMs = START_END_WINDOW_SECONDS * 1000;
   const endTimestamp = rrSeries.length ? rrSeries[rrSeries.length - 1].timestamp : sessionStartTimestamp + durationSeconds * 1000;
@@ -304,5 +308,8 @@ export const computeSessionSummaryPayload = ({
     baevsky_amo: baevskyMetrics.amo,
     baevsky_mxdmn_ms: baevskyMetrics.mxdmn,
     baevsky_stress_index: baevskyMetrics.bsi,
+    
+    // HRV Score (0-100)
+    hrv_score: hrvScore,
   };
 };

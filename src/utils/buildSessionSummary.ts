@@ -112,6 +112,13 @@ export const buildSessionSummary = (
       value: payload.focus_score,
       unit: '/100'
     },
+    
+    // HRV Score (0-100)
+    hrvScore: {
+      label: 'HRV Score',
+      value: payload.hrv_score,
+      unit: '/100'
+    },
 
     // Data quality
     dataPoints: {

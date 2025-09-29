@@ -61,6 +61,9 @@ export interface SessionSummary {
   healthScore: HRVMetric;
   focusScore: HRVMetric;
   
+  // HRV Score (0-100)
+  hrvScore: HRVMetric;
+  
   // Data quality
   dataPoints: HRVMetric;
   
@@ -115,6 +118,9 @@ export interface SessionSummaryRecord {
   stress_score?: number | null;
   health_score?: number | null;
   focus_score?: number | null;
+  
+  // HRV Score (0-100)
+  hrv_score?: number | null;
   
   createdAt: string;
 }

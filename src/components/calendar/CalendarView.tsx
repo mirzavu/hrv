@@ -22,6 +22,7 @@ interface CalendarSession {
   time: string; // HH:MM format
   rmssd: number;
   durationMin: number;
+  hrvScore?: number; // HRV Score (0-100)
   notes?: string;
 }
 
@@ -193,7 +194,19 @@ export function CalendarView({ sessions = [] }: CalendarViewProps) {
                         
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-sm font-medium text-gray-600">HRV Score</span>
-                          <span className="text-sm text-gray-900"><span className="font-semibold">{s.rmssd}</span> <span className="text-xs text-gray-500 font-normal">ms</span></span>
+                          <span className="text-sm text-gray-900">
+                            <span className="font-semibold">{s.hrvScore ?? 'N/A'}</span> 
+                            <span className="text-xs text-gray-500 font-normal">/100</span>
+                          </span>
+                        </div>
+                        
+                        {/* Additional RMSSD info */}
+                        <div className="flex justify-between items-center mt-1">
+                          <span className="text-xs text-gray-500">RMSSD</span>
+                          <span className="text-xs text-gray-500">
+                            <span className="font-medium">{s.rmssd}</span> 
+                            <span className="text-xs text-gray-400">ms</span>
+                          </span>
                         </div>
                         
                         {/* Session ID for debugging */}
