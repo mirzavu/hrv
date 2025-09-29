@@ -5,7 +5,7 @@ import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
-import StressIndexGauge from './StressIndexGauge';
+import RMSSDTrendGauge from './RMSSDTrendGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 import TachogramChart from './TachogramChart';
 
@@ -149,6 +149,40 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         </header>
 
         <main className="p-8 space-y-8">
+          {/* Wellness Scores Section - Above Key Metrics */}
+          <section>
+            <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+              <Sparkles className="w-6 h-6 text-purple-600" />
+              Wellness Scores
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <MetricCard
+                icon={<Zap className="w-5 h-5 text-yellow-500" />}
+                title="Energy Score"
+                value={summary.energyScore.value}
+                unit={summary.energyScore.unit}
+              />
+              <MetricCard
+                icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+                title="Stress Score"
+                value={summary.stressScore.value}
+                unit={summary.stressScore.unit}
+              />
+              <MetricCard
+                icon={<Shield className="w-5 h-5 text-green-500" />}
+                title="Health Score"
+                value={summary.healthScore.value}
+                unit={summary.healthScore.unit}
+              />
+              <MetricCard
+                icon={<Brain className="w-5 h-5 text-blue-500" />}
+                title="Focus Score"
+                value={summary.focusScore.value}
+                unit={summary.focusScore.unit}
+              />
+            </div>
+          </section>
+
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-blue-600" />
@@ -173,80 +207,51 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 value={summary.dataPoints.value}
               />
             </div>
+            
+            <div className="mt-8">
+              <HeartRateChart
+                data={heartRateData}
+                stabilizationTime={stabilizationTime}
+              />
+            </div>
           </section>
 
           <div className="flex flex-col gap-8">
             <section className="space-y-8">
-              {/* Wellness Scores Section - Above HRV Analysis */}
-              <section>
-                <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
-                  <Sparkles className="w-6 h-6 text-purple-600" />
-                  Wellness Scores
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <MetricCard
-                    icon={<Zap className="w-5 h-5 text-yellow-500" />}
-                    title="Energy Score"
-                    value={summary.energyScore.value}
-                    unit={summary.energyScore.unit}
-                  />
-                  <MetricCard
-                    icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
-                    title="Stress Score"
-                    value={summary.stressScore.value}
-                    unit={summary.stressScore.unit}
-                  />
-                  <MetricCard
-                    icon={<Shield className="w-5 h-5 text-green-500" />}
-                    title="Health Score"
-                    value={summary.healthScore.value}
-                    unit={summary.healthScore.unit}
-                  />
-                  <MetricCard
-                    icon={<Brain className="w-5 h-5 text-blue-500" />}
-                    title="Focus Score"
-                    value={summary.focusScore.value}
-                    unit={summary.focusScore.unit}
-                  />
-                </div>
-              </section>
-
               <section>
                 <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                   <Waves className="w-6 h-6 text-blue-600" />
                   HRV Analysis
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                   <MetricCard
                     title="Session RMSSD"
                     value={summary.sessionRMSSD.value}
                     unit={summary.sessionRMSSD.unit}
                   />
                   <MetricCard
-                    title="RMSSD Change"
-                    value={summary.rmssdDelta.value}
-                    unit={summary.rmssdDelta.unit}
+                    title="Time to Stabilize"
+                    value={summary.timeToStabilize.value}
+                    unit={summary.timeToStabilize.unit}
                   />
                   <MetricCard
-                    title="Stress Index"
-                    value={summary.sessionStressIndex.value}
+                    title="HRV Stability"
+                    value={summary.hrvStability.value}
+                    unit={summary.hrvStability.unit}
                   />
                   <MetricCard
-                    title="Restoration Index"
-                    value={summary.restorationIndex.value}
-                    unit="/100"
+                    title="Respiratory Coherence"
+                    value={summary.respCoherence.value}
+                    unit={summary.respCoherence.unit}
                   />
                 </div>
                 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <RestorationIndexGauge score={summary.restorationIndex.value} />
-                  <StressIndexGauge score={summary.sessionStressIndex.value} />
-                </div>
-                
-                <div className="mt-8">
-                  <HeartRateChart
-                    data={heartRateData}
-                    stabilizationTime={stabilizationTime}
+                  <RMSSDTrendGauge 
+                    startRMSSD={summary.startRMSSD.value}
+                    endRMSSD={summary.endRMSSD.value}
+                    rmssdDelta={summary.rmssdDelta.value}
                   />
                 </div>
               </section>
