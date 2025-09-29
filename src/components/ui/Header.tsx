@@ -15,7 +15,9 @@ const Header: React.FC<HeaderProps> = ({ user, handleLogout, handleViewReport, h
   return (
     <header className={`p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className="container mx-auto flex justify-between items-center">
-        <h1 className="text-xl md:text-2xl font-bold">HRV Monitor</h1>
+        <a href="/" className="text-xl md:text-2xl font-bold hover:opacity-80 transition-opacity">
+          HRV Monitor
+        </a>
         <div className="flex items-center gap-4">
           {user ? (
             <div className="flex items-center gap-2">
