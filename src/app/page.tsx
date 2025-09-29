@@ -160,6 +160,10 @@ const AppContent = () => {
         window.location.href = '/reports';
     };
 
+    const handleViewCalendar = () => {
+        window.location.href = '/calendar';
+    };
+
     useEffect(() => {
         document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
     }, [darkMode]);
@@ -184,6 +188,7 @@ const AppContent = () => {
                 user={user} 
                 handleLogout={handleLogout} 
                 handleViewReport={handleViewReport}
+                handleViewCalendar={handleViewCalendar}
                 toggleDarkMode={() => setDarkMode(!darkMode)} 
                 darkMode={darkMode}
                 onLoginClick={() => setShowLoginModal(true)}

@@ -1,7 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import { DATABASE_ID, SESSIONS_COLLECTION_ID, USERS_COLLECTION_ID } from '@/types';
+import { Client, Databases, Query } from 'node-appwrite';
+
+// Create server-side Appwrite client with API key
+const client = new Client();
+client
+  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
+  .setProject(process.env.APPWRITE_PROJECT_ID!)
+  .setKey(process.env.APPWRITE_API_KEY!);
+
+const databases = new Databases(client);
+
+const DATABASE_ID = process.env.APPWRITE_DATABASE_ID!;
+const SESSIONS_COLLECTION_ID = process.env.APPWRITE_SESSIONS_COLLECTION_ID!;
+const USERS_COLLECTION_ID = process.env.APPWRITE_USERS_COLLECTION_ID!;
 
 // GET /api/sessions - Fetch user's HRV sessions
 export async function GET(request: NextRequest) {
@@ -33,8 +44,8 @@ export async function GET(request: NextRequest) {
       DATABASE_ID,
       SESSIONS_COLLECTION_ID,
       [
-        Query.equal('user', userDoc.$id),
-        Query.orderDesc('date'),
+        Query.equal('userId', userDoc.$id),
+        Query.orderDesc('startTime'),
         Query.limit(limit),
         Query.offset(offset)
       ]
@@ -86,7 +97,7 @@ export async function POST(request: NextRequest) {
       'unique()',
       {
         ...sessionData,
-        user: userDoc.$id,
+        userId: userDoc.$id,
         createdAt: new Date().toISOString()
       }
     );

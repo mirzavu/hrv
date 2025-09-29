@@ -5,12 +5,13 @@ interface HeaderProps {
   user: User | null;
   handleLogout: () => void;
   handleViewReport: () => void;
+  handleViewCalendar?: () => void;
   toggleDarkMode: () => void;
   darkMode: boolean;
   onLoginClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, handleLogout, handleViewReport, toggleDarkMode, darkMode, onLoginClick }) => {
+const Header: React.FC<HeaderProps> = ({ user, handleLogout, handleViewReport, handleViewCalendar, toggleDarkMode, darkMode, onLoginClick }) => {
   return (
     <header className={`p-4 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className="container mx-auto flex justify-between items-center">
@@ -24,10 +25,16 @@ const Header: React.FC<HeaderProps> = ({ user, handleLogout, handleViewReport, t
               {user.$id !== 'guest' && (
                 <>
                   <button
+                    onClick={handleViewCalendar}
+                    className={`text-xs px-3 py-1.5 rounded font-semibold ${darkMode ? 'bg-green-600 hover:bg-green-500 text-white' : 'bg-green-500 hover:bg-green-600 text-white'} transition-colors`}
+                  >
+                    Calendar
+                  </button>
+                  <button
                     onClick={handleViewReport}
                     className={`text-xs px-3 py-1.5 rounded font-semibold ${darkMode ? 'bg-blue-600 hover:bg-blue-500 text-white' : 'bg-blue-500 hover:bg-blue-600 text-white'} transition-colors`}
                   >
-                    View Report
+                    Reports
                   </button>
                   <button
                     onClick={handleLogout}
