@@ -21,9 +21,6 @@ export default function CalendarPage() {
 
   const { sessions, loading: sessionsLoading, error } = useSessions(user?.$id || null);
 
-  const handleViewReport = () => {
-    window.location.href = '/reports';
-  };
 
   const handleViewCalendar = () => {
     window.location.href = '/calendar';
@@ -55,7 +52,6 @@ export default function CalendarPage() {
       <Header 
         user={user} 
         handleLogout={handleLogout} 
-        handleViewReport={handleViewReport}
         handleViewCalendar={handleViewCalendar}
         toggleDarkMode={() => setDarkMode(!darkMode)} 
         darkMode={darkMode}

@@ -140,14 +140,6 @@ const HrvApp: React.FC<HrvAppProps> = ({ addToast }) => {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            {user && user.$id !== 'guest' && (
-              <a 
-                href="/reports" 
-                className={`px-4 py-2 rounded-lg transition-colors ${darkMode ? 'bg-blue-600 hover:bg-blue-700' : 'bg-blue-500 hover:bg-blue-600'} text-white shadow-md`}
-              >
-                📊 Reports
-              </a>
-            )}
             <button
               onClick={() => setDarkMode(!darkMode)}
               className={`p-2 rounded-lg transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-white hover:bg-gray-50'} shadow-md`}

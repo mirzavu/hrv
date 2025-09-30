@@ -156,9 +156,6 @@ const AppContent = () => {
         }
     }, [sessionActive, statusMessage, setStatusMessage]);
     
-    const handleViewReport = () => {
-        window.location.href = '/reports';
-    };
 
     const handleViewCalendar = () => {
         window.location.href = '/calendar';
@@ -187,7 +184,6 @@ const AppContent = () => {
             <Header 
                 user={user} 
                 handleLogout={handleLogout} 
-                handleViewReport={handleViewReport}
                 handleViewCalendar={handleViewCalendar}
                 toggleDarkMode={() => setDarkMode(!darkMode)} 
                 darkMode={darkMode}

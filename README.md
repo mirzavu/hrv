@@ -10,7 +10,6 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 - **Session Management** - Save and track HRV sessions with detailed metrics and persistent summaries
 - **Progress Tracking** - Visual milestone progress bar with modern animations
 - **User Authentication** - Google OAuth and guest mode support
-- **Reports Dashboard** - View session history and analytics
 - **Dark Mode** - Beautiful light/dark theme toggle
 - **Responsive Design** - Works on desktop, tablet, and mobile devices
 
@@ -72,8 +71,7 @@ hrv/
 ├── src/
 │   ├── app/                 # Next.js App Router pages
 │   │   ├── api/            # API routes
-│   │   ├── auth/           # Authentication pages
-│   │   └── reports/        # Reports page
+│   │   └── auth/           # Authentication pages
 │   ├── components/         # React components
 │   │   ├── auth/          # Authentication components
 │   │   ├── session/       # Session-related components
@@ -161,12 +159,6 @@ The `session_summary` collection persists post-session analytics with the follow
 3. **Pause/Resume**: Use the pause button to temporarily stop recording and resume when you're ready
 4. **Monitor Progress**: Watch real-time HRV metrics and progress bar
 5. **End Session**: Click "End Session" to view summary and save data
-
-### Viewing Reports
-
-- Navigate to the Reports page to view session history
-- See average metrics across all sessions
-- Track your HRV progress over time
 
 ## 🛠️ Development
 
