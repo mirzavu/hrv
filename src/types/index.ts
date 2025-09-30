@@ -64,6 +64,11 @@ export interface SessionSummary {
   // HRV Score (0-100)
   hrvScore: HRVMetric;
   
+  // Frequency domain metrics
+  lfPower: HRVMetric;
+  hfPower: HRVMetric;
+  lfhfRatio: HRVMetric;
+  
   // Data quality
   dataPoints: HRVMetric;
   

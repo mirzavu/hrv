@@ -120,6 +120,23 @@ export const buildSessionSummary = (
       unit: '/100'
     },
 
+    // Frequency domain metrics
+    lfPower: {
+      label: 'LF Power',
+      value: payload.lf_power_ms2,
+      unit: 'ms²'
+    },
+    hfPower: {
+      label: 'HF Power',
+      value: payload.hf_power_ms2,
+      unit: 'ms²'
+    },
+    lfhfRatio: {
+      label: 'LF/HF Ratio',
+      value: payload.lfhf_ratio,
+      unit: ''
+    },
+
     // Data quality
     dataPoints: {
       label: 'Beats',

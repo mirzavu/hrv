@@ -6,6 +6,8 @@ import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
 import RMSSDTrendGauge from './RMSSDTrendGauge';
+import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
+import HRVScoreGauge from './HRVScoreGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 import TachogramChart from './TachogramChart';
 
@@ -188,7 +190,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Activity className="w-6 h-6 text-blue-600" />
               Key Metrics
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            
+            {/* First Row: Session Duration, Mean Heart Rate, Beats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <MetricCard
                 icon={<Clock className="w-5 h-5 text-slate-400" />}
                 title="Session Duration"
@@ -205,12 +209,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 icon={<Target className="w-5 h-5 text-slate-400" />}
                 title="Beats"
                 value={summary.dataPoints.value}
-              />
-              <MetricCard
-                icon={<Sparkles className="w-5 h-5 text-purple-500" />}
-                title="HRV Score"
-                value={summary.hrvScore?.value ?? null}
-                unit={summary.hrvScore?.unit ?? ''}
               />
             </div>
             
@@ -252,6 +250,17 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   />
                 </div>
                 
+                {/* HRV Score and Nervous System Balance */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
+                  <HRVScoreGauge score={summary.hrvScore.value} />
+                  <NervousSystemBalanceGauge 
+                    lfPower={summary.lfPower.value}
+                    hfPower={summary.hfPower.value}
+                    lfhfRatio={summary.lfhfRatio.value}
+                  />
+                </div>
+                
+                {/* Restoration Index and RMSSD Trend */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <RestorationIndexGauge score={summary.restorationIndex.value} />
                   <RMSSDTrendGauge 
