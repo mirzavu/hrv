@@ -76,10 +76,33 @@ export const useBluetooth = (
     setDevice(null);
   }, [addToast, endSession, latestSessionData]);
 
-  const startRealSession = async () => {
+  const checkWebBluetoothSupport = () => {
     if (!navigator.bluetooth) {
-      setStatusMessage('Web Bluetooth API is not available.');
-      addToast('Web Bluetooth is not supported in this browser.');
+      return {
+        supported: false,
+        reason: 'Web Bluetooth API is not available in this browser.',
+        solution: 'Please use Chrome, Edge, or Opera on a compatible device (Android, Chrome OS, or desktop).'
+      };
+    }
+
+    // Check if we're in a secure context
+    if (!window.isSecureContext) {
+      return {
+        supported: false,
+        reason: 'Web Bluetooth requires a secure context (HTTPS or localhost).',
+        solution: 'Please access this app via HTTPS or localhost.'
+      };
+    }
+
+    return { supported: true };
+  };
+
+  const startRealSession = async () => {
+    const supportCheck = checkWebBluetoothSupport();
+    
+    if (!supportCheck.supported) {
+      setStatusMessage(supportCheck.reason);
+      addToast(`${supportCheck.reason} ${supportCheck.solution}`);
       return;
     }
     
@@ -110,19 +133,41 @@ export const useBluetooth = (
     } catch (error: unknown) {
       console.error('Connection failed:', error);
       let errorMessage = 'Connection failed';
+      let solution = '';
       
-      if (error && typeof error === 'object' && 'name' in error && error.name === 'NotFoundError') {
-        errorMessage = 'No compatible heart rate device found';
-      } else if (error && typeof error === 'object' && 'name' in error && error.name === 'SecurityError') {
-        errorMessage = 'Bluetooth access denied';
-      } else if (error && typeof error === 'object' && 'name' in error && error.name === 'NetworkError') {
-        errorMessage = 'Connection lost during pairing';
+      if (error && typeof error === 'object' && 'name' in error) {
+        switch (error.name) {
+          case 'NotFoundError':
+            errorMessage = 'No compatible heart rate device found';
+            solution = 'Make sure your Polar H10 is powered on and not paired to another device. Try refreshing the page and scanning again.';
+            break;
+          case 'SecurityError':
+            errorMessage = 'Bluetooth access denied';
+            solution = 'Please allow Bluetooth access when prompted by your browser.';
+            break;
+          case 'NetworkError':
+            errorMessage = 'Connection lost during pairing';
+            solution = 'Make sure your Polar H10 is close to your device and try again.';
+            break;
+          case 'NotSupportedError':
+            errorMessage = 'Bluetooth Low Energy not supported';
+            solution = 'Your device does not support Bluetooth Low Energy. Please use a compatible device.';
+            break;
+          case 'NotAllowedError':
+            errorMessage = 'Bluetooth permission denied';
+            solution = 'Please allow Bluetooth access in your browser settings and try again.';
+            break;
+          default:
+            errorMessage = error instanceof Error ? error.message : 'Unknown connection error';
+            solution = 'Please check your device compatibility and try again.';
+        }
       } else {
         errorMessage = error instanceof Error ? error.message : 'Unknown connection error';
+        solution = 'Please check your device compatibility and try again.';
       }
       
       setStatusMessage(`Error: ${errorMessage}`);
-      addToast(`Bluetooth Error: ${errorMessage}`);
+      addToast(`Bluetooth Error: ${errorMessage}. ${solution}`);
       setDevice(null);
       setIsConnected(false);
     }
@@ -145,6 +190,28 @@ export const useBluetooth = (
     setStatusMessage('Device disconnected');
   }, [device, onDisconnected]);
 
+  const getBrowserInfo = () => {
+    const userAgent = navigator.userAgent;
+    const isChrome = /Chrome/.test(userAgent) && !/Edge/.test(userAgent);
+    const isEdge = /Edge/.test(userAgent);
+    const isOpera = /Opera/.test(userAgent);
+    const isSafari = /Safari/.test(userAgent) && !/Chrome/.test(userAgent);
+    const isFirefox = /Firefox/.test(userAgent);
+    
+    return {
+      userAgent,
+      isChrome,
+      isEdge,
+      isOpera,
+      isSafari,
+      isFirefox,
+      isSecureContext: window.isSecureContext,
+      hasBluetooth: 'bluetooth' in navigator,
+      protocol: window.location.protocol,
+      hostname: window.location.hostname
+    };
+  };
+
   return {
     device,
     isConnected,
@@ -152,6 +219,7 @@ export const useBluetooth = (
     setStatusMessage,
     startRealSession,
     disconnectDevice,
+    getBrowserInfo,
   };
 };
 
