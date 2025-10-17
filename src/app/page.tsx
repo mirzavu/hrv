@@ -10,13 +10,14 @@ import Header from '@/components/ui/Header';
 import LoginModal from '@/components/auth/LoginModal';
 import UserOnboardingModal from '@/components/UserOnboardingModal';
 import AuthCallback from '@/components/auth/AuthCallback';
-import Toast from '@/components/ui/Toast';
+import BluetoothCompatibilityCheck from '@/components/ui/BluetoothCompatibilityCheck';
 import MetricCard from '@/components/ui/MetricCard';
 import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import LegacyHeartRateChart from '@/components/session/LegacyHeartRateChart';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
+import Toast from '@/components/ui/Toast';
 import { RawHeartData } from '@/types';
 
 const AppContent = () => {
@@ -192,6 +193,7 @@ const AppContent = () => {
             
             {/* Simple HomePage without charts for now */}
             <main className="container mx-auto p-4 md:p-8">
+                <BluetoothCompatibilityCheck darkMode={darkMode} />
                 {sessionSummary && (
                     <SessionSummaryModal
                         summary={sessionSummary}
@@ -326,7 +328,18 @@ const AppContent = () => {
                 </div>
 
                 <footer className="text-center mt-8 text-xs text-gray-500">
-                    <p>Ensure you are on a secure context (HTTPS or localhost) for Web Bluetooth to work.</p>
+                    <div className={`p-4 rounded-lg mb-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-blue-50 border-blue-200'} border`}>
+                        <h3 className={`font-semibold mb-2 ${darkMode ? 'text-gray-200' : 'text-blue-800'}`}>
+                            Web Bluetooth Requirements
+                        </h3>
+                        <div className={`text-sm space-y-1 ${darkMode ? 'text-gray-300' : 'text-blue-700'}`}>
+                            <p>• Use Chrome, Edge, or Opera browser</p>
+                            <p>• Must be on HTTPS or localhost (secure context)</p>
+                            <p>• Compatible with Android, Chrome OS, and desktop</p>
+                            <p>• Polar H10 should not be paired to other devices</p>
+                            <p>• If issues persist, try enabling Web Bluetooth in Chrome flags</p>
+                        </div>
+                    </div>
                     <p>This app is for informational purposes only and is not a medical device.</p>
                 </footer>
             </main>
