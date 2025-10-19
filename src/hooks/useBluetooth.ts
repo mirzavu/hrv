@@ -97,13 +97,13 @@ export const useBluetooth = (
     return { supported: true };
   };
 
-  const startRealSession = async () => {
+  const startRealSession = async (): Promise<boolean> => {
     const supportCheck = checkWebBluetoothSupport();
     
     if (!supportCheck.supported) {
       setStatusMessage(supportCheck.reason);
       addToast(`${supportCheck.reason} ${supportCheck.solution}`);
-      return;
+      return false;
     }
     
     try {
@@ -130,6 +130,7 @@ export const useBluetooth = (
       setSessionActive(true);
       setStatusMessage(`Connected to ${btDevice.name}. Session running...`);
       addToast(`Successfully connected to ${btDevice.name}`);
+      return true;
     } catch (error: unknown) {
       console.error('Connection failed:', error);
       let errorMessage = 'Connection failed';
@@ -170,6 +171,8 @@ export const useBluetooth = (
       addToast(`Bluetooth Error: ${errorMessage}. ${solution}`);
       setDevice(null);
       setIsConnected(false);
+      setSessionActive(false); // Stop the session if connection fails
+      return false;
     }
   };
   

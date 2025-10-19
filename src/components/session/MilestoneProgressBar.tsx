@@ -55,7 +55,7 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
   };
 
   return (
-    <div className="mt-6 pt-6 flex flex-col items-center">
+    <div className="mt-6 pt-6 pb-8 flex flex-col items-center">
       <div className="w-full px-4">
         <div className="relative h-3 w-full">
           {/* Background track with gradient */}
@@ -121,9 +121,9 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
                     )}
                     </div>
                     
-                    {/* Label with better typography */}
+                    {/* Label positioned below the circle */}
                     <span 
-                      className={`mt-1 text-xs font-medium whitespace-nowrap transition-all duration-300 ${
+                      className={`mt-0 mb-4 text-xs font-medium whitespace-nowrap transition-all duration-300 ${
                         !isReached && !isActive
                           ? darkMode 
                             ? 'text-gray-400' 
@@ -145,16 +145,6 @@ const MilestoneProgressBar: React.FC<MilestoneProgressBarProps> = ({ elapsedTime
               );
             })}
           </div>
-        </div>
-      </div>
-      
-      {/* Modern timer display */}
-      <div className="mt-10 flex justify-center">
-        <div className={`px-4 py-2 rounded-xl ${darkMode ? 'bg-gray-800/50 backdrop-blur-sm' : 'bg-white/50 backdrop-blur-sm'} shadow-lg border ${darkMode ? 'border-gray-700' : 'border-gray-200'}`}>
-          <p className="text-center font-mono text-lg font-semibold">
-            <span className="text-2xl">{Math.floor(elapsedTime / 60)}:{(elapsedTime % 60).toString().padStart(2, '0')}</span>
-            <span className="text-sm opacity-60 ml-2">/ {totalDuration / 60}:00</span>
-          </p>
         </div>
       </div>
     </div>

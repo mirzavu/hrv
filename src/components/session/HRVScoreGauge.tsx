@@ -1,5 +1,4 @@
 import React from 'react';
-import { Sparkles } from 'lucide-react';
 
 interface HRVScoreGaugeProps {
   score: number | null | undefined;

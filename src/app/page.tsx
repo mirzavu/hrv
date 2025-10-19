@@ -94,11 +94,22 @@ const AppContent = () => {
 
     // Live metrics now show dummy data - calculations removed
     const liveMetrics = useMemo(() => {
+        let status = 'Idle';
+        if (sessionActive) {
+            if (sessionPaused) {
+                status = 'Paused';
+            } else {
+                // If we have heart rate data, we're recording (demo or real)
+                // If no HR data but session active, we're connecting (real session only)
+                status = hr !== null ? 'Recording' : 'Connecting...';
+            }
+        }
+        
         return {
             dataPoints: rawHeartData.length,
             avgHeartRate: hr || 0,
             sessionTime: elapsedTime,
-            status: sessionActive ? (sessionPaused ? 'Paused' : 'Recording') : 'Idle',
+            status,
         };
     }, [rawHeartData.length, hr, elapsedTime, sessionActive, sessionPaused]);
 
@@ -219,9 +230,12 @@ const AppContent = () => {
                         {!sessionActive ? (
                             <div className="flex gap-2">
                                 <button
-                                    onClick={() => {
+                                    onClick={async () => {
                                         sessionPausedRef.current = false;
-                                        startRealSession();
+                                        const connectionSuccess = await startRealSession();
+                                        if (connectionSuccess) {
+                                            startSession();
+                                        }
                                     }}
                                     disabled={sessionSummary !== null}
                                     className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
@@ -272,7 +286,10 @@ const AppContent = () => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <MetricCard title="Live HR" value={hr} unit="BPM" darkMode={darkMode} />
                     <MetricCard title="Beats" value={liveMetrics.dataPoints} unit="" precision={0} darkMode={darkMode} />
-                    <MetricCard title="Session Time" value={liveMetrics.sessionTime} unit="s" darkMode={darkMode} />
+                    <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
+                        <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Session Time</h3>
+                        <p className="text-2xl md:text-3xl font-bold">{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}/15:00</p>
+                    </div>
                     <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
                         <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</h3>
                         <p className="text-2xl md:text-3xl font-bold">{liveMetrics.status}</p>
@@ -296,16 +313,24 @@ const AppContent = () => {
                                         ? darkMode
                                             ? 'border-amber-400 text-amber-200'
                                             : 'border-amber-300 text-amber-600'
-                                        : darkMode
-                                            ? 'border-emerald-400 text-emerald-200'
-                                            : 'border-emerald-400 text-emerald-600'
+                                        : isConnected
+                                            ? (darkMode
+                                                ? 'border-emerald-400 text-emerald-200'
+                                                : 'border-emerald-400 text-emerald-600')
+                                            : (darkMode
+                                                ? 'border-orange-400 text-orange-200'
+                                                : 'border-orange-400 text-orange-600')
                                     : darkMode
                                         ? 'border-slate-600 text-slate-300'
                                         : 'border-slate-300 text-slate-600'
                             }`}
                         >
                             <span className="h-2 w-2 rounded-full bg-current"></span>
-                            {sessionActive ? (sessionPaused ? 'Paused' : 'Streaming') : 'Idle'}
+                            {sessionActive 
+                                ? (sessionPaused 
+                                    ? 'Paused' 
+                                    : (isConnected ? 'Streaming' : 'Connecting...'))
+                                : 'Idle'}
                         </span>
                     </div>
                     <div
