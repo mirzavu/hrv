@@ -144,9 +144,13 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
         const userDoc = existingUsers.documents[0];
 
+        // Ensure startTime is never null - fallback to first data timestamp or current time
+        const finalStartTime = sessionStartTime || 
+          (finalRawData.length > 0 ? new Date(finalRawData[0].timestamp).toISOString() : new Date().toISOString());
+          
         // Create raw data file content (CSV archived in a ZIP)
         const csvContent = buildSessionCsv(finalRawData, {
-          startTime: sessionStartTime,
+          startTime: finalStartTime,
           endTime,
           duration: finalElapsedTime,
           dataPoints: finalRawData.length
@@ -192,7 +196,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           AppwriteID.unique(),
           {
             userId: userDoc.$id,
-            startTime: sessionStartTime,
+            startTime: finalStartTime,
             endTime: endTime,
             rawFileId: rawFileId
           }
@@ -207,7 +211,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
             },
             body: JSON.stringify({
               rawData: finalRawData,
-              sessionStartTime,
+              sessionStartTime: finalStartTime,
               durationSeconds: finalElapsedTime,
               userId: userDoc.$id,
               sessionId: sessionRecord.$id,

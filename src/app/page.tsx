@@ -269,7 +269,14 @@ const AppContent = () => {
                                         Resume
                                     </button>
                                 )}
-                                <button onClick={() => endSession(elapsedTime, rawHeartData)} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
+                                <button onClick={() => {
+                                    // For real sessions, disconnect Bluetooth first
+                                    if (isConnected) {
+                                        disconnectDevice();
+                                    }
+                                    endSession(elapsedTime, rawHeartData);
+                                    setHr(null); // Clear heart rate display
+                                }} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
                                     End Session
                                 </button>
                             </div>
@@ -284,7 +291,7 @@ const AppContent = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <MetricCard title="Live HR" value={hr} unit="BPM" darkMode={darkMode} />
+                    <MetricCard title="Live HR" value={hr ?? 0} unit="BPM" darkMode={darkMode} />
                     <MetricCard title="Beats" value={liveMetrics.dataPoints} unit="" precision={0} darkMode={darkMode} />
                     <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
                         <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Session Time</h3>
@@ -313,7 +320,7 @@ const AppContent = () => {
                                         ? darkMode
                                             ? 'border-amber-400 text-amber-200'
                                             : 'border-amber-300 text-amber-600'
-                                        : isConnected
+                                        : hr !== null
                                             ? (darkMode
                                                 ? 'border-emerald-400 text-emerald-200'
                                                 : 'border-emerald-400 text-emerald-600')
@@ -329,7 +336,7 @@ const AppContent = () => {
                             {sessionActive 
                                 ? (sessionPaused 
                                     ? 'Paused' 
-                                    : (isConnected ? 'Streaming' : 'Connecting...'))
+                                    : (hr !== null ? 'Streaming' : 'Connecting...'))
                                 : 'Idle'}
                         </span>
                     </div>

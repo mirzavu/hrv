@@ -34,7 +34,8 @@ export const useBluetooth = (
 
     const flags = value.getUint8(0);
     const heartRate = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
-    if (latestSessionData.current.sessionPaused) {
+    // Only process data if session is active and not paused
+    if (!latestSessionData.current.sessionActive || latestSessionData.current.sessionPaused) {
       return;
     }
 
@@ -139,6 +140,12 @@ export const useBluetooth = (
       if (error && typeof error === 'object' && 'name' in error) {
         switch (error.name) {
           case 'NotFoundError':
+            // Check if user cancelled the dialog
+            if (error.message?.includes('User cancelled') || error.message?.includes('chooser')) {
+              // User cancelled - don't show this as an error
+              setStatusMessage('Device selection cancelled.');
+              return false;
+            }
             errorMessage = 'No compatible heart rate device found';
             solution = 'Make sure your Polar H10 is powered on and not paired to another device. Try refreshing the page and scanning again.';
             break;
