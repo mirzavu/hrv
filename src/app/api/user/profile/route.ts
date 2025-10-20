@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import { DATABASE_ID, USERS_COLLECTION_ID } from '@/types';
+import { getAdminPb } from '@/lib/pbAdmin';
+import { withDollarId } from '@/lib/pbMap';
 
 // GET /api/user/profile - Get user profile
 export async function GET(request: NextRequest) {
@@ -13,18 +12,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    const userDocs = await databases.listDocuments(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      [Query.equal('authUserId', userId)]
-    );
-
-    if (userDocs.documents.length === 0) {
+    const pb = await getAdminPb();
+    
+    // Get user profile directly (userId is the PB record ID)
+    try {
+      const userProfile = await pb.collection('users').getOne(userId);
+      return NextResponse.json({ profile: withDollarId(userProfile) });
+    } catch {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
-
-    const userProfile = userDocs.documents[0];
-    return NextResponse.json({ profile: userProfile });
 
   } catch (error: unknown) {
     console.error('Error fetching user profile:', error);
@@ -45,28 +41,19 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'User ID and profile data are required' }, { status: 400 });
     }
 
-    const userDocs = await databases.listDocuments(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      [Query.equal('authUserId', userId)]
-    );
+    const pb = await getAdminPb();
 
-    if (userDocs.documents.length === 0) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-
-    const userDoc = userDocs.documents[0];
-    const updatedProfile = await databases.updateDocument(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      userDoc.$id,
-      {
+    // Update user profile directly (userId is the PB record ID)
+    try {
+      const updatedProfile = await pb.collection('users').update(userId, {
         ...profileData,
         updatedAt: new Date().toISOString()
-      }
-    );
+      });
 
-    return NextResponse.json({ profile: updatedProfile });
+      return NextResponse.json({ profile: withDollarId(updatedProfile) });
+    } catch {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
 
   } catch (error: unknown) {
     console.error('Error updating user profile:', error);

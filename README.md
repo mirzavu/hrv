@@ -18,9 +18,9 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 - **Framework:** Next.js 15 (App Router)
 - **Language:** TypeScript
 - **Styling:** Tailwind CSS
-- **Backend:** Appwrite (self-hosted)
-- **Authentication:** Appwrite Auth with Google OAuth
-- **Database:** Appwrite Database
+- **Backend:** PocketBase (self-hosted)
+- **Authentication:** PocketBase Auth with Google OAuth
+- **Database:** PocketBase Collections
 - **Deployment:** Vercel-ready
 
 ## 📦 Quick Start
@@ -28,7 +28,7 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 ### Prerequisites
 
 - Node.js 18+ 
-- Docker (for Appwrite)
+- PocketBase binary (self-hosted)
 - Modern browser with Web Bluetooth support
 
 ### Installation
@@ -47,13 +47,12 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 3. **Set up environment variables**
    ```bash
    cp .env.local.example .env.local
-   # Edit .env.local with your Appwrite configuration
+   # Edit .env.local with your PocketBase configuration
    ```
 
-4. **Start Appwrite (if using self-hosted)**
+4. **Start PocketBase**
    ```bash
-   # Appwrite setup instructions in appwrite/ directory
-   docker-compose up -d
+   ./pocketbase serve --http=127.0.0.1:8090
    ```
 
 5. **Run the development server**
@@ -82,7 +81,7 @@ hrv/
 │   ├── types/             # TypeScript type definitions
 │   └── utils/             # Utility functions
 ├── public/                # Static assets
-├── appwrite/             # Appwrite configuration
+├── pb_migrations/        # PocketBase migrations
 └── README.md
 ```
 
@@ -93,24 +92,10 @@ hrv/
 Create a `.env.local` file with:
 
 ```env
-# Appwrite Configuration (client)
-NEXT_PUBLIC_APPWRITE_ENDPOINT=http://localhost/v1
-NEXT_PUBLIC_APPWRITE_PROJECT_ID=your-project-id
-NEXT_PUBLIC_APPWRITE_DATABASE_ID=your-database-id
-NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID=users-collection-id
-NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID=sessions-collection-id
-NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID=session-summary-collection-id
+PB_URL=http://127.0.0.1:8090
+PB_ADMIN_EMAIL=your-email@example.com
+PB_ADMIN_PASSWORD=your-password
 
-# Appwrite Configuration (server tooling)
-APPWRITE_ENDPOINT=http://localhost/v1
-APPWRITE_PROJECT_ID=your-project-id
-APPWRITE_DATABASE_ID=your-database-id
-APPWRITE_USERS_COLLECTION_ID=users-collection-id
-APPWRITE_SESSIONS_COLLECTION_ID=sessions-collection-id
-APPWRITE_SESSION_SUMMARY_COLLECTION_ID=session-summary-collection-id
-APPWRITE_API_KEY=your-api-key
-
-# App Configuration
 NEXT_PUBLIC_APP_TITLE=HRV Analysis App
 NEXT_PUBLIC_ENVIRONMENT=development
 NEXT_PUBLIC_DEBUG_MODE=true
@@ -174,7 +159,7 @@ The `session_summary` collection persists post-session analytics with the follow
 
 - **`useHrvSession`** - Manages HRV session state and calculations
 - **`useBluetooth`** - Handles Web Bluetooth API for Polar H10
-- **`useAuth`** - Manages user authentication with Appwrite
+- **`useAuth`** - Manages user authentication with PocketBase
 - **`MilestoneProgressBar`** - Modern progress visualization
 - **`SessionSummaryModal`** - Displays session results
 
@@ -229,6 +214,6 @@ This application is for informational and research purposes only. It is not a me
 ## 🙏 Acknowledgments
 
 - Polar for the H10 heart rate monitor and Web Bluetooth support
-- Appwrite for the excellent backend-as-a-service platform
+- PocketBase for the excellent backend-as-a-service platform
 - Next.js team for the amazing React framework
 - Tailwind CSS for the utility-first CSS framework

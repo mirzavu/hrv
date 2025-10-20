@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { databases } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import { DATABASE_ID, USERS_COLLECTION_ID, User } from '@/types';
+import { pb } from '@/lib/pocketbase';
+import { User } from '@/types';
 
 interface FormData {
   name: string;
@@ -82,39 +81,21 @@ const UserOnboardingModal: React.FC<UserOnboardingModalProps> = ({ darkMode, use
     setError('');
 
     try {
-      // Find the user document in the users collection
-      const existingUsers = await databases.listDocuments(
-        DATABASE_ID,
-        USERS_COLLECTION_ID,
-        [Query.equal('authUserId', user.$id)]
-      );
-
-      if (existingUsers.documents.length === 0) {
-        throw new Error('User document not found');
-      }
-
-      const userDoc = existingUsers.documents[0];
-
-      // Update user profile with onboarding data
-      await databases.updateDocument(
-        DATABASE_ID,
-        USERS_COLLECTION_ID,
-        userDoc.$id,
-        {
-          name: formData.name.trim(),
-          age: parseInt(formData.age),
-          gender: formData.gender,
-          weight: parseFloat(formData.weight),
-          height: parseFloat(formData.height),
-          purpose: formData.purpose,
-          profileCompleted: true,
-          onboardingCompletedAt: new Date().toISOString(),
-        }
-      );
+      // Update user profile directly with PocketBase
+      await pb.collection('users').update(user.$id, {
+        name: formData.name.trim(),
+        age: parseInt(formData.age),
+        gender: formData.gender,
+        weight: parseFloat(formData.weight),
+        height: parseFloat(formData.height),
+        purpose: formData.purpose,
+        profileCompleted: true,
+        onboardingCompletedAt: new Date().toISOString(),
+      });
 
       console.log('User profile updated successfully');
       onComplete(formData);
-      } catch (err: unknown) {
+    } catch (err: unknown) {
       console.error('Error updating user profile:', err);
       setError(err instanceof Error ? err.message : 'Failed to save profile. Please try again.');
     } finally {

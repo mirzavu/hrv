@@ -153,7 +153,7 @@ export interface Session {
   userId: string; // reference to users collection
   startTime: string; // ISO datetime string
   endTime: string; // ISO datetime string
-  rawFileId: string; // Appwrite Storage file ID for raw data
+  rawFile?: string | string[]; // PocketBase file field (filename)
   createdAt: string;
 }
 
@@ -169,14 +169,4 @@ export interface RawHeartData {
 
 export type HrvSummary = SessionSummary;
 
-const requireEnv = (value: string | undefined, key: string) => {
-  if (!value) {
-    throw new Error(`Missing required environment variable: ${key}`);
-  }
-  return value;
-};
-
-export const DATABASE_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID, 'NEXT_PUBLIC_APPWRITE_DATABASE_ID');
-export const USERS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_USERS_COLLECTION_ID');
-export const SESSIONS_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_SESSIONS_COLLECTION_ID');
-export const SESSION_SUMMARY_COLLECTION_ID = requireEnv(process.env.NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID, 'NEXT_PUBLIC_APPWRITE_SESSION_SUMMARY_COLLECTION_ID');
+// Appwrite-specific envs removed

@@ -1,5 +1,5 @@
-// Utility functions to maintain compatibility with existing Appwrite-flavored types
-// by mapping PB's `id` field to `$id`
+// Utility functions to map PocketBase records to app format
+// by mapping PB's `id` field to `$id` for client compatibility
 
 export function withDollarId<T extends { id: string }>(record: T): T & { $id: string } {
   return { ...record, $id: record.id };

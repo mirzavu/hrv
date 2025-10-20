@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { account } from '@/lib/appwrite';
+import { pb } from '@/lib/pocketbase';
 import { User } from '@/types';
 
 interface AuthCallbackProps {
@@ -14,13 +14,41 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onAuthComplete }) => {
   useEffect(() => {
     const completeAuth = async () => {
       try {
-        // Appwrite's SDK handles the token exchange from the URL automatically
-        const user = await account.get();
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get('code');
+        const state = params.get('state');
+        const verifier = localStorage.getItem('pb_oauth2_verifier');
+        const savedState = localStorage.getItem('pb_oauth2_state');
+        const redirectUrl = localStorage.getItem('pb_redirect_url') || `${window.location.origin}/auth/callback`;
+
+        if (!code || !state || !verifier || state !== savedState) {
+          throw new Error('Invalid OAuth callback parameters');
+        }
+
+        // Complete OAuth2 authentication with PocketBase
+        const authData = await pb.collection('users').authWithOAuth2Code(
+          'google',
+          code,
+          verifier,
+          redirectUrl
+        );
+
+        console.log("Successfully authenticated with PocketBase:", authData.record);
         
-        console.log("Successfully authenticated with Appwrite:", user);
+        // Map PocketBase user to expected User format
+        const user: User = {
+          $id: authData.record.id,
+          name: authData.record.name || '',
+          email: authData.record.email || '',
+        };
         
         // Store user data temporarily to avoid re-fetching after redirect
         localStorage.setItem('temp_auth_user', JSON.stringify(user));
+        
+        // Clean up OAuth storage
+        localStorage.removeItem('pb_oauth2_state');
+        localStorage.removeItem('pb_oauth2_verifier');
+        localStorage.removeItem('pb_redirect_url');
         
         // Pass user data to the auth handler and redirect
         onAuthComplete(user);
@@ -33,6 +61,12 @@ const AuthCallback: React.FC<AuthCallbackProps> = ({ onAuthComplete }) => {
       } catch (err: unknown) {
         console.error('Auth callback error:', err);
         setStatus(`Authentication failed: ${err instanceof Error ? err.message : "Unknown error"}`);
+        
+        // Clean up OAuth storage on error
+        localStorage.removeItem('pb_oauth2_state');
+        localStorage.removeItem('pb_oauth2_verifier');
+        localStorage.removeItem('pb_redirect_url');
+        
         setTimeout(() => {
           window.location.href = '/?error=' + encodeURIComponent(err instanceof Error ? err.message : "Unknown error");
         }, 3000);

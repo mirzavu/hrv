@@ -1,9 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { account, databases, AppwriteID } from '@/lib/appwrite';
-import { Query } from 'appwrite';
-import { User, UserProfile, DATABASE_ID, USERS_COLLECTION_ID } from '@/types';
+import { pb } from '@/lib/pocketbase';
+import { User, UserProfile } from '@/types';
 
 export const useAuth = (addToast: (message: string) => void) => {
   const [user, setUser] = useState<User | null>(null);
@@ -12,61 +11,59 @@ export const useAuth = (addToast: (message: string) => void) => {
   const [showOnboardingModal, setShowOnboardingModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Function to sync user from auth system to users collection and get profile
+  // Helper to map PocketBase user to User format
+  const pbUserToAppUser = useCallback((pbUser: any): User | null => {
+    if (!pbUser) return null;
+    return {
+      $id: pbUser.id,
+      name: pbUser.name || '',
+      email: pbUser.email || '',
+    };
+  }, []);
+
+  // Function to sync user profile and ensure it's up to date
   const syncUserToDatabase = useCallback(async (authUser: User): Promise<UserProfile | null> => {
     try {
-      // First, check if user already exists in the users collection
-      const existingUsers = await databases.listDocuments(
-        DATABASE_ID,
-        USERS_COLLECTION_ID,
-        [Query.equal('authUserId', authUser.$id)]
-      );
+      // For PocketBase, the user record IS the profile (they're the same)
+      // We just need to ensure the profile fields are up to date
+      const currentTime = new Date().toISOString();
+      
+      // Update the user record with login time and ensure authUserId is set
+      const updatedUser = await pb.collection('users').update(authUser.$id, {
+        authUserId: authUser.$id, // For compatibility with existing code
+        lastLoginAt: currentTime,
+        name: authUser.name || '',
+        email: authUser.email || '',
+      });
 
-      let userDoc: UserProfile;
-      if (existingUsers.documents.length === 0) {
-        // User doesn't exist in users collection, create them
-        const newUserPayload: Record<string, unknown> = {
-          authUserId: authUser.$id,
-          name: authUser.name || '',
-          email: authUser.email || '',
-          createdAt: new Date().toISOString(),
-          lastLoginAt: new Date().toISOString(),
-          profileCompleted: false,
-        };
+      // Map to UserProfile format expected by the app
+      const userProfile: UserProfile = {
+        $id: updatedUser.id,
+        authUserId: updatedUser.authUserId || updatedUser.id,
+        name: updatedUser.name || '',
+        email: updatedUser.email || '',
+        age: updatedUser.age,
+        gender: updatedUser.gender,
+        weight: updatedUser.weight,
+        height: updatedUser.height,
+        purpose: updatedUser.purpose,
+        profileCompleted: updatedUser.profileCompleted || false,
+        createdAt: updatedUser.createdAt || updatedUser.created,
+        lastLoginAt: updatedUser.lastLoginAt || currentTime,
+        onboardingCompletedAt: updatedUser.onboardingCompletedAt,
+      };
 
-        userDoc = (await databases.createDocument(
-          DATABASE_ID,
-          USERS_COLLECTION_ID,
-          AppwriteID.unique(),
-          newUserPayload
-        )) as unknown as UserProfile;
-        console.log('User synced to database');
-      } else {
-        // User exists, update last login time
-        const lastLoginUpdate: Record<string, unknown> = {
-          lastLoginAt: new Date().toISOString(),
-        };
-
-        userDoc = (await databases.updateDocument(
-          DATABASE_ID,
-          USERS_COLLECTION_ID,
-          existingUsers.documents[0].$id,
-          lastLoginUpdate
-        )) as unknown as UserProfile;
-        console.log('User last login updated');
-      }
-
-      // Set user profile data
-      setUserProfile(userDoc);
+      setUserProfile(userProfile);
 
       // Check if user needs onboarding
-      if (!userDoc.profileCompleted && authUser.$id !== 'guest') {
+      if (!userProfile.profileCompleted && authUser.$id !== 'guest') {
         setShowOnboardingModal(true);
       }
 
-      return userDoc;
+      console.log('User profile synced');
+      return userProfile;
     } catch (error) {
-      console.error('Error syncing user to database:', error);
+      console.error('Error syncing user profile:', error);
       // Don't throw error - user can still use the app even if sync fails
       return null;
     }
@@ -94,20 +91,23 @@ export const useAuth = (addToast: (message: string) => void) => {
     }
 
     try {
-      const currentUser = await account.get();
-      setUser(currentUser);
-      setShowLoginModal(false);
-      
-      // Sync user to database
-      await syncUserToDatabase(currentUser);
-    } catch (error: unknown) {
-      // Only show "no session" message for 401 errors (not logged in)
-      // Avoid showing for other errors like network issues
-      if (error && typeof error === 'object' && 'code' in error && error.code === 401) {
-        console.log("No active session - user not logged in.");
+      // Check if user is authenticated with PocketBase
+      if (pb.authStore.isValid && pb.authStore.model) {
+        const currentUser = pbUserToAppUser(pb.authStore.model);
+        if (currentUser) {
+          setUser(currentUser);
+          setShowLoginModal(false);
+          
+          // Sync user profile
+          await syncUserToDatabase(currentUser);
+        } else {
+          throw new Error('Invalid user data');
+        }
       } else {
-        console.log("Session check failed:", error instanceof Error ? error.message : 'Unknown error');
+        throw new Error('No active session');
       }
+    } catch (error: unknown) {
+      console.log("No active session - user not logged in.");
       setUser(null);
       setShowLoginModal(true);
     } finally {
@@ -121,7 +121,8 @@ export const useAuth = (addToast: (message: string) => void) => {
 
   const handleLogout = useCallback(async () => {
     try {
-      await account.deleteSession('current');
+      // Clear PocketBase auth store
+      pb.authStore.clear();
       setUser(null);
       setUserProfile(null);
       setShowOnboardingModal(false);

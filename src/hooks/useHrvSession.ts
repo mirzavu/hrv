@@ -2,9 +2,8 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { zipSync, strToU8 } from 'fflate';
-import { databases, storage, AppwriteID } from '@/lib/appwrite';
-import { AppwriteException, Query } from 'appwrite';
-import { User, SessionSummary, SessionMilestone, RawHeartData, DATABASE_ID, USERS_COLLECTION_ID, SESSIONS_COLLECTION_ID, SESSION_SUMMARY_COLLECTION_ID } from '@/types';
+import { pb } from '@/lib/pocketbase';
+import { User, SessionSummary, SessionMilestone, RawHeartData } from '@/types';
 // import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
@@ -130,19 +129,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
     if (user && user.$id !== 'guest') {
       try {
-        // First, find the user in the users collection
-        const existingUsers = await databases.listDocuments(
-          DATABASE_ID,
-          USERS_COLLECTION_ID,
-          [Query.equal('authUserId', user.$id)]
-        );
-
-        if (existingUsers.documents.length === 0) {
-          addToast('Error: User not found in database. Please try logging out and back in.');
-          return;
-        }
-
-        const userDoc = existingUsers.documents[0];
+        // For PocketBase, user.$id IS the users collection record id
+        const userId = user.$id;
 
         // Ensure startTime is never null - fallback to first data timestamp or current time
         const finalStartTime = sessionStartTime || 
@@ -159,48 +147,18 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         const timestamp = Date.now();
         const archiveBytes = zipSync({ [`session-${timestamp}.csv`]: strToU8(csvContent) });
 
-        // Upload raw data to Appwrite Storage
+        // Create raw data file for direct attachment to session
         const file = new File([new Uint8Array(archiveBytes)], `session-${timestamp}.zip`, {
           type: 'application/zip'
         });
 
-        // Create a bucket ID for heart rate data (you'll need to create this bucket in Appwrite)
-        const BUCKET_ID = 'heart-rate-data'; // This needs to be created in Appwrite
-        
-        let rawFileId = '';
-        try {
-          const uploadedFile = await storage.createFile(BUCKET_ID, AppwriteID.unique(), file);
-          rawFileId = uploadedFile.$id;
-        } catch (storageError) {
-          console.error('Error uploading raw data file:', storageError);
-
-          let toastMessage = 'Warning: Could not save raw data file. Session metadata saved.';
-          const messageFromError =
-            storageError instanceof AppwriteException
-              ? storageError.message
-              : storageError instanceof Error
-                ? storageError.message
-                : undefined;
-
-          if (messageFromError && /extension not allowed/i.test(messageFromError)) {
-            toastMessage = 'Warning: Storage bucket is missing .zip in its allowed extensions. Re-run setup-appwrite to update it.';
-          }
-
-          addToast(toastMessage);
-        }
-
-        // Create session record in database
-        const sessionRecord = await databases.createDocument(
-          DATABASE_ID,
-          SESSIONS_COLLECTION_ID,
-          AppwriteID.unique(),
-          {
-            userId: userDoc.$id,
-            startTime: finalStartTime,
-            endTime: endTime,
-            rawFileId: rawFileId
-          }
-        );
+        // Create session record with direct file attachment
+        const sessionRecord = await pb.collection('sessions').create({
+          userId: userId,
+          startTime: finalStartTime,
+          endTime: endTime,
+          rawFile: file
+        });
 
         try {
           // Call server-side API for calculations
@@ -213,8 +171,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
               rawData: finalRawData,
               sessionStartTime: finalStartTime,
               durationSeconds: finalElapsedTime,
-              userId: userDoc.$id,
-              sessionId: sessionRecord.$id,
+              userId: userId,
+              sessionId: sessionRecord.id,
             }),
           });
 
@@ -224,16 +182,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
           const finalSummaryPayload = await response.json();
 
-
-          await databases.createDocument(
-            DATABASE_ID,
-            SESSION_SUMMARY_COLLECTION_ID,
-            AppwriteID.unique(),
-            {
-              ...finalSummaryPayload,
-              createdAt: new Date().toISOString(),
-            }
-          );
+          await pb.collection('session_summary').create({
+            ...finalSummaryPayload,
+            createdAt: new Date().toISOString(),
+          });
           
           // Update the displayed summary with the final sessionId
           const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
@@ -245,7 +197,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         
         addToast('Session saved successfully!');
       } catch (error) {
-        console.error('Error saving session to Appwrite:', error);
+        console.error('Error saving session to database:', error);
         addToast('Error: Could not save session to database.');
       }
     } else {

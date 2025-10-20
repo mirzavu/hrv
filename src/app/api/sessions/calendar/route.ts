@@ -1,19 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client, Databases, Query } from 'node-appwrite';
-
-// Create server-side Appwrite client with API key
-const client = new Client();
-client
-  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
-  .setProject(process.env.APPWRITE_PROJECT_ID!)
-  .setKey(process.env.APPWRITE_API_KEY!);
-
-const databases = new Databases(client);
-
-const DATABASE_ID = process.env.APPWRITE_DATABASE_ID!;
-const SESSIONS_COLLECTION_ID = process.env.APPWRITE_SESSIONS_COLLECTION_ID!;
-const SESSION_SUMMARY_COLLECTION_ID = process.env.APPWRITE_SESSION_SUMMARY_COLLECTION_ID!;
-const USERS_COLLECTION_ID = process.env.APPWRITE_USERS_COLLECTION_ID!;
+import { getAdminPb } from '@/lib/pbAdmin';
+import { chunk } from '@/lib/pbMap';
 
 interface CalendarSession {
   id: string;
@@ -37,66 +24,48 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // First, find the user document
-    const userDocs = await databases.listDocuments(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      [Query.equal('authUserId', userId)]
-    );
-
-    if (userDocs.documents.length === 0) {
+    const pb = await getAdminPb();
+    
+    // Validate user exists (userId is the PB record ID)
+    try {
+      await pb.collection('users').getOne(userId);
+    } catch {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const userDoc = userDocs.documents[0];
-
-    // Build query for sessions
-    const sessionQueries = [
-      Query.equal('userId', userDoc.$id),
-      Query.orderDesc('startTime'),
-      Query.limit(200) // Fetch up to 200 sessions
-    ];
-
+    // Build filter for sessions
+    let filter = `userId = "${userId}"`;
+    
     // Add date range filters if provided
     if (startDate) {
-      sessionQueries.push(Query.greaterThanEqual('startTime', startDate));
+      filter += ` && startTime >= "${startDate}"`;
     }
     if (endDate) {
-      sessionQueries.push(Query.lessThanEqual('startTime', endDate));
+      filter += ` && startTime <= "${endDate}"`;
     }
 
     // Fetch all sessions for the user
-    const sessionsResponse = await databases.listDocuments(
-      DATABASE_ID,
-      SESSIONS_COLLECTION_ID,
-      sessionQueries
-    );
+    const sessionsResponse = await pb.collection('sessions').getList(1, 200, {
+      filter,
+      sort: '-startTime'
+    });
 
-    if (sessionsResponse.documents.length === 0) {
+    if (sessionsResponse.items.length === 0) {
       return NextResponse.json({ sessions: [], total: 0 });
     }
 
     // Get all session IDs
-    const sessionIds = sessionsResponse.documents.map(session => session.$id);
+    const sessionIds = sessionsResponse.items.map(session => session.id);
 
-    // Fetch ALL summaries in a SINGLE query using the IN operator
-    // Split into chunks if there are too many IDs (Appwrite has a limit)
+    // Fetch ALL summaries using chunked queries (PocketBase has limits on IN queries)
     const chunkSize = 50;
-    const summaryPromises = [];
+    const sessionChunks = chunk(sessionIds, chunkSize);
     
-    for (let i = 0; i < sessionIds.length; i += chunkSize) {
-      const chunk = sessionIds.slice(i, i + chunkSize);
-      summaryPromises.push(
-        databases.listDocuments(
-          DATABASE_ID,
-          SESSION_SUMMARY_COLLECTION_ID,
-          [
-            Query.equal('session_id', chunk),
-            Query.limit(chunkSize)
-          ]
-        )
-      );
-    }
+    const summaryPromises = sessionChunks.map(sessionChunk => 
+      pb.collection('session_summary').getList(1, chunkSize, {
+        filter: `session_id in (${sessionChunk.map(id => `"${id}"`).join(',')})`,
+      })
+    );
 
     // Execute all summary queries in parallel
     const summaryResponses = await Promise.all(summaryPromises);
@@ -104,13 +73,13 @@ export async function GET(request: NextRequest) {
     // Combine all summaries into a single map
     const summaryMap = new Map();
     summaryResponses.forEach(response => {
-      response.documents.forEach(summary => {
+      response.items.forEach(summary => {
         summaryMap.set(summary.session_id, summary);
       });
     });
 
     // Transform sessions to calendar format with summaries
-    const calendarSessions: CalendarSession[] = sessionsResponse.documents.map(session => {
+    const calendarSessions: CalendarSession[] = sessionsResponse.items.map(session => {
       const startTime = new Date(session.startTime);
       const endTime = new Date(session.endTime);
       const durationMs = endTime.getTime() - startTime.getTime();
@@ -123,18 +92,18 @@ export async function GET(request: NextRequest) {
       const time = `${hours}:${minutes}`;
       
       // Get summary if available
-      const summary = summaryMap.get(session.$id);
+      const summary = summaryMap.get(session.id);
       const rmssd = summary?.rmssd_session_ms || 0;
       const hrvScore = summary?.hrv_score || null;
       
       return {
-        id: session.$id,
+        id: session.id,
         date,
         time,
         rmssd: Math.round(rmssd),
         durationMin,
         hrvScore: hrvScore !== null ? Math.round(hrvScore) : undefined,
-        notes: summary ? `Session ${session.$id.slice(-4)}` : `Session ${session.$id.slice(-4)} (No data)`
+        notes: summary ? `Session ${session.id.slice(-4)}` : `Session ${session.id.slice(-4)} (No data)`
       };
     });
 
@@ -145,7 +114,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       { 
         sessions: calendarSessions, 
-        total: sessionsResponse.total,
+        total: sessionsResponse.totalItems,
         cached: false 
       },
       { headers }

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "next dev --turbopack -p 3001",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "eslint",
@@ -13,13 +13,12 @@
     "node": ">=20.19.0"
   },
   "dependencies": {
-    "appwrite": "18.2.0",
     "dotenv": "^17.2.2",
     "fflate": "^0.8.2",
     "lucide-react": "^0.544.0",
     "next": "15.5.4",
-    "node-appwrite": "17.2.0",
     "pako": "^2.1.0",
+    "pocketbase": "^0.26.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "recharts": "^3.2.1"

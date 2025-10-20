@@ -1,18 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client, Databases, Query } from 'node-appwrite';
-
-// Create server-side Appwrite client with API key
-const client = new Client();
-client
-  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
-  .setProject(process.env.APPWRITE_PROJECT_ID!)
-  .setKey(process.env.APPWRITE_API_KEY!);
-
-const databases = new Databases(client);
-
-const DATABASE_ID = process.env.APPWRITE_DATABASE_ID!;
-const SESSIONS_COLLECTION_ID = process.env.APPWRITE_SESSIONS_COLLECTION_ID!;
-const USERS_COLLECTION_ID = process.env.APPWRITE_USERS_COLLECTION_ID!;
+import { getAdminPb } from '@/lib/pbAdmin';
+import { withDollarId } from '@/lib/pbMap';
 
 // GET /api/sessions - Fetch user's HRV sessions
 export async function GET(request: NextRequest) {
@@ -26,34 +14,23 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
     }
 
-    // First, find the user document
-    const userDocs = await databases.listDocuments(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      [Query.equal('authUserId', userId)]
-    );
+    const pb = await getAdminPb();
+    
+    // Convert offset/limit to page-based pagination
+    const page = Math.floor(offset / limit) + 1;
 
-    if (userDocs.documents.length === 0) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
+    // Fetch user's sessions directly (userId is the PB record ID)
+    const result = await pb.collection('sessions').getList(page, limit, {
+      filter: `userId = "${userId}"`,
+      sort: '-startTime',
+    });
 
-    const userDoc = userDocs.documents[0];
-
-    // Fetch user's sessions
-    const sessions = await databases.listDocuments(
-      DATABASE_ID,
-      SESSIONS_COLLECTION_ID,
-      [
-        Query.equal('userId', userDoc.$id),
-        Query.orderDesc('startTime'),
-        Query.limit(limit),
-        Query.offset(offset)
-      ]
-    );
+    // Map PB records to include $id for client compatibility
+    const sessions = result.items.map(withDollarId);
 
     return NextResponse.json({
-      sessions: sessions.documents,
-      total: sessions.total,
+      sessions,
+      total: result.totalItems,
       limit,
       offset
     });
@@ -67,7 +44,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST /api/sessions - Create a new HRV session (alternative to direct Appwrite calls)
+// POST /api/sessions - Create a new HRV session (alternative to direct PB calls)
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -77,32 +54,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User ID and session data are required' }, { status: 400 });
     }
 
-    // Find the user document
-    const userDocs = await databases.listDocuments(
-      DATABASE_ID,
-      USERS_COLLECTION_ID,
-      [Query.equal('authUserId', userId)]
-    );
+    const pb = await getAdminPb();
 
-    if (userDocs.documents.length === 0) {
+    // Validate user exists (userId is the PB record ID)
+    try {
+      await pb.collection('users').getOne(userId);
+    } catch {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    const userDoc = userDocs.documents[0];
-
     // Create the session
-    const session = await databases.createDocument(
-      DATABASE_ID,
-      SESSIONS_COLLECTION_ID,
-      'unique()',
-      {
-        ...sessionData,
-        userId: userDoc.$id,
-        createdAt: new Date().toISOString()
-      }
-    );
+    const session = await pb.collection('sessions').create({
+      ...sessionData,
+      userId: userId,
+      createdAt: new Date().toISOString()
+    });
 
-    return NextResponse.json({ session }, { status: 201 });
+    return NextResponse.json({ session: withDollarId(session) }, { status: 201 });
 
   } catch (error: unknown) {
     console.error('Error creating session:', error);

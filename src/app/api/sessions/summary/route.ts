@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Client, Databases, Query } from 'node-appwrite';
-
-// Create server-side Appwrite client with API key
-const client = new Client();
-client
-  .setEndpoint(process.env.APPWRITE_ENDPOINT!)
-  .setProject(process.env.APPWRITE_PROJECT_ID!)
-  .setKey(process.env.APPWRITE_API_KEY!);
-
-const databases = new Databases(client);
-
-const DATABASE_ID = process.env.APPWRITE_DATABASE_ID!;
-const SESSION_SUMMARY_COLLECTION_ID = process.env.APPWRITE_SESSION_SUMMARY_COLLECTION_ID!;
+import { getAdminPb } from '@/lib/pbAdmin';
+import { withDollarId } from '@/lib/pbMap';
 
 // GET /api/sessions/summary - Fetch session summary by session ID
 export async function GET(request: NextRequest) {
@@ -23,22 +12,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
     }
 
-    // Fetch session summary
-    const summaries = await databases.listDocuments(
-      DATABASE_ID,
-      SESSION_SUMMARY_COLLECTION_ID,
-      [Query.equal('session_id', sessionId)]
-    );
+    const pb = await getAdminPb();
 
-    if (summaries.documents.length === 0) {
+    // Fetch session summary
+    const result = await pb.collection('session_summary').getList(1, 1, {
+      filter: `session_id = "${sessionId}"`
+    });
+
+    if (result.items.length === 0) {
       return NextResponse.json({ error: 'Session summary not found' }, { status: 404 });
     }
 
-    const summary = summaries.documents[0];
+    const summary = withDollarId(result.items[0]);
 
     return NextResponse.json({
       summary,
-      total: summaries.total
+      total: result.totalItems
     });
 
   } catch (error: unknown) {

@@ -1,8 +1,7 @@
 'use client';
 
-import { OAuthProvider } from "appwrite";
 import React, { useState } from 'react';
-import { account } from '@/lib/appwrite';
+import { pb } from '@/lib/pocketbase';
 import { User } from '@/types';
 
 interface LoginModalProps {
@@ -19,15 +18,29 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
     setError('');
     setLoading(true);
     try {
-      // This will redirect the user to Google's login page
-      account.createOAuth2Session(
-        OAuthProvider.Google, // provider
-        `${window.location.origin}/auth/callback`, // success URL
-        `${window.location.origin}/?error=true`  // failure URL
-      );
+      // Use PocketBase's built-in OAuth2 flow
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      
+      console.log('Initiating OAuth with redirect URL:', redirectUrl);
+      
+      // PocketBase will handle the OAuth flow and redirect back to our callback
+      const authData = await pb.collection('users').authWithOAuth2({ provider: 'google' });
+      
+      // If we get here, auth was successful
+      const user = {
+        $id: authData.record.id,
+        name: authData.record.name || '',
+        email: authData.record.email || '',
+      };
+      
+      console.log('OAuth successful:', user);
+      setLoading(false);
+      onLoginSuccess(user);
+      onClose();
+      
     } catch (err: unknown) {
       console.error('[FRONTEND ERROR] Google login initiation failed:', err);
-      setError(err instanceof Error ? err.message : 'Login initiation failed');
+      setError(err instanceof Error ? err.message : 'Failed to start Google login');
       setLoading(false);
     }
   };
