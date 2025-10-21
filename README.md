@@ -52,7 +52,7 @@ A modern Heart Rate Variability (HRV) analysis application built with Next.js 15
 
 4. **Start PocketBase**
    ```bash
-   ./pocketbase serve --http=127.0.0.1:8090
+   ./pocketbase serve --http=127.0.0.1:8091
    ```
 
 5. **Run the development server**
@@ -92,7 +92,7 @@ hrv/
 Create a `.env.local` file with:
 
 ```env
-PB_URL=http://127.0.0.1:8090
+PB_URL=http://127.0.0.1:8091
 PB_ADMIN_EMAIL=your-email@example.com
 PB_ADMIN_PASSWORD=your-password
 

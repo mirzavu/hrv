@@ -101,6 +101,9 @@ temp/
 *.csv
 hrv_sessions/
 
+# PocketBase data directory
+pb_data/
+
 # Playwright MCP files
 .playwright-mcp/
 

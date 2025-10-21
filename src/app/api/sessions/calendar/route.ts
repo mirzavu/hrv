@@ -57,25 +57,24 @@ export async function GET(request: NextRequest) {
     // Get all session IDs
     const sessionIds = sessionsResponse.items.map(session => session.id);
 
-    // Fetch ALL summaries using chunked queries (PocketBase has limits on IN queries)
-    const chunkSize = 50;
-    const sessionChunks = chunk(sessionIds, chunkSize);
-    
-    const summaryPromises = sessionChunks.map(sessionChunk => 
-      pb.collection('session_summary').getList(1, chunkSize, {
-        filter: `session_id in (${sessionChunk.map(id => `"${id}"`).join(',')})`,
-      })
+    // Some PocketBase versions have strict handling of `in` with relation fields.
+    // To be maximally compatible, fetch summaries per-session in parallel.
+    const summaryResults = await Promise.allSettled(
+      sessionIds.map((id) =>
+        pb.collection('session_summary').getList(1, 1, {
+          filter: `session_id = "${id}"`,
+        })
+      )
     );
 
-    // Execute all summary queries in parallel
-    const summaryResponses = await Promise.all(summaryPromises);
-    
     // Combine all summaries into a single map
     const summaryMap = new Map();
-    summaryResponses.forEach(response => {
-      response.items.forEach(summary => {
-        summaryMap.set(summary.session_id, summary);
-      });
+    summaryResults.forEach((res) => {
+      if (res.status === 'fulfilled') {
+        res.value.items.forEach((summary: any) => {
+          summaryMap.set(summary.session_id, summary);
+        });
+      }
     });
 
     // Transform sessions to calendar format with summaries
@@ -121,7 +120,20 @@ export async function GET(request: NextRequest) {
     );
 
   } catch (error: unknown) {
-    console.error('Error fetching calendar sessions:', error);
+    // Log as much context as possible to aid debugging in dev
+    // Note: Next.js may suppress some error details in responses
+    try {
+      const enriched = {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        raw: error,
+      };
+      // eslint-disable-next-line no-console
+      console.error('Error fetching calendar sessions (enriched):', enriched);
+    } catch {
+      // eslint-disable-next-line no-console
+      console.error('Error fetching calendar sessions:', error);
+    }
     return NextResponse.json(
       { error: 'Failed to fetch calendar sessions', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }

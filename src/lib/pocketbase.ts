@@ -1,8 +1,8 @@
 import PocketBase from 'pocketbase';
 
 const url = typeof window === 'undefined'
-  ? (process.env.PB_URL || process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090')
-  : (process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8090');
+  ? (process.env.PB_URL || process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8091')
+  : (process.env.NEXT_PUBLIC_PB_URL || 'http://127.0.0.1:8091');
 
 export const pb = new PocketBase(url);
 

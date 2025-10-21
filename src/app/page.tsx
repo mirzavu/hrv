@@ -291,7 +291,7 @@ const AppContent = () => {
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <MetricCard title="Live HR" value={hr ?? 0} unit="BPM" darkMode={darkMode} />
+                    <MetricCard title="Live HR" value={hr ?? 0} unit="BPM" precision={0} darkMode={darkMode} />
                     <MetricCard title="Beats" value={liveMetrics.dataPoints} unit="" precision={0} darkMode={darkMode} />
                     <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
                         <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Session Time</h3>
@@ -360,18 +360,6 @@ const AppContent = () => {
                 </div>
 
                 <footer className="text-center mt-8 text-xs text-gray-500">
-                    <div className={`p-4 rounded-lg mb-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-blue-50 border-blue-200'} border`}>
-                        <h3 className={`font-semibold mb-2 ${darkMode ? 'text-gray-200' : 'text-blue-800'}`}>
-                            Web Bluetooth Requirements
-                        </h3>
-                        <div className={`text-sm space-y-1 ${darkMode ? 'text-gray-300' : 'text-blue-700'}`}>
-                            <p>• Use Chrome, Edge, or Opera browser</p>
-                            <p>• Must be on HTTPS or localhost (secure context)</p>
-                            <p>• Compatible with Android, Chrome OS, and desktop</p>
-                            <p>• Polar H10 should not be paired to other devices</p>
-                            <p>• If issues persist, try enabling Web Bluetooth in Chrome flags</p>
-                        </div>
-                    </div>
                     <p>This app is for informational purposes only and is not a medical device.</p>
                 </footer>
             </main>

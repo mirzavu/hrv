@@ -1,0 +1,75 @@
+## Project Information
+
+### Tech Stack
+- **Frontend**: Next.js 15.5.4 with React 19.1.0, TailwindCSS
+- **Backend**: PocketBase (Database, Auth, Files)
+- **Language**: TypeScript
+- **Node Version**: >=20.19.0
+
+### Local Development
+- **Sudo password**: `12121234`
+- **Development port**: `3001` (always use this port)
+- **Start dev server**: `npm run dev` (runs with turbopack)
+- **Build**: `npm run build`
+- **Production**: `npm start`
+- **Testing**: `npm run test` (vitest)
+
+### Environment Configuration
+- Uses `.env.local` for local development
+- Required PocketBase environment variables:
+  - `PB_URL`
+  - `PB_ADMIN_EMAIL`
+  - `PB_ADMIN_PASSWORD`
+- No staging environment - only development and production
+
+## PocketBase Setup
+- **Start server**: `./pocketbase serve --http=127.0.0.1:8091`
+- **Migrations**: `./pocketbase migrate up`
+- **Collections**: users, sessions, session_summary
+
+## Debugging Guidelines
+
+### Browser Console Logs
+- Open browser and Check browser console for frontend errors when debugging UI issues
+
+### Command Timeouts
+- Always add timeouts to commands that have a probability to get stuck or hang indefinitely
+
+### Documentation Reference
+- When coding or stuck with an issue, always browse the official documentation for proper syntax:
+  - Next.js: https://nextjs.org/docs
+  - React: https://react.dev
+  - Web Bluetooth: https://developer.mozilla.org/en-US/docs/Web/API/Web_Bluetooth_API
+
+## Git Workflow
+
+### Commit Messages
+- use commit message not more than 15 words and moderately technical
+- No emojis or icons in commit messages
+
+### Branches
+- Current branch: `dev`
+- Main branch: `master`
+
+### Deployment
+- No automatic deployment configured yet
+- Manual deployment when needed
+
+## File Management
+
+### Documentation Files
+- NEVER create markdown (.md) or documentation files unless explicitly requested by the user
+
+### Code Organization
+- Components: `/src/components/`
+- API Routes: `/src/app/api/`
+- Hooks: `/src/hooks/`
+- Utils: `/src/utils/`
+- Types: `/src/types/`
+- Contexts: `/src/contexts/`
+
+## Testing
+- Test framework: Vitest
+- Run tests: `npm run test`
+- Test files should be adjacent to component files or in utils folder
+

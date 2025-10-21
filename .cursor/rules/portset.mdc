@@ -1,5 +1,0 @@
----
-description: always use port 3000 to run the app. If there is another process running , kill it. 
-globs:
-alwaysApply: true
----
