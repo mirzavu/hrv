@@ -40,8 +40,10 @@ const AppContent = () => {
     const {
         sessionActive,
         sessionPaused,
-        setSessionActive,
-        startSession,
+        sessionStatus,
+        isConnecting,
+        startRealSession: startRealSessionFromHook,
+        startDemoSession: startDemoSessionFromHook,
         pauseSession,
         resumeSession,
         elapsedTime,
@@ -55,33 +57,29 @@ const AppContent = () => {
     } = useHrvSession(user, addToast); // Pass user and addToast
 
     // Create a ref to hold the latest session data for callbacks
-    const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean; sessionPaused: boolean }>({
+    const latestSessionData = useRef<{ elapsedTime: number; rawHeartData: RawHeartData[]; sessionActive: boolean; sessionPaused: boolean; sessionStatus: string }>({
         elapsedTime: 0,
         rawHeartData: [],
         sessionActive: false,
         sessionPaused: false,
+        sessionStatus: 'idle',
     });
     useEffect(() => {
-        latestSessionData.current = { elapsedTime, rawHeartData, sessionActive, sessionPaused };
-    }, [elapsedTime, rawHeartData, sessionActive, sessionPaused]);
+        latestSessionData.current = { elapsedTime, rawHeartData, sessionActive, sessionPaused, sessionStatus };
+    }, [elapsedTime, rawHeartData, sessionActive, sessionPaused, sessionStatus]);
 
-    const sessionPausedRef = useRef(sessionPaused);
-
-    useEffect(() => {
-        sessionPausedRef.current = sessionPaused;
-    }, [sessionPaused]);
 
     const {
         isConnected,
         statusMessage,
         setStatusMessage,
-        startRealSession,
+        connectBluetooth,
         disconnectDevice,
     } = useBluetooth(
-        setSessionActive, 
+        () => {}, // No longer need to setSessionActive here
         addRawHeartData, 
         (incomingHr) => {
-            if (!sessionPausedRef.current) {
+            if (sessionStatus !== 'paused') {
                 setHr(incomingHr);
             }
         }, 
@@ -115,8 +113,6 @@ const AppContent = () => {
 
     const startDemoSession = () => {
         // Clear any existing intervals first
-        sessionPausedRef.current = false;
-
         if (demoDataGenerator.current) {
             clearInterval(demoDataGenerator.current);
         }
@@ -125,27 +121,35 @@ const AppContent = () => {
         resetSession();
         setHr(null);
         
-        startSession();
-        setStatusMessage('Demo session running...');
+        // Start demo session (which sets status to 'connecting')
+        const sessionStarted = startDemoSessionFromHook();
+        if (sessionStarted) {
+            setStatusMessage('Demo connecting...');
 
-        demoDataGenerator.current = setInterval(() => {
-            if (!latestSessionData.current.sessionActive || sessionPausedRef.current) {
-                return;
-            }
+            demoDataGenerator.current = setInterval(() => {
+                if (!latestSessionData.current.sessionActive || latestSessionData.current.sessionPaused) {
+                    return;
+                }
+                
+                // Update status message when first data is about to be sent
+                if (latestSessionData.current.sessionStatus === 'connecting') {
+                    setStatusMessage('Demo session running...');
+                }
 
-            const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
-            const baseRr = 60000 / baseHr;
-            const newRr = baseRr + (Math.random() - 0.5) * 80;
-            const currentHr = Math.round(60000 / newRr);
-            
-            setHr(currentHr);
-            addRawHeartData({
-                timestamp: Date.now(),
-                heartRate: currentHr,
-                rrInterval: newRr,
-                rawValue: Math.random() * 1000 // dummy raw sensor value
-            });
-        }, 900);
+                const baseHr = 65 + Math.sin(Date.now() / 10000) * 15;
+                const baseRr = 60000 / baseHr;
+                const newRr = baseRr + (Math.random() - 0.5) * 80;
+                const currentHr = Math.round(60000 / newRr);
+                
+                setHr(currentHr);
+                addRawHeartData({
+                    timestamp: Date.now(),
+                    heartRate: currentHr,
+                    rrInterval: newRr,
+                    rawValue: Math.random() * 1000 // dummy raw sensor value
+                });
+            }, 900);
+        }
     };
 
     const resetApp = () => {
@@ -157,7 +161,6 @@ const AppContent = () => {
         disconnectDevice();
         resetSession();
         setHr(null);
-        sessionPausedRef.current = false;
         setStatusMessage('Click "Start Session" to begin.');
     };
 
@@ -227,23 +230,55 @@ const AppContent = () => {
                             }`}></div>
                             <p className="text-sm text-center sm:text-left">{statusMessage}</p>
                         </div>
-                        {!sessionActive ? (
+                        {sessionStatus === 'idle' || sessionStatus === 'connecting' ? (
                             <div className="flex gap-2">
                                 <button
                                     onClick={async () => {
-                                        sessionPausedRef.current = false;
-                                        const connectionSuccess = await startRealSession();
-                                        if (connectionSuccess) {
-                                            startSession();
+                                        if (process.env.NODE_ENV === 'development') {
+                                            console.log('🔵 [DEBUG] Start button clicked at', new Date().toISOString());
+                                        }
+                                        // Start session timer immediately
+                                        const sessionStarted = startRealSessionFromHook();
+                                        if (sessionStarted) {
+                                            if (process.env.NODE_ENV === 'development') {
+                                                console.log('🟢 [DEBUG] Timer started, connecting to Bluetooth at', new Date().toISOString());
+                                            }
+                                            // Connect Bluetooth in background
+                                            const connectionSuccess = await connectBluetooth();
+                                            if (!connectionSuccess) {
+                                                // Connection failed, reset to idle
+                                                resetSession();
+                                            }
+                                            // Timer will start automatically when first data received
                                         }
                                     }}
-                                    disabled={sessionSummary !== null}
-                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                    disabled={sessionSummary !== null || sessionStatus === 'connecting'}
+                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
                                 >
-                                    Start Session
+                                    <span className="flex items-center gap-2 justify-center">
+                                        {sessionStatus === 'connecting' && (
+                                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        )}
+                                        Start Session
+                                    </span>
                                 </button>
-                                <button onClick={startDemoSession} disabled={sessionSummary !== null} className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:bg-gray-400 disabled:cursor-not-allowed">
-                                    Start Demo
+                                <button 
+                                    onClick={startDemoSession} 
+                                    disabled={sessionSummary !== null || sessionStatus === 'connecting'} 
+                                    className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                                >
+                                    <span className="flex items-center gap-2 justify-center">
+                                        {sessionStatus === 'connecting' && (
+                                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        )}
+                                        Start Demo
+                                    </span>
                                 </button>
                             </div>
                         ) : (

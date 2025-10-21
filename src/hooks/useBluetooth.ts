@@ -13,6 +13,7 @@ interface SessionData {
   rawHeartData: RawHeartData[];
   sessionActive: boolean;
   sessionPaused: boolean;
+  sessionStatus: string;
 }
 
 export const useBluetooth = (
@@ -98,7 +99,12 @@ export const useBluetooth = (
     return { supported: true };
   };
 
-  const startRealSession = async (): Promise<boolean> => {
+  const connectBluetooth = async (): Promise<boolean> => {
+    const connectionStart = performance.now();
+    if (process.env.NODE_ENV === 'development') {
+      console.log('🔵 [DEBUG] User clicked Start Session at', new Date().toISOString());
+    }
+    
     const supportCheck = checkWebBluetoothSupport();
     
     if (!supportCheck.supported) {
@@ -109,10 +115,18 @@ export const useBluetooth = (
     
     try {
       setStatusMessage('Requesting device...');
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔵 [DEBUG] Starting requestDevice at', new Date().toISOString());
+      }
+      
       const btDevice = await navigator.bluetooth.requestDevice({
         filters: [{ services: [POLAR_HR_SERVICE_UUID] }],
         acceptAllDevices: false,
       });
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔵 [DEBUG] Device selected, connecting to GATT at', new Date().toISOString());
+      }
 
       setStatusMessage('Connecting...');
       setDevice(btDevice);
@@ -121,16 +135,29 @@ export const useBluetooth = (
       const server = await btDevice.gatt?.connect();
       if (!server) throw new Error('Failed to connect to GATT server');
       
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔵 [DEBUG] GATT connected, discovering services at', new Date().toISOString());
+      }
+      
       const service = await server.getPrimaryService(POLAR_HR_SERVICE_UUID);
       const characteristic = await service.getCharacteristic(POLAR_HR_CHARACTERISTIC_UUID);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔵 [DEBUG] Starting notifications at', new Date().toISOString());
+      }
       
       await characteristic.startNotifications();
       characteristic.addEventListener('characteristicvaluechanged', handleHRNotification);
 
       setIsConnected(true);
-      setSessionActive(true);
       setStatusMessage(`Connected to ${btDevice.name}. Session running...`);
       addToast(`Successfully connected to ${btDevice.name}`);
+      
+      if (process.env.NODE_ENV === 'development') {
+        const elapsed = performance.now() - connectionStart;
+        console.log('🟢 [DEBUG] Connection complete at', new Date().toISOString(), `(took ${elapsed.toFixed(0)}ms)`);
+      }
+      
       return true;
     } catch (error: unknown) {
       console.error('Connection failed:', error);
@@ -178,7 +205,6 @@ export const useBluetooth = (
       addToast(`Bluetooth Error: ${errorMessage}. ${solution}`);
       setDevice(null);
       setIsConnected(false);
-      setSessionActive(false); // Stop the session if connection fails
       return false;
     }
   };
@@ -227,7 +253,7 @@ export const useBluetooth = (
     isConnected,
     statusMessage,
     setStatusMessage,
-    startRealSession,
+    connectBluetooth,
     disconnectDevice,
     getBrowserInfo,
   };

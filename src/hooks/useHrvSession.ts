@@ -7,6 +7,8 @@ import { User, SessionSummary, SessionMilestone, RawHeartData } from '@/types';
 // import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
+type SessionStatus = 'idle' | 'connecting' | 'running' | 'paused' | 'completed' | 'error';
+
 const MAX_SESSION_DURATION = 900;
 const SESSION_MILESTONES: SessionMilestone[] = [
   { label: 'Quick Check', value: 120 },
@@ -61,28 +63,30 @@ const buildSessionCsv = (
 };
 
 export const useHrvSession = (user: User | null, addToast: (message: string) => void) => {
-  const [sessionActive, setSessionActive] = useState(false);
-  const [sessionPaused, setSessionPaused] = useState(false);
+  const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [elapsedTime, setElapsedTime] = useState(0);
   const [rawHeartData, setRawHeartData] = useState<RawHeartData[]>([]);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
   
+  // Derived state
+  const sessionActive = sessionStatus === 'running' || sessionStatus === 'paused' || sessionStatus === 'connecting';
+  const sessionPaused = sessionStatus === 'paused';
+  const isConnecting = sessionStatus === 'connecting';
+  
   const milestonesReached = useRef(new Set<number>());
   const sessionTimer = useRef<NodeJS.Timeout | null>(null);
   const demoDataGenerator = useRef<NodeJS.Timeout | null>(null);
-  const sessionPausedRef = useRef(false);
+  const sessionStatusRef = useRef<SessionStatus>('idle');
   const sessionStartTimestamp = useRef<number | null>(null);
   const pausedTime = useRef<number>(0);
 
   useEffect(() => {
-    sessionPausedRef.current = sessionPaused;
-  }, [sessionPaused]);
+    sessionStatusRef.current = sessionStatus;
+  }, [sessionStatus]);
 
   const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[]) => {
-    setSessionActive(false);
-    setSessionPaused(false);
-    sessionPausedRef.current = false;
+    setSessionStatus('completed');
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
       demoDataGenerator.current = null;
@@ -215,10 +219,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   }, [addToast, user, sessionStartTime]);
 
   useEffect(() => {
-    if (sessionActive && !sessionPaused) {
+    if ((sessionStatus === 'running' || sessionStatus === 'connecting') && sessionStartTimestamp.current) {
       // Use timestamp-based calculation instead of setInterval
       const updateTimer = () => {
-        if (sessionStartTimestamp.current && !sessionPausedRef.current) {
+        if (sessionStartTimestamp.current && sessionStatusRef.current !== 'paused') {
           const now = Date.now();
           const elapsed = Math.floor((now - sessionStartTimestamp.current - pausedTime.current) / 1000);
           setElapsedTime(elapsed);
@@ -242,10 +246,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         sessionTimer.current = null;
       }
     };
-  }, [sessionActive, sessionPaused]);
+  }, [sessionStatus]);
 
   useEffect(() => {
-    if (!sessionActive || sessionPaused) return;
+    if (sessionStatus !== 'running') return;
     const milestone = SESSION_MILESTONES.find(d => d.value === elapsedTime);
     if (milestone && !milestonesReached.current.has(elapsedTime)) {
       addToast(`${milestone.label} data collection complete!`);
@@ -254,7 +258,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     if (elapsedTime >= MAX_SESSION_DURATION) {
       endSession(elapsedTime, rawHeartData);
     }
-  }, [elapsedTime, sessionActive, sessionPaused, addToast, endSession, rawHeartData]);
+  }, [elapsedTime, sessionStatus, addToast, endSession, rawHeartData]);
 
   const resetSession = useCallback(() => {
     if (demoDataGenerator.current) {
@@ -265,67 +269,81 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setElapsedTime(0);
     setSessionSummary(null);
     setSessionStartTime(null);
-    setSessionPaused(false);
-    sessionPausedRef.current = false;
+    setSessionStatus('idle');
     sessionStartTimestamp.current = null;
     pausedTime.current = 0;
     milestonesReached.current.clear();
   }, []);
 
+  
+  const startRealSession = useCallback(() => {
+    if (sessionStatus !== 'idle') return false; // Prevent duplicate starts
+    setSessionStatus('connecting');
+    // Don't start timer yet - will start when first data received
+    return true;
+  }, [sessionStatus]);
+  
+  const startDemoSession = useCallback(() => {
+    if (sessionStatus !== 'idle') return false;
+    setSessionStatus('connecting'); // Demo also starts as connecting, timer starts on first data
+    return true;
+  }, [sessionStatus]);
+  
+  // Legacy compatibility - now just starts running status
   const startSession = useCallback(() => {
-    setSessionActive(true);
-    const startTime = new Date().toISOString();
-    setSessionStartTime(startTime);
-    sessionStartTimestamp.current = Date.now();
-    pausedTime.current = 0;
-    setRawHeartData([]);
-    setElapsedTime(0);
-    setSessionPaused(false);
-    sessionPausedRef.current = false;
-    milestonesReached.current.clear();
+    setSessionStatus('running');
   }, []);
 
   const addRawHeartData = useCallback((data: RawHeartData) => {
-    if (sessionPausedRef.current) {
+    if (sessionStatusRef.current === 'paused' || sessionStatusRef.current === 'idle') {
       return;
     }
+    
+    // If this is the first data and we're connecting, start the timer and switch to running
+    if (sessionStatusRef.current === 'connecting' && !sessionStartTimestamp.current) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('💚 [DEBUG] First data received, starting timer at', new Date().toISOString());
+      }
+      const startTime = new Date().toISOString();
+      setSessionStartTime(startTime);
+      sessionStartTimestamp.current = Date.now();
+      pausedTime.current = 0;
+      setElapsedTime(0);
+      milestonesReached.current.clear();
+      setSessionStatus('running');
+    }
+    
     setRawHeartData(prev => [...prev, data]);
   }, []);
 
   const pauseSession = useCallback(() => {
-    if (!sessionActive || sessionPausedRef.current) {
+    if (sessionStatus !== 'running') {
       return;
     }
-    sessionPausedRef.current = true;
-    setSessionPaused(true);
+    setSessionStatus('paused');
     // Record when we paused to calculate total paused time
     pausedTime.current += Date.now() - (sessionStartTimestamp.current || 0) - (elapsedTime * 1000);
-  }, [sessionActive, elapsedTime]);
+  }, [sessionStatus, elapsedTime]);
 
   const resumeSession = useCallback(() => {
-    if (!sessionActive || !sessionPausedRef.current) {
+    if (sessionStatus !== 'paused') {
       return;
     }
-    sessionPausedRef.current = false;
-    setSessionPaused(false);
+    setSessionStatus('running');
     // Update the start timestamp to account for paused time
     sessionStartTimestamp.current = Date.now() - elapsedTime * 1000 - pausedTime.current;
-  }, [sessionActive, elapsedTime]);
-
-  useEffect(() => {
-    if (!sessionActive) {
-      setSessionPaused(false);
-      sessionPausedRef.current = false;
-    }
-  }, [sessionActive]);
+  }, [sessionStatus, elapsedTime]);
 
   return {
     sessionActive,
-    setSessionActive,
     sessionPaused,
+    sessionStatus,
+    isConnecting,
     pauseSession,
     resumeSession,
     startSession,
+    startRealSession,
+    startDemoSession,
     elapsedTime,
     rawHeartData,
     addRawHeartData,
