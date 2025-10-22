@@ -1,6 +1,6 @@
 'use client';
 
-import { Dispatch, MutableRefObject, SetStateAction, useCallback, useState } from 'react';
+import { Dispatch, MutableRefObject, SetStateAction, useCallback, useState, useRef, useEffect } from 'react';
 import { RawHeartData } from '@/types';
 
 const POLAR_HR_SERVICE_UUID = '0000180d-0000-1000-8000-00805f9b34fb';
@@ -18,65 +18,178 @@ interface SessionData {
 
 export const useBluetooth = (
   setSessionActive: (active: boolean) => void,
-  addRawHeartData: (data: RawHeartData) => void,
+  addRawHeartData: (data: RawHeartData | RawHeartData[]) => void,
   setHr: Dispatch<SetStateAction<number | null>>,
-  endSession: (elapsedTime: number, rawHeartData: RawHeartData[]) => void,
+  endSession: (elapsedTime: number, rawHeartData: RawHeartData[], rrQualityData?: any) => void,
   addToast: (message: string) => void,
   latestSessionData: MutableRefObject<SessionData> // Accept the ref as an argument
 ) => {
   const [device, setDevice] = useState<BluetoothDevice | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [statusMessage, setStatusMessage] = useState('Click "Start Session" to begin.');
+  
+  // Use refs to avoid recreating the callback when these functions change
+  const addRawHeartDataRef = useRef(addRawHeartData);
+  const setHrRef = useRef(setHr);
+  
+  // DEBUG: Counter to verify Bluetooth notifications are arriving
+  const notificationCounterRef = useRef(0);
+  
+  // RR Quality tracking
+  const rrQualityRef = useRef({
+    totalNotifications: 0,
+    withRR: 0,
+    withoutRR: 0,
+    poorQualityWarningShown: false
+  });
+  
+  useEffect(() => {
+    addRawHeartDataRef.current = addRawHeartData;
+    setHrRef.current = setHr;
+  }, [addRawHeartData, setHr]);
 
   const handleHRNotification = useCallback((event: Event) => {
+    // IMMEDIATELY increment counter - this proves Bluetooth is working
+    notificationCounterRef.current++;
+    const notificationCount = notificationCounterRef.current;
+    const notificationTime = new Date().toISOString().split('T')[1]; // Just time part
+    
+    // Track RR quality
+    rrQualityRef.current.totalNotifications++;
     const target = event.target as BluetoothRemoteGATTCharacteristic;
     const value = target.value;
     if (!value) return;
 
     const flags = value.getUint8(0);
     const heartRate = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
+    
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`🔔 [${notificationTime}] #${notificationCount} - HR:${heartRate}, Flags:${flags.toString(2).padStart(8, '0')}, Bytes:${value.byteLength}`);
+    }
+    
     // Only process data if session is active and not paused
     if (!latestSessionData.current.sessionActive || latestSessionData.current.sessionPaused) {
       return;
     }
 
-    setHr(heartRate);
+    setHrRef.current(heartRate);
 
-    // Store raw heart data with all available information
-    const rawData: RawHeartData = {
-      timestamp: Date.now(),
-      heartRate,
-      flags,
-      rawBytes: Array.from(new Uint8Array(value.buffer)),
-    };
+    const baseTimestamp = Date.now();
+    const rawBytes = Array.from(new Uint8Array(value.buffer));
+    const rrFlagSet = (flags >> 4) & 0x01;
 
-    // If RR intervals are present, add them to the raw data
-    if ((flags >> 4) & 0x01) {
+    // If RR intervals are present, create a separate data point for each one
+    if (rrFlagSet) {
       const rrIntervals: number[] = [];
       for (let i = 2; i < value.byteLength; i += 2) {
         const rrRaw = value.getUint16(i, true);
         const rrMs = (rrRaw / 1024) * 1000;
         if (rrMs >= RR_INTERVAL_MIN_MS && rrMs <= RR_INTERVAL_MAX_MS) {
           rrIntervals.push(rrMs);
+        } else if (process.env.NODE_ENV === 'development') {
+          console.log(`⚠️ [${notificationTime}] Rejected RR: ${rrMs.toFixed(0)}ms (out of range)`);
         }
       }
-      rawData.rrInterval = rrIntervals.length > 0 ? rrIntervals[0] : undefined; // Take first RR interval
-      rawData.allRrIntervals = rrIntervals; // Store all RR intervals
-    }
 
-    addRawHeartData(rawData);
-  }, [setHr, addRawHeartData, latestSessionData]);
+      // Create ONE data point per notification (use last RR interval for timing accuracy)
+      if (rrIntervals.length > 0) {
+        // Use the LAST RR interval for more accurate timing
+        const rrMs = rrIntervals[rrIntervals.length - 1];
+        const hrFromRR = Math.round(60000 / rrMs);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📦 [${notificationTime}] RR:${rrMs.toFixed(0)}ms → HR:${hrFromRR} (using last of ${rrIntervals.length} intervals)`);
+        }
+        
+        // Add single data point
+        addRawHeartDataRef.current({
+          timestamp: baseTimestamp,
+          heartRate: hrFromRR,
+          rrInterval: rrMs,
+          flags,
+          rawBytes,
+          allRrIntervals: rrIntervals, // Keep all RR intervals for reference
+        });
+        
+        // Track quality
+        rrQualityRef.current.withRR++;
+        return; // Exit here - don't fall through
+      } else {
+        // No valid RR intervals - calculate RR from HR
+        const calculatedRR = Math.round(60000 / heartRate);
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`📦 [${notificationTime}] Calculated RR:${calculatedRR}ms → HR:${heartRate} (no RR data)`);
+        }
+        
+        // Add calculated data point
+        addRawHeartDataRef.current({
+          timestamp: baseTimestamp,
+          heartRate,
+          rrInterval: calculatedRR,
+          flags,
+          rawBytes,
+          calculatedFromHR: true, // Mark as calculated
+        });
+        
+        // Track quality
+        rrQualityRef.current.withoutRR++;
+        return;
+      }
+    } else {
+      // No RR intervals present - calculate RR from HR
+      const calculatedRR = Math.round(60000 / heartRate);
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`📦 [${notificationTime}] Calculated RR:${calculatedRR}ms → HR:${heartRate} (no RR flag)`);
+      }
+      
+      // Add calculated data point
+      addRawHeartDataRef.current({
+        timestamp: baseTimestamp,
+        heartRate,
+        rrInterval: calculatedRR,
+        flags,
+        rawBytes,
+        calculatedFromHR: true, // Mark as calculated
+      });
+      
+      // Track quality
+      rrQualityRef.current.withoutRR++;
+      return;
+    }
+  }, [latestSessionData]); // Stable callback - only depends on latestSessionData ref
+  
+  const getRRQuality = useCallback(() => {
+    const { totalNotifications, withRR, withoutRR } = rrQualityRef.current;
+    if (totalNotifications === 0) return { percentage: 100, quality: 'excellent', totalNotifications: 0, withRR: 0, withoutRR: 0 };
+    
+    const percentage = Math.round((withRR / totalNotifications) * 100);
+    let quality = 'excellent';
+    if (percentage < 60) quality = 'poor';
+    else if (percentage < 70) quality = 'fair';
+    else if (percentage < 85) quality = 'good';
+    
+    return { percentage, quality, totalNotifications, withRR, withoutRR };
+  }, []);
   
   const onDisconnected = useCallback(() => {
+    console.log('🔌 [DEBUG] Bluetooth onDisconnected called:', {
+      sessionActive: latestSessionData.current.sessionActive,
+      timestamp: new Date().toISOString()
+    });
+    
     if (latestSessionData.current.sessionActive) {
       addToast("Device disconnected unexpectedly!");
       // Use the ref to get the most up-to-date data
       const { elapsedTime, rawHeartData } = latestSessionData.current;
-      endSession(elapsedTime, rawHeartData);
+      const rrQuality = getRRQuality(); // Get RR quality data
+      console.log('⚠️ [DEBUG] Calling endSession from Bluetooth disconnect with RR quality:', rrQuality);
+      endSession(elapsedTime, rawHeartData, rrQuality);
     }
     setIsConnected(false);
     setDevice(null);
-  }, [addToast, endSession, latestSessionData]);
+  }, [addToast, endSession, latestSessionData, getRRQuality]);
 
   const checkWebBluetoothSupport = () => {
     if (!navigator.bluetooth) {
@@ -108,7 +221,7 @@ export const useBluetooth = (
     const supportCheck = checkWebBluetoothSupport();
     
     if (!supportCheck.supported) {
-      setStatusMessage(supportCheck.reason);
+      setStatusMessage(supportCheck.reason || 'Bluetooth not supported');
       addToast(`${supportCheck.reason} ${supportCheck.solution}`);
       return false;
     }
@@ -168,7 +281,7 @@ export const useBluetooth = (
         switch (error.name) {
           case 'NotFoundError':
             // Check if user cancelled the dialog
-            if (error.message?.includes('User cancelled') || error.message?.includes('chooser')) {
+            if ((error as any).message?.includes('User cancelled') || (error as any).message?.includes('chooser')) {
               // User cancelled - don't show this as an error
               setStatusMessage('Device selection cancelled.');
               return false;
@@ -256,6 +369,7 @@ export const useBluetooth = (
     connectBluetooth,
     disconnectDevice,
     getBrowserInfo,
+    getRRQuality,
   };
 };
 

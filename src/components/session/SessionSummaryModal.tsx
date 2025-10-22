@@ -18,6 +18,7 @@ interface SessionSummaryModalProps {
   isGuest: boolean;
   onGuestLogin: () => void;
   onClose: () => void;
+  rrQuality?: {percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number};
 }
 
 const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
@@ -26,6 +27,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   isGuest,
   onGuestLogin,
   onClose,
+  rrQuality,
 }) => {
   const heartRateData = useMemo(() => {
     const intervals = summary.rrIntervals ?? [];
@@ -192,7 +194,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             </h2>
             
             {/* First Row: Session Duration, Mean Heart Rate, Beats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={`grid grid-cols-1 gap-6 ${rrQuality ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
               <MetricCard
                 icon={<Clock className="w-5 h-5 text-slate-400" />}
                 title="Session Duration"
@@ -210,6 +212,20 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 title="Beats"
                 value={summary.dataPoints.value}
               />
+              {rrQuality && (
+                <MetricCard
+                  icon={<Activity className={`w-5 h-5 ${
+                    rrQuality.quality === 'excellent' ? 'text-green-500' :
+                    rrQuality.quality === 'good' ? 'text-blue-500' :
+                    rrQuality.quality === 'fair' ? 'text-yellow-500' :
+                    'text-red-500'
+                  }`} />}
+                  title="RR Quality"
+                  value={rrQuality.percentage}
+                  unit="%"
+                  subtitle={`${rrQuality.withRR}/${rrQuality.totalNotifications} real`}
+                />
+              )}
             </div>
             
             <div className="mt-8">

@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Polar H10 Bluetooth Raw Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #0f0;
+        }
+        button {
+            padding: 15px 30px;
+            font-size: 18px;
+            background: #0f0;
+            border: none;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:disabled {
+            background: #333;
+            color: #666;
+        }
+        #log {
+            margin-top: 20px;
+            border: 1px solid #0f0;
+            padding: 10px;
+            height: 600px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .notification {
+            margin: 2px 0;
+        }
+        .counter {
+            color: #ff0;
+            font-weight: bold;
+        }
+        .time {
+            color: #0ff;
+        }
+        .hr {
+            color: #f0f;
+        }
+        .rr {
+            color: #0f0;
+        }
+        .skip {
+            color: #666;
+        }
+        #stats {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #0f0;
+            display: none;
+        }
+        .stat {
+            display: inline-block;
+            margin-right: 30px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 Polar H10 Raw Bluetooth Test</h1>
+    <p>This is a minimal test with ZERO React, ZERO state management, ZERO UI updates.</p>
+    <p>Just pure Bluetooth → Console logging. If bursts happen here, it's the device/browser, not our code.</p>
+    
+    <button id="connectBtn">Connect to Polar H10</button>
+    <button id="disconnectBtn" disabled>Disconnect</button>
+    <button id="clearBtn">Clear Log</button>
+    
+    <div id="stats">
+        <div class="stat">Total: <span id="totalCount">0</span></div>
+        <div class="stat">With RR: <span id="rrCount">0</span></div>
+        <div class="stat">Without RR: <span id="noRrCount">0</span></div>
+        <div class="stat">Elapsed: <span id="elapsed">0s</span></div>
+    </div>
+    
+    <div id="log"></div>
+
+    <script>
+        const POLAR_HR_SERVICE = '0000180d-0000-1000-8000-00805f9b34fb';
+        const POLAR_HR_CHARACTERISTIC = '00002a37-0000-1000-8000-00805f9b34fb';
+        
+        let device = null;
+        let characteristic = null;
+        let notificationCount = 0;
+        let rrCount = 0;
+        let noRrCount = 0;
+        let startTime = null;
+        let intervalTimer = null;
+        
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const logDiv = document.getElementById('log');
+        const statsDiv = document.getElementById('stats');
+        
+        function log(message, className = '') {
+            const div = document.createElement('div');
+            div.className = `notification ${className}`;
+            div.textContent = message;
+            logDiv.appendChild(div);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            
+            // Also log to browser console
+            console.log(message);
+        }
+        
+        function updateStats() {
+            document.getElementById('totalCount').textContent = notificationCount;
+            document.getElementById('rrCount').textContent = rrCount;
+            document.getElementById('noRrCount').textContent = noRrCount;
+            
+            if (startTime) {
+                const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                document.getElementById('elapsed').textContent = `${elapsed}s`;
+            }
+        }
+        
+        function handleNotification(event) {
+            // IMMEDIATELY increment - no processing delay
+            notificationCount++;
+            
+            const now = new Date();
+            const timestamp = now.toISOString().split('T')[1].slice(0, -1); // HH:MM:SS.mmm
+            const value = event.target.value;
+            
+            if (!value) {
+                log(`⚠️ [${timestamp}] #${notificationCount} - Empty value`, 'skip');
+                return;
+            }
+            
+            const flags = value.getUint8(0);
+            const heartRate = flags & 0x01 ? value.getUint16(1, true) : value.getUint8(1);
+            const rrFlagSet = (flags >> 4) & 0x01;
+            const byteLength = value.byteLength;
+            
+            // Parse RR intervals if present
+            let rrIntervals = [];
+            if (rrFlagSet && byteLength > 2) {
+                for (let i = 2; i < byteLength; i += 2) {
+                    const rrRaw = value.getUint16(i, true);
+                    const rrMs = Math.round((rrRaw / 1024) * 1000);
+                    rrIntervals.push(rrMs);
+                }
+            }
+            
+            // Log notification
+            if (rrIntervals.length > 0) {
+                rrCount++;
+                const rrStr = rrIntervals.join(', ');
+                log(`🔔 [${timestamp}] #${notificationCount} - HR:${heartRate} | RR:[${rrStr}]ms | Bytes:${byteLength}`, 'rr');
+            } else {
+                noRrCount++;
+                log(`⏭️ [${timestamp}] #${notificationCount} - HR:${heartRate} | NO RR | Bytes:${byteLength}`, 'skip');
+            }
+            
+            updateStats();
+        }
+        
+        async function connect() {
+            try {
+                log('🔍 Requesting device...', 'time');
+                
+                device = await navigator.bluetooth.requestDevice({
+                    filters: [{ services: [POLAR_HR_SERVICE] }]
+                });
+                
+                log(`✅ Device selected: ${device.name}`, 'time');
+                log('🔗 Connecting to GATT server...', 'time');
+                
+                const server = await device.gatt.connect();
+                log('✅ GATT connected', 'time');
+                
+                const service = await server.getPrimaryService(POLAR_HR_SERVICE);
+                characteristic = await service.getCharacteristic(POLAR_HR_CHARACTERISTIC);
+                
+                log('✅ Characteristic found', 'time');
+                log('🔔 Starting notifications...', 'time');
+                
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', handleNotification);
+                
+                log('✅ LISTENING FOR NOTIFICATIONS - Test started!', 'time');
+                log('─'.repeat(80), 'time');
+                
+                // Reset counters
+                notificationCount = 0;
+                rrCount = 0;
+                noRrCount = 0;
+                startTime = Date.now();
+                
+                // Update stats every second
+                intervalTimer = setInterval(updateStats, 1000);
+                
+                statsDiv.style.display = 'block';
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                
+            } catch (error) {
+                log(`❌ Error: ${error.message}`, 'skip');
+                console.error(error);
+            }
+        }
+        
+        async function disconnect() {
+            if (characteristic) {
+                characteristic.removeEventListener('characteristicvaluechanged', handleNotification);
+                await characteristic.stopNotifications();
+            }
+            
+            if (device && device.gatt.connected) {
+                device.gatt.disconnect();
+            }
+            
+            if (intervalTimer) {
+                clearInterval(intervalTimer);
+            }
+            
+            log('─'.repeat(80), 'time');
+            log('🛑 Disconnected', 'time');
+            
+            connectBtn.disabled = false;
+            disconnectBtn.disabled = true;
+        }
+        
+        function clearLog() {
+            logDiv.innerHTML = '';
+        }
+        
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        clearBtn.addEventListener('click', clearLog);
+        
+        // Initial message
+        log('👋 Ready to test. Click "Connect to Polar H10" to start.', 'time');
+        log('This test has ZERO React overhead. Pure Bluetooth API.', 'time');
+    </script>
+</body>
+</html>
+

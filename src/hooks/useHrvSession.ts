@@ -85,7 +85,22 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     sessionStatusRef.current = sessionStatus;
   }, [sessionStatus]);
 
-  const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[]) => {
+  const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[], rrQualityData?: any) => {
+    console.log('🔴 [DEBUG] endSession called:', {
+      status: sessionStatusRef.current,
+      dataLength: finalRawData.length,
+      hasRRQuality: !!rrQualityData,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Prevent duplicate calls - MUST check and set synchronously before any async operations
+    if (sessionStatusRef.current === 'completed') {
+      console.log('🛑 [DEBUG] Already completed, returning early');
+      return;
+    }
+    
+    // IMMEDIATELY set status to prevent race conditions
+    sessionStatusRef.current = 'completed';
     setSessionStatus('completed');
     if (demoDataGenerator.current) {
       clearInterval(demoDataGenerator.current);
@@ -157,12 +172,19 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         });
 
         // Create session record with direct file attachment
+        console.log('💾 [DEBUG] Creating sessions record:', {
+          userId,
+          startTime: finalStartTime,
+          endTime,
+          timestamp: new Date().toISOString()
+        });
         const sessionRecord = await pb.collection('sessions').create({
           userId: userId,
           startTime: finalStartTime,
           endTime: endTime,
           rawFile: file
         });
+        console.log('✅ [DEBUG] sessions record created:', sessionRecord.id);
 
         try {
           // Call server-side API for calculations
@@ -186,10 +208,18 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
           const finalSummaryPayload = await response.json();
 
+          console.log('💾 [DEBUG] Creating session_summary record:', {
+            sessionId: finalSummaryPayload.session_id,
+            userId: finalSummaryPayload.user_id,
+            hasRRQuality: !!rrQualityData,
+            timestamp: new Date().toISOString()
+          });
           await pb.collection('session_summary').create({
             ...finalSummaryPayload,
+            rr_quality_data: rrQualityData,
             createdAt: new Date().toISOString(),
           });
+          console.log('✅ [DEBUG] session_summary record created');
           
           // Update the displayed summary with the final sessionId
           const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
@@ -256,9 +286,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       milestonesReached.current.add(elapsedTime);
     }
     if (elapsedTime >= MAX_SESSION_DURATION) {
-      endSession(elapsedTime, rawHeartData);
+      endSession(elapsedTime, rawHeartData, null); // RR quality not available in auto-end
     }
-  }, [elapsedTime, sessionStatus, addToast, endSession, rawHeartData]);
+  }, [elapsedTime, sessionStatus, addToast, rawHeartData]);
 
   const resetSession = useCallback(() => {
     if (demoDataGenerator.current) {
@@ -294,7 +324,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setSessionStatus('running');
   }, []);
 
-  const addRawHeartData = useCallback((data: RawHeartData) => {
+  const addRawHeartData = useCallback((data: RawHeartData | RawHeartData[]) => {
+    const addTime = new Date().toISOString().split('T')[1]; // Just time part
+    
     if (sessionStatusRef.current === 'paused' || sessionStatusRef.current === 'idle') {
       return;
     }
@@ -302,7 +334,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     // If this is the first data and we're connecting, start the timer and switch to running
     if (sessionStatusRef.current === 'connecting' && !sessionStartTimestamp.current) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('💚 [DEBUG] First data received, starting timer at', new Date().toISOString());
+        console.log(`💚 [${addTime}] First data received, starting timer`);
       }
       const startTime = new Date().toISOString();
       setSessionStartTime(startTime);
@@ -313,7 +345,18 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       setSessionStatus('running');
     }
     
-    setRawHeartData(prev => [...prev, data]);
+    // Support both single data point and array of data points
+    if (Array.isArray(data)) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ [${addTime}] SESSION: Adding batch of ${data.length} beats`);
+      }
+      setRawHeartData(prev => [...prev, ...data]);
+    } else {
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`✅ [${addTime}] SESSION: Adding single beat`, new Error().stack?.split('\n')[2]?.trim());
+      }
+      setRawHeartData(prev => [...prev, data]);
+    }
   }, []);
 
   const pauseSession = useCallback(() => {

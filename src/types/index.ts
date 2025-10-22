@@ -165,6 +165,7 @@ export interface RawHeartData {
   flags?: number;
   rawBytes?: number[];
   allRrIntervals?: number[];
+  calculatedFromHR?: boolean; // true if RR was calculated from HR instead of real RR data
 }
 
 export type HrvSummary = SessionSummary;

@@ -75,6 +75,7 @@ const AppContent = () => {
         setStatusMessage,
         connectBluetooth,
         disconnectDevice,
+        getRRQuality,
     } = useBluetooth(
         () => {}, // No longer need to setSessionActive here
         addRawHeartData, 
@@ -89,6 +90,9 @@ const AppContent = () => {
     );
 
     const [hr, setHr] = useState<number | null>(null);
+    const [rrQuality, setRrQuality] = useState<{percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number} | null>(null);
+    const [poorQualityWarningShown, setPoorQualityWarningShown] = useState(false);
+    const [finalRRQuality, setFinalRRQuality] = useState<{percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number} | null>(null);
 
     // Live metrics now show dummy data - calculations removed
     const liveMetrics = useMemo(() => {
@@ -171,6 +175,30 @@ const AppContent = () => {
         }
     }, [sessionActive, statusMessage, setStatusMessage]);
     
+    // Monitor RR quality during session
+    useEffect(() => {
+        if (!sessionActive) {
+            setRrQuality(null);
+            setPoorQualityWarningShown(false); // Reset warning flag
+            return;
+        }
+        
+        const qualityInterval = setInterval(() => {
+            const quality = getRRQuality();
+            setRrQuality(quality);
+            
+            // Show warning toast for poor quality (<60%) - only once per session
+            if (quality.percentage < 60 && quality.quality === 'poor' && !poorQualityWarningShown) {
+                addToast(
+                    `⚠️ Poor sensor contact detected (${quality.percentage}% real RR data). Consider wetting the strap for more accurate readings.`
+                );
+                setPoorQualityWarningShown(true);
+            }
+        }, 2000); // Check every 2 seconds
+        
+        return () => clearInterval(qualityInterval);
+    }, [sessionActive, getRRQuality, addToast, poorQualityWarningShown]);
+    
 
     const handleViewCalendar = () => {
         window.location.href = '/calendar';
@@ -216,6 +244,7 @@ const AppContent = () => {
                         isGuest={user?.$id === 'guest'}
                         onGuestLogin={() => setShowLoginModal(true)}
                         onClose={() => setSessionSummary(null)}
+                        rrQuality={finalRRQuality || undefined}
                     />
                 )}
                 <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -229,14 +258,30 @@ const AppContent = () => {
                                         : 'bg-red-500'
                             }`}></div>
                             <p className="text-sm text-center sm:text-left">{statusMessage}</p>
+                            {rrQuality && rrQuality.percentage < 60 && (
+                                <div className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
+                                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                    Poor Contact ({rrQuality.percentage}%)
+                                </div>
+                            )}
                         </div>
-                        {sessionStatus === 'idle' || sessionStatus === 'connecting' ? (
+                        {sessionStatus === 'idle' || sessionStatus === 'connecting' || sessionStatus === 'completed' ? (
                             <div className="flex gap-2">
                                 <button
                                     onClick={async () => {
                                         if (process.env.NODE_ENV === 'development') {
                                             console.log('🔵 [DEBUG] Start button clicked at', new Date().toISOString());
                                         }
+                                        // Clear any existing demo interval first
+                                        if (demoDataGenerator.current) {
+                                            clearInterval(demoDataGenerator.current);
+                                            demoDataGenerator.current = null;
+                                        }
+                                        
+                                        // Reset session data
+                                        resetSession();
+                                        setHr(null);
+                                        
                                         // Start session timer immediately
                                         const sessionStarted = startRealSessionFromHook();
                                         if (sessionStarted) {
@@ -309,7 +354,9 @@ const AppContent = () => {
                                     if (isConnected) {
                                         disconnectDevice();
                                     }
-                                    endSession(elapsedTime, rawHeartData);
+                                    const finalRRQualityData = getRRQuality(); // Get final RR quality before ending
+                                    setFinalRRQuality(finalRRQualityData); // Store for session summary display
+                                    endSession(elapsedTime, rawHeartData, finalRRQualityData);
                                     setHr(null); // Clear heart rate display
                                 }} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
                                     End Session
