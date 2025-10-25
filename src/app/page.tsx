@@ -290,10 +290,6 @@ const AppContent = () => {
         document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
     }, [darkMode]);
 
-    if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
-        return <AuthCallback onAuthComplete={handleLoginSuccess} />;
-    }
-
     // Calculate current step for progress stepper
     const currentStep = useMemo(() => {
         if (!sessionActive) return -1;
@@ -310,10 +306,14 @@ const AppContent = () => {
         return Math.min(Math.round((elapsedTime / maxTime) * 100), 100);
     }, [elapsedTime]);
 
+    if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
+        return <AuthCallback onAuthComplete={handleLoginSuccess} />;
+    }
+
     return (
-        <div className="min-h-screen bg-gray-100 flex flex-col">
+        <div className={`min-h-screen flex flex-col transition-colors duration-300 ${darkMode ? 'bg-gray-900 text-white' : 'bg-gray-100 text-gray-800'}`}>
             {(showLoginModal || showLoginFromStart) && (
-                <LoginModal 
+                <LoginModal
                     darkMode={darkMode} 
                     onClose={() => {
                         setShowLoginModal(false);
@@ -360,15 +360,15 @@ const AppContent = () => {
                     {/* Main Column Wrapper (span-2) */}
                     <div className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
                     
-                        {/* Main Column: Live Monitor */}
-                        <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col relative overflow-hidden">
+                    {/* Main Column: Live Monitor */}
+                        <div className={`rounded-xl shadow-lg p-6 md:p-8 flex flex-col relative overflow-hidden transition-colors duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
                             
                             {/* Faint Background Icon */}
-                            <HeartPulse className="absolute -right-16 -top-10 w-64 h-64 text-gray-100 opacity-50 rotate-[-10deg]" strokeWidth={3} />
+                            <HeartPulse className={`absolute -right-16 -top-10 w-64 h-64 opacity-50 rotate-[-10deg] ${darkMode ? 'text-gray-700' : 'text-gray-100'}`} strokeWidth={3} />
 
                             {/* Header */}
                             <div className="flex justify-between items-center mb-6 z-10">
-                                <h2 className="text-xl font-semibold text-gray-800">Live Monitor</h2>
+                                <h2 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Live Monitor</h2>
                                 <div className="flex items-center gap-2 text-green-500">
                                     <div className={`w-2 h-2 rounded-full ${
                                 sessionActive
@@ -383,33 +383,33 @@ const AppContent = () => {
 
                             {/* Hero Stat: Live HR */}
                             <div className="flex-1 flex flex-col items-center justify-center text-center my-6 md:my-8 z-10">
-                                <h3 className="text-lg font-medium text-gray-500">Live HR (BPM)</h3>
-                                <p className="text-7xl lg:text-8xl font-extrabold text-gray-900 leading-none mt-2">{hr ?? 0}</p>
+                                <h3 className={`text-lg font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Live HR (BPM)</h3>
+                                <p className={`text-7xl lg:text-8xl font-extrabold leading-none mt-2 ${darkMode ? 'text-white' : 'text-gray-900'}`}>{hr ?? 0}</p>
                             </div>
 
                             {/* Secondary Stats */}
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 z-10 mt-6">
-                                <div className="bg-gray-50 rounded-lg p-5">
-                                    <h4 className="text-sm font-medium text-gray-500 mb-1">Beats</h4>
-                                    <p className="text-4xl font-bold text-gray-800">{liveMetrics.dataPoints}</p>
+                                <div className={`rounded-lg p-5 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                    <h4 className={`text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Beats</h4>
+                                    <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{liveMetrics.dataPoints}</p>
                                 </div>
-                                <div className="bg-gray-50 rounded-lg p-5">
-                                    <h4 className="text-sm font-medium text-gray-500 mb-1">Session Time</h4>
-                                    <p className="text-4xl font-bold text-gray-800">{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}<span className="text-3xl text-gray-400">/15:00</span></p>
+                                <div className={`rounded-lg p-5 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                                    <h4 className={`text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Session Time</h4>
+                                    <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}<span className={`text-3xl ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/15:00</span></p>
                                 </div>
                             </div>
                         </div>
 
                         {/* Live Chart Panel */}
-                        <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
-                            <div className="flex items-center gap-2 text-gray-800 mb-4">
+                        <div className={`rounded-xl shadow-lg p-6 md:p-8 transition-colors duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                            <div className={`flex items-center gap-2 mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                                 <Activity className="w-6 h-6 text-teal-500" />
                                 <h2 className="text-xl font-semibold">Live Heartbeat</h2>
                             </div>
-                            <div className="relative rounded-md border border-dashed p-2 border-gray-300 bg-white/90">
+                            <div className={`relative rounded-md border border-dashed p-2 ${darkMode ? 'border-gray-700 bg-gray-900/70' : 'border-gray-300 bg-white/90'}`}>
                                 <LegacyHeartRateChart
                                     data={rawHeartData}
-                                    darkMode={false}
+                                    darkMode={darkMode}
                                     sessionActive={sessionActive}
                                     emptyMessage={sessionActive ? 'Waiting for live heart rate data…' : 'Start a session to see the chart.'}
                                 />
@@ -424,11 +424,11 @@ const AppContent = () => {
                     </div>
 
                     {/* Side Column: Session Progress */}
-                    <div className="lg:col-span-1 bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col gap-6">
+                    <div className={`lg:col-span-1 rounded-xl shadow-lg p-6 md:p-8 flex flex-col gap-6 transition-colors duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
                         
                         {/* Session Controls Section */}
-                        <div className="bg-gray-50 rounded-lg p-5 -m-2">
-                            <h2 className="text-xl font-semibold text-gray-800 mb-5">Session Control</h2>
+                        <div className={`rounded-lg p-5 -m-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <h2 className={`text-xl font-semibold mb-5 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Session Control</h2>
 
                         {sessionStatus === 'idle' || sessionStatus === 'connecting' || sessionStatus === 'completed' ? (
                                 <div className="grid grid-cols-2 gap-3 mb-5">
@@ -495,20 +495,20 @@ const AppContent = () => {
                 </div>
 
                         {/* Progress Bar Section */}
-                        <div className="bg-gray-50 rounded-lg p-5 -m-2">
+                        <div className={`rounded-lg p-5 -m-2 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                             <div className="flex justify-between mb-2">
                                 <span className="text-sm font-medium text-teal-600">Demo Session</span>
-                                <span className="text-sm font-medium text-gray-700">{progress}%</span>
+                                <span className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>{progress}%</span>
                     </div>
-                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div className={`w-full rounded-full h-2.5 ${darkMode ? 'bg-gray-600' : 'bg-gray-200'}`}>
                                 <div className="bg-teal-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
                     </div>
                 </div>
 
                         {/* Vertical Stepper Section */}
-                        <div className="bg-gray-50 rounded-lg p-5 -m-2 flex-1 flex flex-col">
-                            <h3 className="font-semibold text-gray-700 mb-4">Analysis Progress</h3>
-                            <ol className="relative border-l-2 border-gray-200 ml-4 flex flex-col flex-1">                  
+                        <div className={`rounded-lg p-5 -m-2 flex-1 flex flex-col ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
+                            <h3 className={`font-semibold mb-4 ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>Analysis Progress</h3>
+                            <ol className={`relative border-l-2 ml-4 flex flex-col flex-1 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                 {/* Step 1: Start */}
                                 <li className="flex-1 ml-8 flex flex-col justify-center">
                                     <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
@@ -522,8 +522,8 @@ const AppContent = () => {
                                             <span className="font-bold text-gray-500 text-sm">1</span>
                                         )}
                                     </span>
-                                    <h4 className={`font-medium ${currentStep >= 0 ? 'text-gray-800' : 'text-gray-500'}`}>Start</h4>
-                                    <p className="text-sm text-gray-500">Session initialized</p>
+                                    <h4 className={`font-medium ${currentStep >= 0 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Start</h4>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Session initialized</p>
                                 </li>
                                 
                                 {/* Step 2: Quick Check */}
@@ -539,8 +539,8 @@ const AppContent = () => {
                                             <span className="font-bold text-gray-500 text-sm">2</span>
                                         )}
                                     </span>
-                                    <h4 className={`font-medium ${currentStep >= 1 ? 'text-gray-800' : 'text-gray-500'}`}>Quick Check</h4>
-                                    <p className="text-sm text-gray-500">Baseline established</p>
+                                    <h4 className={`font-medium ${currentStep >= 1 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Quick Check</h4>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Baseline established</p>
                                 </li>
                                 
                                 {/* Step 3: Standard Analysis */}
@@ -558,8 +558,8 @@ const AppContent = () => {
                                             <span className="font-bold text-gray-500 text-sm">3</span>
                                         )}
                                     </span>
-                                    <h4 className={`font-medium ${currentStep === 2 ? 'text-teal-600' : currentStep >= 2 ? 'text-gray-800' : 'text-gray-500'}`}>Standard Analysis</h4>
-                                    <p className="text-sm text-gray-500">{currentStep === 2 ? 'Currently recording...' : 'Pending'}</p>
+                                    <h4 className={`font-medium ${currentStep === 2 ? 'text-teal-600' : currentStep >= 2 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Standard Analysis</h4>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 2 ? 'Currently recording...' : 'Pending'}</p>
                                 </li>
                                 
                                 {/* Step 4: Deep Insight */}
@@ -575,8 +575,8 @@ const AppContent = () => {
                                             <span className="font-bold text-gray-500 text-sm">4</span>
                                         )}
                                     </span>
-                                    <h4 className={`font-medium ${currentStep >= 3 ? 'text-gray-800' : 'text-gray-500'}`}>Deep Insight</h4>
-                                    <p className="text-sm text-gray-500">Pending</p>
+                                    <h4 className={`font-medium ${currentStep >= 3 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Deep Insight</h4>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Pending</p>
                                 </li>
                                 
                                 {/* Step 5: Full Analysis */}
@@ -592,8 +592,8 @@ const AppContent = () => {
                                             <span className="font-bold text-gray-500 text-sm">5</span>
                                         )}
                                     </span>
-                                    <h4 className={`font-medium ${currentStep >= 4 ? 'text-gray-800' : 'text-gray-500'}`}>Full Analysis</h4>
-                                    <p className="text-sm text-gray-500">Pending</p>
+                                    <h4 className={`font-medium ${currentStep >= 4 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Full Analysis</h4>
+                                    <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Pending</p>
                                 </li>
                             </ol>
                         </div>

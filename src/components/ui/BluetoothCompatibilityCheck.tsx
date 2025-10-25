@@ -51,19 +51,19 @@ const BluetoothCompatibilityCheck: React.FC<BluetoothCompatibilityCheckProps> = 
 
   // Show small warning message at the top
   return (
-    <div className="bg-white rounded-lg mb-4 border-l-4 border-teal-500 shadow-sm p-4">
+    <div className={`rounded-lg mb-4 border-l-4 border-teal-500 shadow-sm p-4 transition-colors duration-300 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className="flex items-center gap-3">
         <div className="flex-shrink-0 p-1">
           <Info className="w-5 h-5 text-teal-500" />
         </div>
-        <div className="text-sm font-medium text-teal-800">
+        <div className={`text-sm font-medium ${darkMode ? 'text-teal-300' : 'text-teal-800'}`}>
           {browserInfo.isFirefox ? (
             <>
               <strong>Bluetooth is not supported in Firefox.</strong> Use Chrome or Edge browser for Bluetooth functionality.
             </>
           ) : browserInfo.isChrome ? (
             <>
-              <strong>Web Bluetooth may be disabled in your browser.</strong> Copy paste <strong><code className="bg-gray-200 px-1 rounded text-xs">chrome://flags/#enable-web-bluetooth</code></strong> in a new tab and change Web Bluetooth setting to Enabled and relaunch your browser to start using the app.
+              <strong>Web Bluetooth may be disabled in your browser.</strong> Copy paste <strong><code className={`px-1 rounded text-xs ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}>chrome://flags/#enable-web-bluetooth</code></strong> in a new tab and change Web Bluetooth setting to Enabled and relaunch your browser to start using the app.
             </>
           ) : (
             <>
