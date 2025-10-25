@@ -109,7 +109,8 @@ export const useAuth = (addToast: (message: string) => void) => {
     } catch (error: unknown) {
       console.log("No active session - user not logged in.");
       setUser(null);
-      setShowLoginModal(true);
+      // Don't show login modal automatically on initial load
+      // setShowLoginModal(true);
     } finally {
       setLoading(false);
     }

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
+import { Activity, Calendar, LogOut, Moon, Pause, HeartPulse } from 'lucide-react';
 // HRV calculations removed - now collecting raw data only
 
 import Header from '@/components/ui/Header';
@@ -93,6 +94,80 @@ const AppContent = () => {
     const [rrQuality, setRrQuality] = useState<{percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number} | null>(null);
     const [poorQualityWarningShown, setPoorQualityWarningShown] = useState(false);
     const [finalRRQuality, setFinalRRQuality] = useState<{percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number} | null>(null);
+    const [showBluetoothMessage, setShowBluetoothMessage] = useState(false);
+    const [showLoginFromStart, setShowLoginFromStart] = useState(false);
+
+    // Check if Web Bluetooth is supported
+    const isWebBluetoothSupported = useMemo(() => {
+        if (typeof window === 'undefined') return false;
+        return 'bluetooth' in navigator && window.isSecureContext;
+    }, []);
+
+    // Handle start button click logic
+    const handleStartButtonClick = async () => {
+        if (process.env.NODE_ENV === 'development') {
+            console.log('🔵 [DEBUG] Start button clicked at', new Date().toISOString());
+        }
+
+        // Clear any existing demo interval first
+        if (demoDataGenerator.current) {
+            clearInterval(demoDataGenerator.current);
+            demoDataGenerator.current = null;
+        }
+        
+        // Reset session data
+        resetSession();
+        setHr(null);
+        
+        // Check if Web Bluetooth is supported
+        if (!isWebBluetoothSupported) {
+            // Show Bluetooth compatibility message
+            setShowBluetoothMessage(true);
+            return;
+        }
+
+        // Check if user is logged in
+        if (!user || user.$id === 'guest') {
+            // Show login modal
+            setShowLoginFromStart(true);
+            return;
+        }
+
+        // User is logged in and Bluetooth is supported - start session immediately
+        await startRealSession();
+    };
+
+    // Custom login success handler for start button flow
+    const handleStartLoginSuccess = async (userData: User) => {
+        await handleLoginSuccess(userData);
+        setShowLoginFromStart(false);
+        
+        // Don't auto-start session after login - user needs to click Start again
+        // This ensures proper user gesture for Bluetooth
+    };
+
+    // Start real session function
+    const startRealSession = async () => {
+        // Start session timer immediately
+        const sessionStarted = startRealSessionFromHook();
+        if (sessionStarted) {
+            if (process.env.NODE_ENV === 'development') {
+                console.log('🟢 [DEBUG] Timer started, connecting to Bluetooth at', new Date().toISOString());
+            }
+            // Connect Bluetooth in background
+            const connectionSuccess = await connectBluetooth();
+            if (!connectionSuccess) {
+                // Connection failed, reset to idle
+                resetSession();
+                // Show Bluetooth compatibility message
+                setShowBluetoothMessage(true);
+            } else {
+                // Connection successful, hide Bluetooth message
+                setShowBluetoothMessage(false);
+            }
+            // Timer will start automatically when first data received
+        }
+    };
 
     // Live metrics now show dummy data - calculations removed
     const liveMetrics = useMemo(() => {
@@ -124,6 +199,10 @@ const AppContent = () => {
         // Reset session data
         resetSession();
         setHr(null);
+        // Hide Bluetooth message when starting demo
+        setShowBluetoothMessage(false);
+        // Hide login modal if it was shown from start button
+        setShowLoginFromStart(false);
         
         // Start demo session (which sets status to 'connecting')
         const sessionStarted = startDemoSessionFromHook();
@@ -166,6 +245,9 @@ const AppContent = () => {
         resetSession();
         setHr(null);
         setStatusMessage('Click "Start Session" to begin.');
+        // Clear all modal states
+        setShowBluetoothMessage(false);
+        setShowLoginFromStart(false);
     };
 
     // Reset status message when session ends
@@ -212,9 +294,34 @@ const AppContent = () => {
         return <AuthCallback onAuthComplete={handleLoginSuccess} />;
     }
 
+    // Calculate current step for progress stepper
+    const currentStep = useMemo(() => {
+        if (!sessionActive) return -1;
+        if (elapsedTime < 30) return 0; // Start
+        if (elapsedTime < 60) return 1; // Quick Check
+        if (elapsedTime < 300) return 2; // Standard Analysis
+        if (elapsedTime < 600) return 3; // Deep Insight
+        return 4; // Full Analysis
+    }, [sessionActive, elapsedTime]);
+
+    // Calculate progress percentage
+    const progress = useMemo(() => {
+        const maxTime = 15 * 60; // 15 minutes
+        return Math.min(Math.round((elapsedTime / maxTime) * 100), 100);
+    }, [elapsedTime]);
+
     return (
-        <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
-            {showLoginModal && <LoginModal darkMode={darkMode} onClose={() => setShowLoginModal(false)} onLoginSuccess={handleLoginSuccess} />}
+        <div className="min-h-screen bg-gray-100 flex flex-col">
+            {(showLoginModal || showLoginFromStart) && (
+                <LoginModal 
+                    darkMode={darkMode} 
+                    onClose={() => {
+                        setShowLoginModal(false);
+                        setShowLoginFromStart(false);
+                    }} 
+                    onLoginSuccess={showLoginFromStart ? handleStartLoginSuccess : handleLoginSuccess} 
+                />
+            )}
             {showOnboardingModal && user && (
                 <UserOnboardingModal 
                     darkMode={darkMode} 
@@ -233,9 +340,9 @@ const AppContent = () => {
                 onLoginClick={() => setShowLoginModal(true)}
             />
             
-            {/* Simple HomePage without charts for now */}
-            <main className="container mx-auto p-4 md:p-8">
-                <BluetoothCompatibilityCheck darkMode={darkMode} />
+            <main className="flex-1 p-4 md:p-8 lg:p-10">
+                <div className="max-w-7xl mx-auto">
+                    <BluetoothCompatibilityCheck darkMode={darkMode} showMessage={showBluetoothMessage} />
                 {sessionSummary && (
                     <SessionSummaryModal
                         summary={sessionSummary}
@@ -247,96 +354,117 @@ const AppContent = () => {
                         rrQuality={finalRRQuality || undefined}
                     />
                 )}
-                <div className={`p-4 rounded-lg shadow-md mb-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className={`w-4 h-4 rounded-full ${
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
+
+                    {/* Main Column Wrapper (span-2) */}
+                    <div className="lg:col-span-2 flex flex-col gap-6 md:gap-8">
+                    
+                        {/* Main Column: Live Monitor */}
+                        <div className="bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col relative overflow-hidden">
+                            
+                            {/* Faint Background Icon */}
+                            <HeartPulse className="absolute -right-16 -top-10 w-64 h-64 text-gray-100 opacity-50 rotate-[-10deg]" strokeWidth={3} />
+
+                            {/* Header */}
+                            <div className="flex justify-between items-center mb-6 z-10">
+                                <h2 className="text-xl font-semibold text-gray-800">Live Monitor</h2>
+                                <div className="flex items-center gap-2 text-green-500">
+                                    <div className={`w-2 h-2 rounded-full ${
                                 sessionActive
                                     ? (sessionPaused ? 'bg-yellow-400' : 'bg-green-500 animate-pulse')
                                     : isConnected
                                         ? 'bg-green-500'
                                         : 'bg-red-500'
                             }`}></div>
-                            <p className="text-sm text-center sm:text-left">{statusMessage}</p>
-                            {rrQuality && rrQuality.percentage < 60 && (
-                                <div className="flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded text-xs">
-                                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
-                                    Poor Contact ({rrQuality.percentage}%)
+                                    <span className="text-lg font-medium">{liveMetrics.status}</span>
+                                </div>
+                            </div>
+
+                            {/* Hero Stat: Live HR */}
+                            <div className="flex-1 flex flex-col items-center justify-center text-center my-6 md:my-8 z-10">
+                                <h3 className="text-lg font-medium text-gray-500">Live HR (BPM)</h3>
+                                <p className="text-7xl lg:text-8xl font-extrabold text-gray-900 leading-none mt-2">{hr ?? 0}</p>
+                            </div>
+
+                            {/* Secondary Stats */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 z-10 mt-6">
+                                <div className="bg-gray-50 rounded-lg p-5">
+                                    <h4 className="text-sm font-medium text-gray-500 mb-1">Beats</h4>
+                                    <p className="text-4xl font-bold text-gray-800">{liveMetrics.dataPoints}</p>
+                                </div>
+                                <div className="bg-gray-50 rounded-lg p-5">
+                                    <h4 className="text-sm font-medium text-gray-500 mb-1">Session Time</h4>
+                                    <p className="text-4xl font-bold text-gray-800">{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}<span className="text-3xl text-gray-400">/15:00</span></p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Live Chart Panel */}
+                        <div className="bg-white rounded-xl shadow-lg p-6 md:p-8">
+                            <div className="flex items-center gap-2 text-gray-800 mb-4">
+                                <Activity className="w-6 h-6 text-teal-500" />
+                                <h2 className="text-xl font-semibold">Live Heartbeat</h2>
+                            </div>
+                            <div className="relative rounded-md border border-dashed p-2 border-gray-300 bg-white/90">
+                                <LegacyHeartRateChart
+                                    data={rawHeartData}
+                                    darkMode={false}
+                                    sessionActive={sessionActive}
+                                    emptyMessage={sessionActive ? 'Waiting for live heart rate data…' : 'Start a session to see the chart.'}
+                                />
+                                {sessionPaused && rawHeartData.length > 0 && (
+                                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold uppercase tracking-[0.32em] text-white">
+                                        Paused
                                 </div>
                             )}
+                            </div>
                         </div>
+                    
+                    </div>
+
+                    {/* Side Column: Session Progress */}
+                    <div className="lg:col-span-1 bg-white rounded-xl shadow-lg p-6 md:p-8 flex flex-col gap-6">
+                        
+                        {/* Session Controls Section */}
+                        <div className="bg-gray-50 rounded-lg p-5 -m-2">
+                            <h2 className="text-xl font-semibold text-gray-800 mb-5">Session Control</h2>
+
                         {sessionStatus === 'idle' || sessionStatus === 'connecting' || sessionStatus === 'completed' ? (
-                            <div className="flex gap-2">
+                                <div className="grid grid-cols-2 gap-3 mb-5">
                                 <button
-                                    onClick={async () => {
-                                        if (process.env.NODE_ENV === 'development') {
-                                            console.log('🔵 [DEBUG] Start button clicked at', new Date().toISOString());
-                                        }
-                                        // Clear any existing demo interval first
-                                        if (demoDataGenerator.current) {
-                                            clearInterval(demoDataGenerator.current);
-                                            demoDataGenerator.current = null;
-                                        }
-                                        
-                                        // Reset session data
-                                        resetSession();
-                                        setHr(null);
-                                        
-                                        // Start session timer immediately
-                                        const sessionStarted = startRealSessionFromHook();
-                                        if (sessionStarted) {
-                                            if (process.env.NODE_ENV === 'development') {
-                                                console.log('🟢 [DEBUG] Timer started, connecting to Bluetooth at', new Date().toISOString());
-                                            }
-                                            // Connect Bluetooth in background
-                                            const connectionSuccess = await connectBluetooth();
-                                            if (!connectionSuccess) {
-                                                // Connection failed, reset to idle
-                                                resetSession();
-                                            }
-                                            // Timer will start automatically when first data received
-                                        }
-                                    }}
+                                    onClick={handleStartButtonClick}
                                     disabled={sessionSummary !== null || sessionStatus === 'connecting'}
-                                    className="px-4 py-2 bg-blue-600 text-white font-semibold rounded-lg shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-teal-500 text-white rounded-lg font-medium hover:bg-teal-600 transition-colors text-base cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
                                 >
-                                    <span className="flex items-center gap-2 justify-center">
                                         {sessionStatus === 'connecting' && (
                                             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                             </svg>
                                         )}
-                                        Start Session
-                                    </span>
+                                        <span>Start</span>
                                 </button>
                                 <button 
                                     onClick={startDemoSession} 
                                     disabled={sessionSummary !== null || sessionStatus === 'connecting'} 
-                                    className="px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-opacity-75 transition-transform transform hover:scale-105 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100"
-                                >
-                                    <span className="flex items-center gap-2 justify-center">
-                                        {sessionStatus === 'connecting' && (
-                                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                        )}
-                                        Start Demo
-                                    </span>
+                                        className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white rounded-lg font-medium hover:bg-teal-700 transition-colors text-base cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                                    >
+                                        <span>Demo</span>
                                 </button>
                             </div>
                         ) : (
-                            <div className="flex gap-2 flex-wrap justify-center sm:justify-end">
+                                <div className="grid grid-cols-2 gap-3 mb-5">
                                 {!sessionPaused ? (
                                     <button
                                         onClick={() => {
                                             pauseSession();
                                             setStatusMessage('Session paused. Click resume to continue recording.');
                                         }}
-                                        className="px-4 py-2 bg-yellow-400 text-gray-900 font-semibold rounded-lg shadow-md hover:bg-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-300 focus:ring-opacity-75 transition-transform transform hover:scale-105"
+                                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-yellow-400 text-yellow-900 rounded-lg font-medium hover:bg-yellow-500 transition-colors text-base cursor-pointer"
                                     >
-                                        Pause
+                                            <Pause className="w-5 h-5" />
+                                            <span>Pause</span>
                                     </button>
                                 ) : (
                                     <button
@@ -344,9 +472,9 @@ const AppContent = () => {
                                             resumeSession();
                                             setStatusMessage('Session resumed.');
                                         }}
-                                        className="px-4 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 focus:outline-none focus:ring-2 focus:ring-green-300 focus:ring-opacity-75 transition-transform transform hover:scale-105"
+                                            className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg font-medium hover:bg-green-600 transition-colors text-base cursor-pointer"
                                     >
-                                        Resume
+                                            <span>Resume</span>
                                     </button>
                                 )}
                                 <button onClick={() => {
@@ -358,93 +486,129 @@ const AppContent = () => {
                                     setFinalRRQuality(finalRRQualityData); // Store for session summary display
                                     endSession(elapsedTime, rawHeartData, finalRRQualityData);
                                     setHr(null); // Clear heart rate display
-                                }} className="px-4 py-2 bg-red-600 text-white font-semibold rounded-lg shadow-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-opacity-75 transition-transform transform hover:scale-105">
-                                    End Session
+                                    }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors text-base cursor-pointer">
+                                        <LogOut className="w-5 h-5" />
+                                        <span>End</span>
                                 </button>
                             </div>
-                        )}
-                    </div>
-                    {sessionActive && (
-                        <MilestoneProgressBar 
-                            elapsedTime={elapsedTime} 
-                            darkMode={darkMode}
-                        />
                     )}
                 </div>
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                    <MetricCard title="Live HR" value={hr ?? 0} unit="BPM" precision={0} darkMode={darkMode} />
-                    <MetricCard title="Beats" value={liveMetrics.dataPoints} unit="" precision={0} darkMode={darkMode} />
-                    <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
-                        <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Session Time</h3>
-                        <p className="text-2xl md:text-3xl font-bold">{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}/15:00</p>
+                        {/* Progress Bar Section */}
+                        <div className="bg-gray-50 rounded-lg p-5 -m-2">
+                            <div className="flex justify-between mb-2">
+                                <span className="text-sm font-medium text-teal-600">Demo Session</span>
+                                <span className="text-sm font-medium text-gray-700">{progress}%</span>
                     </div>
-                    <div className={`p-4 rounded-lg shadow-md flex flex-col items-center justify-center transition-colors duration-300 ${darkMode ? 'bg-gray-700 text-white' : 'bg-white text-gray-800'}`}>
-                        <h3 className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-500'}`}>Status</h3>
-                        <p className="text-2xl md:text-3xl font-bold">{liveMetrics.status}</p>
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                <div className="bg-teal-500 h-2.5 rounded-full" style={{ width: `${progress}%` }}></div>
                     </div>
                 </div>
 
-                <div className={`rounded-lg p-6 shadow-md ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <div>
-                            <h2 className={`text-lg font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
-                                Live Heartbeat Stream
-                            </h2>
-                            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                                Total samples {rawHeartData.length}
-                            </p>
+                        {/* Vertical Stepper Section */}
+                        <div className="bg-gray-50 rounded-lg p-5 -m-2 flex-1 flex flex-col">
+                            <h3 className="font-semibold text-gray-700 mb-4">Analysis Progress</h3>
+                            <ol className="relative border-l-2 border-gray-200 ml-4 flex flex-col flex-1">                  
+                                {/* Step 1: Start */}
+                                <li className="flex-1 ml-8 flex flex-col justify-center">
+                                    <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
+                                        currentStep >= 0 ? 'bg-teal-500' : 'bg-gray-200'
+                                    }`}>
+                                        {currentStep >= 0 ? (
+                                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <span className="font-bold text-gray-500 text-sm">1</span>
+                                        )}
+                                    </span>
+                                    <h4 className={`font-medium ${currentStep >= 0 ? 'text-gray-800' : 'text-gray-500'}`}>Start</h4>
+                                    <p className="text-sm text-gray-500">Session initialized</p>
+                                </li>
+                                
+                                {/* Step 2: Quick Check */}
+                                <li className="flex-1 ml-8 flex flex-col justify-center">
+                                    <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
+                                        currentStep >= 1 ? 'bg-teal-500' : 'bg-gray-200'
+                                    }`}>
+                                        {currentStep >= 1 ? (
+                                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <span className="font-bold text-gray-500 text-sm">2</span>
+                                        )}
+                                    </span>
+                                    <h4 className={`font-medium ${currentStep >= 1 ? 'text-gray-800' : 'text-gray-500'}`}>Quick Check</h4>
+                                    <p className="text-sm text-gray-500">Baseline established</p>
+                                </li>
+                                
+                                {/* Step 3: Standard Analysis */}
+                                <li className="flex-1 ml-8 flex flex-col justify-center">
+                                    <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
+                                        currentStep === 2 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 2 ? 'bg-teal-500' : 'bg-gray-200'
+                                    }`}>
+                                        {currentStep === 2 ? (
+                                            <span className="font-bold text-teal-600 text-sm">3</span>
+                                        ) : currentStep >= 2 ? (
+                                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <span className="font-bold text-gray-500 text-sm">3</span>
+                                        )}
+                                    </span>
+                                    <h4 className={`font-medium ${currentStep === 2 ? 'text-teal-600' : currentStep >= 2 ? 'text-gray-800' : 'text-gray-500'}`}>Standard Analysis</h4>
+                                    <p className="text-sm text-gray-500">{currentStep === 2 ? 'Currently recording...' : 'Pending'}</p>
+                                </li>
+                                
+                                {/* Step 4: Deep Insight */}
+                                <li className="flex-1 ml-8 flex flex-col justify-center">
+                                    <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
+                                        currentStep >= 3 ? 'bg-teal-500' : 'bg-gray-200'
+                                    }`}>
+                                        {currentStep >= 3 ? (
+                                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <span className="font-bold text-gray-500 text-sm">4</span>
+                                        )}
+                                    </span>
+                                    <h4 className={`font-medium ${currentStep >= 3 ? 'text-gray-800' : 'text-gray-500'}`}>Deep Insight</h4>
+                                    <p className="text-sm text-gray-500">Pending</p>
+                                </li>
+                                
+                                {/* Step 5: Full Analysis */}
+                                <li className="flex-1 ml-8 flex flex-col justify-center">
+                                    <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${
+                                        currentStep >= 4 ? 'bg-teal-500' : 'bg-gray-200'
+                                    }`}>
+                                        {currentStep >= 4 ? (
+                                            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                            </svg>
+                                        ) : (
+                                            <span className="font-bold text-gray-500 text-sm">5</span>
+                                        )}
+                                    </span>
+                                    <h4 className={`font-medium ${currentStep >= 4 ? 'text-gray-800' : 'text-gray-500'}`}>Full Analysis</h4>
+                                    <p className="text-sm text-gray-500">Pending</p>
+                                </li>
+                            </ol>
                         </div>
-                        <span
-                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                                sessionActive
-                                    ? sessionPaused
-                                        ? darkMode
-                                            ? 'border-amber-400 text-amber-200'
-                                            : 'border-amber-300 text-amber-600'
-                                        : hr !== null
-                                            ? (darkMode
-                                                ? 'border-emerald-400 text-emerald-200'
-                                                : 'border-emerald-400 text-emerald-600')
-                                            : (darkMode
-                                                ? 'border-orange-400 text-orange-200'
-                                                : 'border-orange-400 text-orange-600')
-                                    : darkMode
-                                        ? 'border-slate-600 text-slate-300'
-                                        : 'border-slate-300 text-slate-600'
-                            }`}
-                        >
-                            <span className="h-2 w-2 rounded-full bg-current"></span>
-                            {sessionActive 
-                                ? (sessionPaused 
-                                    ? 'Paused' 
-                                    : (hr !== null ? 'Streaming' : 'Connecting...'))
-                                : 'Idle'}
-                        </span>
                     </div>
-                    <div
-                        className={`relative rounded-md border border-dashed p-2 ${
-                            darkMode ? 'border-gray-700 bg-gray-900/70' : 'border-gray-300 bg-white/90'
-                        }`}
-                    >
-                        <LegacyHeartRateChart
-                            data={rawHeartData}
-                            darkMode={darkMode}
-                            sessionActive={sessionActive}
-                            emptyMessage={sessionActive ? 'Waiting for live heart rate data…' : 'Start a session to see the chart.'}
-                        />
-                        {sessionPaused && rawHeartData.length > 0 && (
-                            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/40 text-xs font-bold uppercase tracking-[0.32em] text-white">
-                                Paused
-                            </div>
-                        )}
+
                     </div>
                 </div>
-
-                <footer className="text-center mt-8 text-xs text-gray-500">
-                    <p>This app is for informational purposes only and is not a medical device.</p>
-                </footer>
             </main>
+
+            {/* Footer */}
+            <footer className="p-4 text-center mt-8">
+                <p className="text-xs text-gray-500">
+                    This app is for informational purposes only and is not a medical device.
+                </p>
+            </footer>
         </div>
     );
 };

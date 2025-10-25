@@ -48,7 +48,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className={`min-h-screen font-sans transition-colors duration-300 ${darkMode ? 'text-white bg-gray-900' : 'text-gray-800 bg-gray-100'}`}>
+    <div className="min-h-screen bg-gray-100 flex flex-col">
       <Header 
         user={user} 
         handleLogout={handleLogout} 
@@ -57,9 +57,11 @@ export default function CalendarPage() {
         darkMode={darkMode}
       />
       
-      <div className="w-full flex items-center justify-center p-2 sm:p-4 md:p-6">
-        <CalendarView sessions={sessions} />
-      </div>
+      <main className="flex-1 p-4 md:p-8 lg:p-10">
+        <div className="max-w-7xl mx-auto">
+          <CalendarView sessions={sessions} />
+        </div>
+      </main>
       
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
