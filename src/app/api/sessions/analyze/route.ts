@@ -37,6 +37,7 @@ interface SessionSummaryPayload {
   total_power_ms2?: number | null;
   sd1_ms?: number | null;
   sd2_ms?: number | null;
+  sd2_sd1_ratio?: number | null;
   baevsky_mo?: number | null;
   baevsky_amo?: number | null;
   baevsky_mxdmn_ms?: number | null;
@@ -47,6 +48,9 @@ interface SessionSummaryPayload {
   stress_score?: number | null;
   health_score?: number | null;
   focus_score?: number | null;
+  
+  // Overall HRV Score
+  hrv_score?: number | null;
 }
 
 interface TimestampedRR {
@@ -102,7 +106,6 @@ const calculateFrequencyDomain = (rrIntervals: number[]): {
         const samplingRate = 4;
         
         const timeSeries: number[] = [];
-        const timeStep = 1 / samplingRate;
         
         for (let i = 0; i < heartRates.length; i++) {
             timeSeries.push(heartRates[i]);
@@ -319,6 +322,65 @@ const normalizeLFHF = (lfhfRatio: number): number => {
     const min = -0.7;
     const max = 0.9;
     return normalizeMinMax(logValue, min, max);
+};
+
+/**
+ * Calculate the overall HRV Score (0-100) as a composite of key HRV metrics
+ */
+const calculateHrvScore = (metrics: {
+    rmssd: number | null;
+    sdnn: number | null;
+    meanHR: number | null;
+    rmssdStart: number | null;
+    rmssdEnd: number | null;
+    coherence: number | null;
+    restoration: number | null;
+}): number | null => {
+    const { rmssd, sdnn, meanHR, rmssdStart, rmssdEnd, coherence, restoration } = metrics;
+    
+    // Check if we have the minimum required metrics
+    if (rmssd === null || sdnn === null || meanHR === null) {
+        return null;
+    }
+    
+    try {
+        // Normalize RMSSD (10-120 ms range, higher is better)
+        const rmssdScore = normalizeMinMax(rmssd, 10, 120);
+        
+        // Normalize SDNN (10-150 ms range, higher is better)
+        const sdnnScore = normalizeMinMax(sdnn, 10, 150);
+        
+        // Invert heart rate (lower HR is better for HRV)
+        const hrScore = normalizeMinMax(110 - meanHR, 0, 70); // Assuming 40-110 BPM range
+        
+        // RMSSD trend (positive trend is better)
+        let trendScore = 0.5; // Neutral
+        if (rmssdStart !== null && rmssdEnd !== null && rmssdStart > 0) {
+            const trend = (rmssdEnd - rmssdStart) / rmssdStart;
+            trendScore = Math.max(0, Math.min(1, 0.5 + trend * 2)); // Normalize to 0-1
+        }
+        
+        // Coherence component (if available)
+        const coherenceScore = coherence !== null ? coherence / 100 : 0.5;
+        
+        // Restoration component (if available)
+        const restorationScore = restoration !== null ? restoration / 100 : 0.5;
+        
+        // Calculate composite HRV score
+        const hrvScore = 
+            0.25 * rmssdScore +
+            0.20 * sdnnScore +
+            0.20 * hrScore +
+            0.15 * trendScore +
+            0.10 * coherenceScore +
+            0.10 * restorationScore;
+        
+        return Number((hrvScore * 100).toFixed(1));
+        
+    } catch (error) {
+        console.error('Error calculating HRV score:', error);
+        return null;
+    }
 };
 
 /**
@@ -711,6 +773,17 @@ const computeSessionSummaryPayload = ({
         shortTermRRStd: null // Not available in current data structure
     });
 
+    // Calculate overall HRV score
+    const hrvScore = calculateHrvScore({
+        rmssd: rmssdSession,
+        sdnn: sdnnSession,
+        meanHR: meanHr,
+        rmssdStart: rmssdStart,
+        rmssdEnd: rmssdEnd,
+        coherence: respCoherence,
+        restoration: restorationIndex
+    });
+
     return {
         session_id: sessionId,
         user_id: userId,
@@ -745,6 +818,9 @@ const computeSessionSummaryPayload = ({
         // Poincaré plot metrics
         sd1_ms: poincareMetrics.sd1,
         sd2_ms: poincareMetrics.sd2,
+        sd2_sd1_ratio: (poincareMetrics.sd1 !== null && poincareMetrics.sd1 !== undefined && poincareMetrics.sd2 !== null && poincareMetrics.sd2 !== undefined && poincareMetrics.sd1 > 1e-6) 
+            ? Number((poincareMetrics.sd2 / poincareMetrics.sd1).toFixed(4)) 
+            : null,
         
         // Full Baevsky Stress Index components
         baevsky_mo: baevskyMetrics.mo,
@@ -757,6 +833,9 @@ const computeSessionSummaryPayload = ({
         stress_score: fourScores.stressScore,
         health_score: fourScores.healthScore,
         focus_score: fourScores.focusScore,
+        
+        // Overall HRV Score
+        hrv_score: hrvScore,
     };
 };
 
