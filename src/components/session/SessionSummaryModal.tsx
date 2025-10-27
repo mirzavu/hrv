@@ -10,6 +10,7 @@ import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
 import HRVScoreGauge from './HRVScoreGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 import TachogramChart from './TachogramChart';
+import AutonomicBalanceChart from './AutonomicBalanceChart';
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -223,7 +224,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   title="RR Quality"
                   value={rrQuality.percentage}
                   unit="%"
-                  subtitle={`${rrQuality.withRR}/${rrQuality.totalNotifications} real`}
                 />
               )}
             </div>
@@ -298,6 +298,12 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   
                   {/* New Breathing Coherence Chart */}
                   <BreathingCoherenceChart data={heartRateData} />
+                  
+                  {/* Autonomic Balance Chart */}
+                  <AutonomicBalanceChart
+                    currentRatio={summary.sd2_sd1_ratio ?? null}
+                    currentTotalPower={summary.totalPower ?? null}
+                  />
 
                 </div>
               </section>

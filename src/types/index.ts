@@ -68,6 +68,8 @@ export interface SessionSummary {
   lfPower: HRVMetric;
   hfPower: HRVMetric;
   lfhfRatio: HRVMetric;
+  totalPower?: number | null | undefined;
+  sd2_sd1_ratio?: number | null | undefined;
   
   // Data quality
   dataPoints: HRVMetric;
@@ -111,6 +113,7 @@ export interface SessionSummaryRecord {
   // Nonlinear/Poincaré plot metrics
   sd1_ms?: number | null;
   sd2_ms?: number | null;
+  sd2_sd1_ratio?: number | null;
   
   // Full Baevsky Stress Index components
   baevsky_mo?: number | null;

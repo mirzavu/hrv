@@ -80,6 +80,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   const sessionStatusRef = useRef<SessionStatus>('idle');
   const sessionStartTimestamp = useRef<number | null>(null);
   const pausedTime = useRef<number>(0);
+  const isDemoSession = useRef(false);
 
   useEffect(() => {
     sessionStatusRef.current = sessionStatus;
@@ -255,15 +256,18 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
         if (sessionStartTimestamp.current && sessionStatusRef.current !== 'paused') {
           const now = Date.now();
           const elapsed = Math.floor((now - sessionStartTimestamp.current - pausedTime.current) / 1000);
-          setElapsedTime(elapsed);
+          // Apply 20x speed multiplier for demo sessions
+          const finalElapsed = isDemoSession.current ? elapsed * 20 : elapsed;
+          setElapsedTime(finalElapsed);
         }
       };
       
       // Update immediately
       updateTimer();
       
-      // Then update every second for UI responsiveness
-      sessionTimer.current = setInterval(updateTimer, 1000);
+      // Then update every second for UI responsiveness (or faster for demo)
+      const updateInterval = isDemoSession.current ? 100 : 1000;
+      sessionTimer.current = setInterval(updateTimer, updateInterval);
     } else {
       if (sessionTimer.current) {
         clearInterval(sessionTimer.current);
@@ -303,11 +307,13 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     sessionStartTimestamp.current = null;
     pausedTime.current = 0;
     milestonesReached.current.clear();
+    isDemoSession.current = false;
   }, []);
 
   
   const startRealSession = useCallback(() => {
     if (sessionStatus !== 'idle') return false; // Prevent duplicate starts
+    isDemoSession.current = false;
     setSessionStatus('connecting');
     // Don't start timer yet - will start when first data received
     return true;
@@ -315,6 +321,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   
   const startDemoSession = useCallback(() => {
     if (sessionStatus !== 'idle') return false;
+    isDemoSession.current = true;
     setSessionStatus('connecting'); // Demo also starts as connecting, timer starts on first data
     return true;
   }, [sessionStatus]);
@@ -353,7 +360,6 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       setRawHeartData(prev => [...prev, ...data]);
     } else {
       if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ [${addTime}] SESSION: Adding single beat`, new Error().stack?.split('\n')[2]?.trim());
       }
       setRawHeartData(prev => [...prev, data]);
     }
@@ -365,7 +371,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     }
     setSessionStatus('paused');
     // Record when we paused to calculate total paused time
-    pausedTime.current += Date.now() - (sessionStartTimestamp.current || 0) - (elapsedTime * 1000);
+    // For demo sessions, elapsedTime is 20x, so we need to divide by 20
+    const actualElapsedTime = isDemoSession.current ? elapsedTime / 20 : elapsedTime;
+    pausedTime.current += Date.now() - (sessionStartTimestamp.current || 0) - (actualElapsedTime * 1000);
   }, [sessionStatus, elapsedTime]);
 
   const resumeSession = useCallback(() => {
@@ -374,7 +382,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     }
     setSessionStatus('running');
     // Update the start timestamp to account for paused time
-    sessionStartTimestamp.current = Date.now() - elapsedTime * 1000 - pausedTime.current;
+    // For demo sessions, elapsedTime is 20x, so we need to divide by 20
+    const actualElapsedTime = isDemoSession.current ? elapsedTime / 20 : elapsedTime;
+    sessionStartTimestamp.current = Date.now() - actualElapsedTime * 1000 - pausedTime.current;
   }, [sessionStatus, elapsedTime]);
 
   return {

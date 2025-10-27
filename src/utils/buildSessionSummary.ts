@@ -136,6 +136,8 @@ export const buildSessionSummary = (
       value: payload.lfhf_ratio,
       unit: ''
     },
+    totalPower: payload.total_power_ms2,
+    sd2_sd1_ratio: payload.sd2_sd1_ratio,
 
     // Data quality
     dataPoints: {

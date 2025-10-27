@@ -13,7 +13,6 @@ import UserOnboardingModal from '@/components/UserOnboardingModal';
 import AuthCallback from '@/components/auth/AuthCallback';
 import BluetoothCompatibilityCheck from '@/components/ui/BluetoothCompatibilityCheck';
 import MetricCard from '@/components/ui/MetricCard';
-import MilestoneProgressBar from '@/components/session/MilestoneProgressBar';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import LegacyHeartRateChart from '@/components/session/LegacyHeartRateChart';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -233,7 +232,7 @@ const AppContent = () => {
                     rrInterval: newRr,
                     rawValue: Math.random() * 1000 // dummy raw sensor value
                 });
-            }, 900);
+            }, 45); // 20x speed: 900ms / 20 = 45ms
         }
     };
 
@@ -300,6 +299,16 @@ const AppContent = () => {
         if (elapsedTime < 360) return 2; // Standard Analysis - 6min
         if (elapsedTime < 600) return 3; // Deep Insight - 10min
         return 4; // Full Analysis - 15min
+    }, [sessionActive, elapsedTime]);
+
+    // Get current phase name and description
+    const currentPhase = useMemo(() => {
+        if (!sessionActive) return { name: '', description: '', color: '' };
+        if (elapsedTime < 120) return { name: 'Initialization', description: 'Session starting...', color: 'bg-blue-500' };
+        if (elapsedTime < 240) return { name: 'Quick Check', description: 'Collecting baseline data', color: 'bg-teal-500' };
+        if (elapsedTime < 360) return { name: 'Standard Analysis', description: 'Analyzing heart rate patterns', color: 'bg-emerald-500' };
+        if (elapsedTime < 600) return { name: 'Deep Insight', description: 'Evaluating ANS balance', color: 'bg-amber-500' };
+        return { name: 'Full Analysis', description: 'Comprehensive HRV assessment', color: 'bg-orange-500' };
     }, [sessionActive, elapsedTime]);
 
     // Calculate progress percentage
@@ -382,6 +391,20 @@ const AppContent = () => {
                                     <span className="text-lg font-medium">{liveMetrics.status}</span>
                                 </div>
                             </div>
+
+                            {/* Current Phase Indicator */}
+                            {sessionActive && currentPhase.name && (
+                                <div className={`mb-6 z-10 rounded-lg border-2 ${darkMode ? 'bg-gray-700/50 border-gray-600' : 'bg-white border-gray-200'} shadow-md p-4 flex items-center gap-4`}>
+                                    <div className={`${currentPhase.color} rounded-full p-3 shadow-lg flex items-center justify-center`}>
+                                        <HeartPulse className="w-6 h-6 text-white" />
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className={`text-sm font-medium ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>Current Phase</p>
+                                        <p className={`text-lg font-bold ${darkMode ? 'text-white' : 'text-gray-900'}`}>{currentPhase.name}</p>
+                                        <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'} mt-0.5`}>{currentPhase.description}</p>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Hero Stat: Live HR */}
                             <div className="flex-1 flex flex-col items-center justify-center text-center my-6 md:my-8 z-10">
