@@ -264,7 +264,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         
         {/* === COLUMN 1: The Chart === */}
-        <div className="h-[31.2rem]">
+        <div className="h-[31.2rem] [&_svg]:!outline-none [&_svg]:!focus:outline-none [&_*]:!outline-none">
         <ResponsiveContainer width="100%" height="100%">
           <ScatterChart
             margin={{ top: 20, right: 20, left: 10, bottom: 40 }}

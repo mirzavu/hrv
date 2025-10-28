@@ -1,0 +1,167 @@
+// Session processing and data transformation utilities
+
+import type { RawHeartData } from '@/types';
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+export const START_END_WINDOW_SECONDS = 120;
+export const STABILITY_WINDOW_SECONDS = 30;
+export const STABILITY_STEP_SECONDS = 5;
+export const STABILITY_THRESHOLD_BPM = 5;
+export const MAX_TIME_TO_STABILIZE_SECONDS = 900;
+
+export interface TimestampedRR {
+    timestamp: number;
+    value: number;
+}
+
+export const windowedHeartRates = (rawData: RawHeartData[], sessionStartTimestamp: number) => {
+    return rawData
+        .filter((entry) => typeof entry.timestamp === 'number')
+        .map((entry) => {
+            const timestamp = entry.timestamp ?? sessionStartTimestamp;
+            const heartRate = typeof entry.heartRate === 'number' && entry.heartRate > 0
+                ? entry.heartRate
+                : (Array.isArray(entry.allRrIntervals) && entry.allRrIntervals.length > 0)
+                    ? 60000 / entry.allRrIntervals[0]
+                    : entry.rrInterval
+                        ? 60000 / entry.rrInterval
+                        : null;
+            return { timestamp, heartRate: heartRate && Number.isFinite(heartRate) ? heartRate : null };
+        })
+        .filter((entry) => entry.heartRate !== null)
+        .sort((a, b) => a.timestamp - b.timestamp);
+};
+
+export const computeTimeToStabilize = (rawData: RawHeartData[], sessionStartTimestamp: number, sessionMeanHr: number | null): number | null => {
+    if (!sessionMeanHr) {
+        return null;
+    }
+
+    const series = windowedHeartRates(rawData, sessionStartTimestamp);
+    if (series.length === 0) {
+        return null;
+    }
+
+    const windowMs = STABILITY_WINDOW_SECONDS * 1000;
+    const stepMs = STABILITY_STEP_SECONDS * 1000;
+    const endTimestamp = series[series.length - 1].timestamp;
+
+    const windowAverages: { start: number; avg: number }[] = [];
+
+    for (let start = sessionStartTimestamp; start <= endTimestamp - windowMs; start += stepMs) {
+        const windowEnd = start + windowMs;
+        const points = series.filter((point) => point.timestamp >= start && point.timestamp <= windowEnd);
+        if (points.length === 0) continue;
+        const avg = points.reduce((sum, point) => sum + (point.heartRate ?? 0), 0) / points.length;
+        windowAverages.push({ start, avg });
+    }
+
+    if (windowAverages.length === 0) {
+        return null;
+    }
+
+    for (const candidate of windowAverages) {
+        const isStable = windowAverages
+            .filter((window) => window.start >= candidate.start)
+            .every((window) => Math.abs(window.avg - sessionMeanHr) <= STABILITY_THRESHOLD_BPM);
+
+        if (isStable) {
+            return clamp(Math.round((candidate.start - sessionStartTimestamp) / 1000), 0, MAX_TIME_TO_STABILIZE_SECONDS);
+        }
+    }
+
+    return MAX_TIME_TO_STABILIZE_SECONDS;
+};
+
+export const computeRespCoherenceScore = (rmssd: number | null, sdnn: number | null, pnn50: number | null): number | null => {
+    if (rmssd === null && sdnn === null && pnn50 === null) {
+        return null;
+    }
+
+    const rmssdScore = rmssd === null ? 0 : clamp((rmssd / 180) * 100, 0, 100);
+    const sdnnScore = sdnn === null ? 0 : clamp((sdnn / 200) * 100, 0, 100);
+    const pnn50Score = pnn50 === null ? 0 : clamp(pnn50, 0, 100);
+
+    return Number((0.4 * rmssdScore + 0.3 * sdnnScore + 0.3 * pnn50Score).toFixed(2));
+};
+
+export const computeRestorationIndex = (
+    rmssd: number | null,
+    coherence: number | null,
+    timeToStabilize: number | null
+): number | null => {
+    if (rmssd === null && coherence === null && timeToStabilize === null) {
+        return null;
+    }
+
+    const rmssdComponent = rmssd === null ? 0 : clamp((rmssd / 150) * 100, 0, 100);
+    const coherenceComponent = coherence ?? 0;
+    const timeComponent = timeToStabilize === null ? 50 : clamp(100 - (timeToStabilize / MAX_TIME_TO_STABILIZE_SECONDS) * 100, 0, 100);
+
+    return Number((0.45 * rmssdComponent + 0.35 * coherenceComponent + 0.2 * timeComponent).toFixed(2));
+};
+
+export const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimestamp: number, calculateRMSSD: (rr: number[]) => number | null): number | null => {
+    if (rrSeries.length < 2) {
+        return null;
+    }
+
+    const windowSizeMs = 30 * 1000; // Use 30-second windows for shorter sessions
+    const endTimestamp = rrSeries[rrSeries.length - 1].timestamp;
+    const sessionEndTimestamp = sessionStartTimestamp + (endTimestamp - sessionStartTimestamp);
+
+    // Calculate RMSSD windows
+    const rmssdWindows: number[] = [];
+    
+    for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - windowSizeMs; windowStart += windowSizeMs) {
+        const windowEnd = windowStart + windowSizeMs;
+        const windowData = rrSeries
+            .filter(sample => sample.timestamp >= windowStart && sample.timestamp <= windowEnd)
+            .map(sample => sample.value);
+        
+        if (windowData.length >= 2) {
+            const windowRmssd = calculateRMSSD(windowData);
+            if (windowRmssd !== null) {
+                rmssdWindows.push(windowRmssd);
+            }
+        }
+    }
+
+    if (rmssdWindows.length < 2) {
+        return null;
+    }
+
+    // Calculate coefficient of variation (CV = std / mean * 100)
+    const mean = rmssdWindows.reduce((sum, value) => sum + value, 0) / rmssdWindows.length;
+    if (mean === 0) return null;
+
+    const variance = rmssdWindows.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / rmssdWindows.length;
+    const standardDeviation = Math.sqrt(variance);
+    const coefficientOfVariation = (standardDeviation / mean) * 100;
+
+    return Number(coefficientOfVariation.toFixed(2));
+};
+
+export const flattenRrSeries = (rawData: RawHeartData[], sessionStartTimestamp: number): TimestampedRR[] => {
+    const series: TimestampedRR[] = [];
+    let fallbackTimestamp = sessionStartTimestamp;
+
+    for (const entry of rawData) {
+        const baseTimestamp = typeof entry.timestamp === 'number' ? entry.timestamp : fallbackTimestamp;
+        fallbackTimestamp = baseTimestamp;
+
+        if (Array.isArray(entry.allRrIntervals) && entry.allRrIntervals.length > 0) {
+            entry.allRrIntervals.forEach((rr) => {
+                if (typeof rr === 'number' && !Number.isNaN(rr) && rr > 0) {
+                    series.push({ timestamp: baseTimestamp, value: rr });
+                }
+            });
+        } else if (typeof entry.rrInterval === 'number' && entry.rrInterval > 0) {
+            series.push({ timestamp: baseTimestamp, value: entry.rrInterval });
+        }
+    }
+
+    return series.sort((a, b) => a.timestamp - b.timestamp);
+};
+

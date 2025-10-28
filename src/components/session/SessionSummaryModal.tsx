@@ -273,9 +273,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
                     sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
                     sd2_sd1_ratio={summary.sd2_sd1_ratio}
-                    lfPower={summary.lfPower.value}
-                    hfPower={summary.hfPower.value}
-                    lfhfRatio={summary.lfhfRatio.value}
                   />
                 </div>
                 

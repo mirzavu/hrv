@@ -60,6 +60,9 @@
 ### Documentation Files
 - NEVER create markdown (.md) or documentation files unless explicitly requested by the user
 
+### Large Files
+- If you encounter a file with more than 800 lines, notify the user
+
 ### Code Organization
 - Components: `/src/components/`
 - API Routes: `/src/app/api/`
