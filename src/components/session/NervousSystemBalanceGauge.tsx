@@ -1,20 +1,39 @@
 import React from 'react';
 
 interface NervousSystemBalanceGaugeProps {
-  lfPower: number | null | undefined;
-  hfPower: number | null | undefined;
-  lfhfRatio: number | null | undefined;
+  // NEW: Use SD2/SD1-based percentages
+  parasympatheticPercent?: number | null | undefined;
+  sympatheticPercent?: number | null | undefined;
+  sd2_sd1_ratio?: number | null | undefined;
+  // OLD: Keep for backward compatibility
+  lfPower?: number | null | undefined;
+  hfPower?: number | null | undefined;
+  lfhfRatio?: number | null | undefined;
 }
 
 const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({ 
+  parasympatheticPercent: propParasympatheticPercent,
+  sympatheticPercent: propSympatheticPercent,
+  sd2_sd1_ratio,
   lfPower, 
   hfPower, 
   lfhfRatio 
 }) => {
-  // Calculate balance percentages
-  const totalPower = (lfPower || 0) + (hfPower || 0);
-  const parasympatheticPercent = totalPower > 0 ? ((hfPower || 0) / totalPower) * 100 : 50;
-  const sympatheticPercent = totalPower > 0 ? ((lfPower || 0) / totalPower) * 100 : 50;
+  // Use new SD2/SD1-based percentages if available, otherwise fall back to old LF/HF calculation
+  let parasympatheticPercent: number;
+  let sympatheticPercent: number;
+  
+  if (propParasympatheticPercent !== null && propParasympatheticPercent !== undefined &&
+      propSympatheticPercent !== null && propSympatheticPercent !== undefined) {
+    // Use new SD2/SD1-based values
+    parasympatheticPercent = propParasympatheticPercent;
+    sympatheticPercent = propSympatheticPercent;
+  } else {
+    // Fall back to old LF/HF calculation
+    const totalPower = (lfPower || 0) + (hfPower || 0);
+    parasympatheticPercent = totalPower > 0 ? ((hfPower || 0) / totalPower) * 100 : 50;
+    sympatheticPercent = totalPower > 0 ? ((lfPower || 0) / totalPower) * 100 : 50;
+  }
   
   // Determine balance status
   let colorClass = 'text-gray-400';
@@ -25,7 +44,7 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   let balanceScore = 0;
   let interpretation = '';
 
-  if (lfPower !== null && hfPower !== null && lfPower !== undefined && hfPower !== undefined) {
+  if (parasympatheticPercent !== undefined && sympatheticPercent !== undefined) {
     // Calculate balance score (0-100, where higher = more parasympathetic)
     balanceScore = Math.min(100, Math.max(0, parasympatheticPercent));
     
@@ -121,18 +140,25 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
         {/* Balance Breakdown */}
         <div className="w-full space-y-2 mb-4">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-600">Parasympathetic (HF)</span>
+            <span className="text-slate-600">Parasympathetic</span>
             <span className={`font-semibold ${colorClass}`}>
               {parasympatheticPercent.toFixed(1)}%
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-600">Sympathetic (LF)</span>
+            <span className="text-slate-600">Sympathetic</span>
             <span className={`font-semibold ${colorClass}`}>
               {sympatheticPercent.toFixed(1)}%
             </span>
           </div>
-          {lfhfRatio !== null && lfhfRatio !== undefined && (
+          {sd2_sd1_ratio !== null && sd2_sd1_ratio !== undefined ? (
+            <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-200">
+              <span className="text-slate-600">SD2/SD1 Ratio</span>
+              <span className="font-mono text-slate-700">
+                {sd2_sd1_ratio.toFixed(4)}
+              </span>
+            </div>
+          ) : lfhfRatio !== null && lfhfRatio !== undefined && (
             <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-200">
               <span className="text-slate-600">LF/HF Ratio</span>
               <span className="font-mono text-slate-700">

@@ -139,6 +139,12 @@ export const buildSessionSummary = (
     totalPower: payload.total_power_ms2,
     sd2_sd1_ratio: payload.sd2_sd1_ratio,
 
+    // === NEW SD2/SD1-based Balance Percentages ===
+    sd1_sd2_balance_score_nbs: payload.sd1_sd2_balance_score_nbs,
+    sd1_sd2_parasympathetic_percent: payload.sd1_sd2_parasympathetic_percent,
+    sd1_sd2_sympathetic_percent: payload.sd1_sd2_sympathetic_percent,
+    // === END NEW ===
+
     // Data quality
     dataPoints: {
       label: 'Beats',

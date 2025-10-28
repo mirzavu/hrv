@@ -43,6 +43,12 @@ interface SessionSummaryPayload {
   baevsky_mxdmn_ms?: number | null;
   baevsky_stress_index?: number | null;
   
+  // === NEW SD2/SD1-based Balance Percentages ===
+  sd1_sd2_balance_score_nbs?: number | null; // Normalized Balance Score (0-100)
+  sd1_sd2_parasympathetic_percent?: number | null;
+  sd1_sd2_sympathetic_percent?: number | null;
+  // === END NEW ===
+  
   // New 4-Score metrics
   energy_score?: number | null;
   stress_score?: number | null;
@@ -822,11 +828,53 @@ const computeSessionSummaryPayload = ({
             ? Number((poincareMetrics.sd2 / poincareMetrics.sd1).toFixed(4)) 
             : null,
         
+        // === NEW BALANCE PERCENTAGE LOGIC ===
+        // Based on your provided SD2/SD1 formula
+        ...(() => {
+            const sd2_sd1_ratio = (poincareMetrics.sd1 !== null && poincareMetrics.sd1 !== undefined && poincareMetrics.sd2 !== null && poincareMetrics.sd2 !== undefined && poincareMetrics.sd1 > 1e-6) 
+                ? Number((poincareMetrics.sd2 / poincareMetrics.sd1).toFixed(4)) 
+                : null;
+            
+            let balanceIndexX: number | null = null;
+            if (sd2_sd1_ratio !== null && sd2_sd1_ratio > 0) {
+                const BALANCE_DOMAIN: readonly [number, number] = [0, 200] as const;
+                // Formula: 100 + (log10(ratio) / log10(10)) * 35
+                const rawBalance = 100 + (Math.log10(sd2_sd1_ratio) / Math.log10(10)) * 35;
+                balanceIndexX = Number(clamp(rawBalance, BALANCE_DOMAIN[0], BALANCE_DOMAIN[1]).toFixed(1));
+            }
+
+            let normalizedBalanceScore: number | null = null;
+            let parasympatheticPercent: number | null = null;
+            let sympatheticPercent: number | null = null;
+
+            if (balanceIndexX !== null) {
+                // NBS = X / 2 (Normalizes 0-200 scale to 0-100)
+                normalizedBalanceScore = Number((balanceIndexX / 2).toFixed(1));
+                
+                // Direct mapping: 
+                // X=128 -> NBS=64 -> 64% Parasympathetic
+                // X=72  -> NBS=36 -> 36% Parasympathetic
+                parasympatheticPercent = normalizedBalanceScore;
+                sympatheticPercent = Number((100 - normalizedBalanceScore).toFixed(1));
+            }
+            
+            return {
+                sd1_sd2_balance_score_nbs: normalizedBalanceScore,
+                sd1_sd2_parasympathetic_percent: parasympatheticPercent,
+                sd1_sd2_sympathetic_percent: sympatheticPercent,
+            };
+        })(),
+        // === END NEW LOGIC ===
+        
         // Full Baevsky Stress Index components
         baevsky_mo: baevskyMetrics.mo,
         baevsky_amo: baevskyMetrics.amo,
         baevsky_mxdmn_ms: baevskyMetrics.mxdmn,
         baevsky_stress_index: baevskyMetrics.bsi,
+        
+        // === NEW SD2/SD1-based Balance Percentages ===
+        // (already included above via IIFE)
+        // === END NEW ===
         
         // New 4-Score metrics
         energy_score: fourScores.energyScore,

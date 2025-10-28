@@ -234,12 +234,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
     if (power === null || power === undefined) {
       return 'N/A';
     }
-    if (power > 1_000_000_000) {
-      return (power / 1_000_000_000).toFixed(2);
-    }
-    if (power > 1_000_000) {
-      return (power / 1_000_000).toFixed(2);
-    }
+    // Now expects values in thousands
     if (power > 1_000) {
       return (power / 1_000).toFixed(2);
     }
@@ -250,14 +245,9 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
     if (power === null || power === undefined) {
       return '';
     }
-    if (power > 1_000_000_000) {
-      return 'B ms²'; // Billions
-    }
-    if (power > 1_000_000) {
-      return 'M ms²'; // Millions
-    }
+    // Now expects values in thousands
     if (power > 1_000) {
-      return 'k ms²'; // Thousands
+      return 'k ms²'; // k for Thousands
     }
     return 'ms²';
   };
@@ -292,35 +282,35 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
               */}
               <radialGradient id="bandedGradient" cx="50%" cy="20%" r="75%">
                 {/* Band 1: Green (Radius 0% -> 15%) */}
-                <stop offset="0%" stopColor="#22c55e" />
-                <stop offset="15%" stopColor="#22c55e" />
+                <stop offset="0%" stopColor="#006d2d" />
+                <stop offset="15%" stopColor="#006d2d" />
                 
                 {/* Fade 1: Green to Yellow (15% -> 20%) */}
-                <stop offset="16.25%" stopColor="#3cc85b" />
-                <stop offset="17.5%" stopColor="#8fd252" />
-                <stop offset="18.75%" stopColor="#e2dd4a" />
-                <stop offset="20%" stopColor="#fde047" />
+                <stop offset="16.25%" stopColor="#00703a" />
+                <stop offset="17.5%" stopColor="#548d4d" />
+                <stop offset="18.75%" stopColor="#d9d943" />
+                <stop offset="20%" stopColor="#fbf148" />
 
                 {/* Band 2: Yellow (20% -> 35%) */}
-                <stop offset="35%" stopColor="#fde047" />
+                <stop offset="35%" stopColor="#fbf148" />
 
                 {/* Fade 2: Yellow to Light Red (35% -> 40%) */}
-                <stop offset="36.25%" stopColor="#fbcd47" />
-                <stop offset="37.5%" stopColor="#f69246" />
-                <stop offset="38.75%" stopColor="#f15744" />
-                <stop offset="40%" stopColor="#ef4444" />
+                <stop offset="36.25%" stopColor="#fbef4a" />
+                <stop offset="37.5%" stopColor="#ffae3a" />
+                <stop offset="38.75%" stopColor="#ff4b2a" />
+                <stop offset="40%" stopColor="#ff3400" />
 
                 {/* Band 3: Light Red (40% -> 60%) */}
-                <stop offset="60%" stopColor="#ef4444" />
+                <stop offset="60%" stopColor="#ff3400" />
 
                 {/* Fade 3: Light Red to Dark Red (60% -> 65%) */}
-                <stop offset="61.25%" stopColor="#e83f3f" />
-                <stop offset="62.5%" stopColor="#d43030" />
-                <stop offset="63.75%" stopColor="#c02121" />
-                <stop offset="65%" stopColor="#b91c1c" />
+                <stop offset="61.25%" stopColor="#ff2900" />
+                <stop offset="62.5%" stopColor="#e51a00" />
+                <stop offset="63.75%" stopColor="#cc0d00" />
+                <stop offset="65%" stopColor="#9b0000" />
 
                 {/* Band 4: Dark Red (65% -> 100%) */}
-                <stop offset="100%" stopColor="#b91c1c" />
+                <stop offset="100%" stopColor="#9b0000" />
               </radialGradient>
             </defs>
             

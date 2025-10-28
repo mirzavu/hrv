@@ -71,6 +71,12 @@ export interface SessionSummary {
   totalPower?: number | null | undefined;
   sd2_sd1_ratio?: number | null | undefined;
   
+  // === NEW SD2/SD1-based Balance Percentages ===
+  sd1_sd2_balance_score_nbs?: number | null | undefined;
+  sd1_sd2_parasympathetic_percent?: number | null | undefined;
+  sd1_sd2_sympathetic_percent?: number | null | undefined;
+  // === END NEW ===
+  
   // Data quality
   dataPoints: HRVMetric;
   
@@ -120,6 +126,12 @@ export interface SessionSummaryRecord {
   baevsky_amo?: number | null;
   baevsky_mxdmn_ms?: number | null;
   baevsky_stress_index?: number | null;
+  
+  // === NEW SD2/SD1-based Balance Percentages ===
+  sd1_sd2_balance_score_nbs?: number | null; // Normalized Balance Score (0-100)
+  sd1_sd2_parasympathetic_percent?: number | null;
+  sd1_sd2_sympathetic_percent?: number | null;
+  // === END NEW ===
   
   // New 4-Score metrics
   energy_score?: number | null;
