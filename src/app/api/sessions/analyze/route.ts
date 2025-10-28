@@ -14,6 +14,7 @@ import { calculatePoincareMetrics } from '@/utils/poincare';
 import { calculateBaevskyMetrics } from '@/utils/baevsky';
 import { calculateHrvScore, calculateFourScores } from '@/utils/scoreCalculations';
 import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
+import { autoCheckAndUpdateBaseline } from '@/utils/autoBaselineCheck';
 import { getAdminPb } from '@/lib/pbAdmin';
 import {
   START_END_WINDOW_SECONDS,
@@ -180,35 +181,35 @@ const computeSessionSummaryPayload = async ({
         }
     }
 
-    // Calculate HRV Readiness Score using personalized baseline (if available)
-    let hrvScore: number | null = null;
+    // ALWAYS calculate fallback HRV score first (for users without baseline)
+    const fallbackHrvScore = calculateHrvScore({
+        rmssd: rmssdSession,
+        sdnn: sdnnSession,
+        meanHR: meanHr,
+        rmssdStart,
+        rmssdEnd,
+        coherence: respCoherence,
+        restoration: restorationIndex
+    });
+    
+    // Try to calculate personalized HRV Readiness Score if baseline exists
+    let hrvScore: number | null = fallbackHrvScore; // Start with fallback
+    let baselineUsed = false;
     
     if (userBaseline && userBaseline.established) {
         // Use personalized baseline approach
-        const sd1_sd2_ratio = (poincareMetrics.sd1 !== null && poincareMetrics.sd2 !== null && poincareMetrics.sd2 > 0)
-            ? poincareMetrics.sd1 / poincareMetrics.sd2
-            : null;
-            
-        hrvScore = calculateHrvReadinessScore({
+        const personalizedScore = calculateHrvReadinessScore({
             rmssd: rmssdSession,
             sdnn: sdnnSession,
             meanHR: meanHr,
             sd1: poincareMetrics.sd1,
             sd2: poincareMetrics.sd2
         }, userBaseline);
-    }
-    
-    // Fallback to generic calculation if baseline not available
-    if (hrvScore === null) {
-        hrvScore = calculateHrvScore({
-            rmssd: rmssdSession,
-            sdnn: sdnnSession,
-            meanHR: meanHr,
-            rmssdStart,
-            rmssdEnd,
-            coherence: respCoherence,
-            restoration: restorationIndex
-        });
+        
+        if (personalizedScore !== null) {
+            hrvScore = personalizedScore;
+            baselineUsed = true;
+        }
     }
 
     return {
@@ -271,6 +272,13 @@ export async function POST(request: NextRequest) {
             durationSeconds: durationSeconds || 0,
             userId,
             sessionId,
+        });
+
+        // Auto-check and update baseline after session analysis
+        // This runs in background - doesn't block response
+        autoCheckAndUpdateBaseline(userId).catch(error => {
+            console.error('Background baseline check failed:', error);
+            // Don't throw - this is non-critical background task
         });
 
         return NextResponse.json(summaryPayload);

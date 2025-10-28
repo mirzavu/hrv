@@ -268,7 +268,10 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 
                 {/* HRV Score and Nervous System Balance */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6">
-                  <HRVScoreGauge score={summary.hrvScore.value} />
+                  <HRVScoreGauge 
+                    score={summary.hrvScore.value}
+                    baselineEstablished={false}
+                  />
                   <NervousSystemBalanceGauge 
                     parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
                     sympatheticPercent={summary.sd1_sd2_sympathetic_percent}

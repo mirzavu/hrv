@@ -277,3 +277,46 @@ export const shouldUpdateBaseline = (
   return daysSince >= daysSinceUpdate;
 };
 
+/**
+ * Check if sessions have valid temporal distribution for baseline
+ * Sessions should be spread across multiple days, not all on the same day
+ * 
+ * @param sessions - Array of session records with timestamps
+ * @returns Validation result with unique days count
+ */
+export const hasValidTemporalDistribution = (
+  sessions: Array<{ createdAt: string }>
+): { valid: boolean; uniqueDays: number; timeSpanDays: number } => {
+  if (sessions.length < 7) {
+    return { valid: false, uniqueDays: 0, timeSpanDays: 0 };
+  }
+
+  // Extract unique dates (YYYY-MM-DD format)
+  const uniqueDates = new Set(
+    sessions.map(s => {
+      const date = new Date(s.createdAt);
+      return date.toISOString().split('T')[0];
+    })
+  );
+
+  const uniqueDays = uniqueDates.size;
+  
+  // Require sessions to be spread across at least 5 different days
+  const MIN_UNIQUE_DAYS = 5;
+  
+  if (uniqueDays < MIN_UNIQUE_DAYS) {
+    return { valid: false, uniqueDays, timeSpanDays: 0 };
+  }
+
+  // Check time span (should be at least 5 days)
+  const timestamps = sessions.map(s => new Date(s.createdAt).getTime()).sort();
+  const timeSpanDays = (timestamps[timestamps.length - 1] - timestamps[0]) / (1000 * 60 * 60 * 24);
+  
+  const MIN_TIME_SPAN_DAYS = 5;
+  if (timeSpanDays < MIN_TIME_SPAN_DAYS) {
+    return { valid: false, uniqueDays, timeSpanDays };
+  }
+
+  return { valid: true, uniqueDays, timeSpanDays };
+};
+

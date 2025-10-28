@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
 import type { UserBaseline, SessionSummaryRecord } from '@/types';
-import { calculateBaselineMetrics, canEstablishBaseline } from '@/utils/baselineCalculations';
+import { calculateBaselineMetrics, canEstablishBaseline, hasValidTemporalDistribution } from '@/utils/baselineCalculations';
 
 /**
  * GET /api/user/baseline?userId=xxx
@@ -101,6 +101,18 @@ export async function POST(request: NextRequest) {
         error: 'Insufficient sessions',
         message: `Need at least 7 sessions with complete data. Found ${summaries.length}.`,
         sessionsCount: summaries.length
+      }, { status: 400 });
+    }
+
+    // Check temporal distribution
+    const temporalCheck = hasValidTemporalDistribution(summaries);
+    if (!temporalCheck.valid) {
+      return NextResponse.json({
+        error: 'Invalid temporal distribution',
+        message: `Sessions must be spread across at least 5 different days spanning at least 5 days. Current: ${temporalCheck.uniqueDays} unique days over ${Math.round(temporalCheck.timeSpanDays)} days.`,
+        sessionsCount: summaries.length,
+        uniqueDays: temporalCheck.uniqueDays,
+        timeSpanDays: temporalCheck.timeSpanDays
       }, { status: 400 });
     }
 
