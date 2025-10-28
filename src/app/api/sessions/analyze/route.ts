@@ -6,7 +6,8 @@ import {
   calculatePNN50,
   calculateMeanHR,
   calculateMxDMn,
-  calculateAMoMetrics
+  calculateAMoMetrics,
+  calculateHTI
 } from '@/utils/hrvCalculations';
 import { calculateFrequencyDomain } from '@/utils/frequencyDomain';
 import { calculatePoincareMetrics } from '@/utils/poincare';
@@ -108,6 +109,9 @@ const computeSessionSummaryPayload = ({
     
     // Calculate Baevsky metrics
     const baevskyMetrics = calculateBaevskyMetrics(rrValues);
+    
+    // Calculate HTI (HRV Triangular Index)
+    const hti = calculateHTI(rrValues);
 
     // Calculate windowed RMSSD for start/end
     const windowMs = START_END_WINDOW_SECONDS * 1000;
@@ -140,7 +144,8 @@ const computeSessionSummaryPayload = ({
         sleepRecovery: 0.6,
         shortTermRRStd: null,
         sd1: poincareMetrics.sd1,
-        sd2: poincareMetrics.sd2
+        sd2: poincareMetrics.sd2,
+        hti: hti
     });
 
     // Calculate overall HRV score

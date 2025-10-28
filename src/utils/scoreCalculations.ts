@@ -90,6 +90,7 @@ export const calculateFourScores = (metrics: {
     shortTermRRStd?: number | null;
     sd1?: number | null;
     sd2?: number | null;
+    hti?: number | null;
 }): {
     energyScore: number | null;
     stressScore: number | null;
@@ -105,7 +106,8 @@ export const calculateFourScores = (metrics: {
         sleepRecovery = 0.6,
         shortTermRRStd,
         sd1,
-        sd2
+        sd2,
+        hti
     } = metrics;
 
     // Check if we have the minimum required metrics
@@ -144,7 +146,10 @@ export const calculateFourScores = (metrics: {
         }
 
         // Calculate Energy Score
-        const energyRaw = 0.5 * p_RMSSD + 0.25 * p_SDNN + 0.15 * p_HR + 0.10 * p_totalPower;
+        // Reflects overall readiness to perform based on recovery (parasympathetic) and activation (sympathetic)
+        // RMSSD (50%) + SDNN (30%) + Resting Heart Rate inverted (20%)
+        const p_RHR = normalizeMinMax(meanHR, HR_MIN, HR_MAX); // Normalize HR directly for inversion
+        const energyRaw = 0.50 * p_RMSSD + 0.30 * p_SDNN + 0.20 * (1 - p_RHR);
         const energyScore = Math.max(0, Math.min(100, energyRaw * 100));
 
         // Calculate Stress Score using new two-factor model
@@ -177,40 +182,48 @@ export const calculateFourScores = (metrics: {
         }
 
         // Calculate Health Score
-        const healthRaw = 0.4 * p_SDNN + 0.3 * p_RMSSD + 0.2 * sleepRecovery + 0.1 * p_HR;
-        const healthScore = Math.max(0, Math.min(100, healthRaw * 100));
+        // Long-term indicator of general wellness and resilience
+        // SDNN (50%) + SD1/SD2 ratio normalized around 1 (30%) + RHR inverted (20%)
+        let healthScore = null;
+        
+        if (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6) {
+            // Calculate SD1/SD2 ratio
+            const sd1_sd2_ratio = sd1 / sd2;
+            
+            // Normalize around 1: ratio closer to 1 indicates better health
+            // p_SD1/SD2 = 1 - abs(1 - (SD1/SD2))
+            const p_SD1_SD2 = 1 - Math.abs(1 - sd1_sd2_ratio);
+            
+            // Calculate health score
+            const healthRaw = 0.50 * p_SDNN + 0.30 * p_SD1_SD2 + 0.20 * (1 - p_RHR);
+            healthScore = Math.max(0, Math.min(100, healthRaw * 100));
+        } else {
+            // Fallback: SDNN and RHR only if SD1/SD2 unavailable
+            const healthRaw = 0.70 * p_SDNN + 0.30 * (1 - p_RHR);
+            healthScore = Math.max(0, Math.min(100, healthRaw * 100));
+        }
 
         // Calculate Focus Score
+        // Assesses cognitive readiness and mental fatigue
+        // RMSSD (70%) + HTI (30%)
         let focusScore = null;
-        if (shortTermRRStd !== null && shortTermRRStd !== undefined) {
-            const arousal = p_HR;
-            const stability = 1 - normalizeMinMax(shortTermRRStd, 0, 50);
-            const focusRaw = 0.6 * arousal + 0.4 * stability;
+        
+        if (hti !== null && hti !== undefined && hti > 0) {
+            // Define normalization range for HTI
+            // Typical HTI values range from ~5 (low variability) to ~50+ (high variability)
+            const HTI_MIN = 5;
+            const HTI_MAX = 50;
             
-            let adjustedFocus = focusRaw;
-            if (stressScore > 70) {
-                adjustedFocus *= 0.7;
-            }
-            if (meanHR > 90) {
-                adjustedFocus *= 0.8;
-            }
+            // Normalize HTI
+            const p_HTI = normalizeMinMax(hti, HTI_MIN, HTI_MAX);
             
-            focusScore = Math.max(0, Math.min(100, adjustedFocus * 100));
+            // Focus Score: RMSSD (70%) + HTI (30%)
+            const focusRaw = 0.70 * p_RMSSD + 0.30 * p_HTI;
+            focusScore = Math.max(0, Math.min(100, focusRaw * 100));
         } else {
-            // Fallback calculation without short-term variability
-            const arousal = p_HR;
-            const stability = p_RMSSD; // Use RMSSD as stability proxy
-            const focusRaw = 0.6 * arousal + 0.4 * stability;
-            
-            let adjustedFocus = focusRaw;
-            if (stressScore > 70) {
-                adjustedFocus *= 0.7;
-            }
-            if (meanHR > 90) {
-                adjustedFocus *= 0.8;
-            }
-            
-            focusScore = Math.max(0, Math.min(100, adjustedFocus * 100));
+            // Fallback to RMSSD-only if HTI unavailable
+            const focusRaw = p_RMSSD;
+            focusScore = Math.max(0, Math.min(100, focusRaw * 100));
         }
 
         return {

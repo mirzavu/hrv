@@ -48,3 +48,46 @@ export const calculateAMoMetrics = (rrSeries: number[]) => {
     };
 };
 
+/**
+ * Calculate HRV Triangular Index (HTI)
+ * A geometric measure based on the density distribution of NN intervals
+ * HTI = Total number of NN intervals / Height of the histogram of all NN intervals
+ * For short-term recordings, we approximate using binning similar to AMo calculation
+ */
+export const calculateHTI = (rrSeries: number[]): number | null => {
+    if (rrSeries.length === 0) {
+        return null;
+    }
+
+    try {
+        // Use a smaller bin width (7.8125ms) for HTI as recommended for short-term recordings
+        const binWidth = 7.8125;
+        const counts = new Map<number, number>();
+
+        rrSeries.forEach((rr) => {
+            const bin = Math.floor(rr / binWidth) * binWidth;
+            counts.set(bin, (counts.get(bin) ?? 0) + 1);
+        });
+
+        // Find the maximum height (most frequent bin)
+        let maxCount = 0;
+        counts.forEach((count) => {
+            if (count > maxCount) {
+                maxCount = count;
+            }
+        });
+
+        if (maxCount === 0) {
+            return null;
+        }
+
+        // HTI = Total number of NN intervals / Height of histogram
+        const hti = rrSeries.length / maxCount;
+        return Number(hti.toFixed(2));
+
+    } catch (error) {
+        console.error('Error calculating HTI:', error);
+        return null;
+    }
+};
+
