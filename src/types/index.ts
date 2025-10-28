@@ -67,7 +67,6 @@ export interface SessionSummary {
   // Frequency domain metrics
   lfPower: HRVMetric;
   hfPower: HRVMetric;
-  lfhfRatio: HRVMetric;
   totalPower?: number | null | undefined;
   sd2_sd1_ratio?: number | null | undefined;
   

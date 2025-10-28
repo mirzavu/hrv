@@ -131,11 +131,6 @@ export const buildSessionSummary = (
       value: payload.hf_power_ms2,
       unit: 'ms²'
     },
-    lfhfRatio: {
-      label: 'LF/HF Ratio',
-      value: payload.lfhf_ratio,
-      unit: ''
-    },
     totalPower: payload.total_power_ms2,
     sd2_sd1_ratio: payload.sd2_sd1_ratio,
 

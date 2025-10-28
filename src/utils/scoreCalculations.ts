@@ -84,11 +84,12 @@ export const calculateFourScores = (metrics: {
     rmssd: number | null;
     sdnn: number | null;
     meanHR: number | null;
-    lfhfRatio: number | null;
     bsi: number | null;
     totalPower: number | null;
     sleepRecovery?: number;
     shortTermRRStd?: number | null;
+    sd1?: number | null;
+    sd2?: number | null;
 }): {
     energyScore: number | null;
     stressScore: number | null;
@@ -99,11 +100,12 @@ export const calculateFourScores = (metrics: {
         rmssd,
         sdnn,
         meanHR,
-        lfhfRatio,
         bsi,
         totalPower,
         sleepRecovery = 0.6,
-        shortTermRRStd
+        shortTermRRStd,
+        sd1,
+        sd2
     } = metrics;
 
     // Check if we have the minimum required metrics
@@ -135,12 +137,6 @@ export const calculateFourScores = (metrics: {
         const p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN); // Inverted: higher HR reduces score
         const p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
 
-        // Calculate LF/HF normalization
-        let p_LFHF = 0.5; // Default neutral value
-        if (lfhfRatio !== null && lfhfRatio > 0) {
-            p_LFHF = normalizeLFHF(lfhfRatio);
-        }
-
         // Calculate BSI normalization
         let p_BSI = 0.5; // Default neutral value
         if (bsi !== null) {
@@ -151,9 +147,34 @@ export const calculateFourScores = (metrics: {
         const energyRaw = 0.5 * p_RMSSD + 0.25 * p_SDNN + 0.15 * p_HR + 0.10 * p_totalPower;
         const energyScore = Math.max(0, Math.min(100, energyRaw * 100));
 
-        // Calculate Stress Score
-        const stressRaw = 0.5 * (1 - p_RMSSD) + 0.25 * p_BSI + 0.25 * p_LFHF;
-        const stressScore = Math.max(0, Math.min(100, stressRaw * 100));
+        // Calculate Stress Score using new two-factor model
+        // Option 1: A two-factor model with nonlinear analysis
+        // RMSSD (60%) + SD1/SD2 ratio (40%)
+        let stressScore = null;
+        
+        if (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6) {
+            // Calculate SD1/SD2 ratio (inverse of SD2/SD1)
+            const sd1_sd2_ratio = sd1 / sd2;
+            
+            // Define normalization ranges for SD1/SD2 ratio
+            // Based on typical Poincaré plot values where:
+            // - Lower SD1/SD2 indicates higher stress (more sympathetic)
+            // - Higher SD1/SD2 indicates lower stress (more parasympathetic)
+            const SD1_SD2_MIN = 0.1;  // Typical minimum for high stress
+            const SD1_SD2_MAX = 1.0;  // Typical maximum for low stress
+            
+            // Normalize SD1/SD2 ratio
+            const p_SD1_SD2 = normalizeMinMax(sd1_sd2_ratio, SD1_SD2_MIN, SD1_SD2_MAX);
+            
+            // Calculate stress score: lower ratios = higher stress
+            // Formula: Stress Score = (0.60 * (1 - p_RMSSD)) + (0.40 * (1 - p_SD1/SD2))
+            const stressRaw = 0.60 * (1 - p_RMSSD) + 0.40 * (1 - p_SD1_SD2);
+            stressScore = Math.max(0, Math.min(100, stressRaw * 100));
+        } else {
+            // Fallback to RMSSD-only stress calculation if SD1/SD2 unavailable
+            const stressRaw = 1 - p_RMSSD; // 100% RMSSD weight as fallback
+            stressScore = Math.max(0, Math.min(100, stressRaw * 100));
+        }
 
         // Calculate Health Score
         const healthRaw = 0.4 * p_SDNN + 0.3 * p_RMSSD + 0.2 * sleepRecovery + 0.1 * p_HR;

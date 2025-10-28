@@ -135,11 +135,12 @@ const computeSessionSummaryPayload = ({
         rmssd: rmssdSession,
         sdnn: sdnnSession,
         meanHR: meanHr,
-        lfhfRatio: frequencyMetrics.lfhfRatio,
         bsi: baevskyMetrics.bsi,
         totalPower: frequencyMetrics.totalPower,
         sleepRecovery: 0.6,
-        shortTermRRStd: null
+        shortTermRRStd: null,
+        sd1: poincareMetrics.sd1,
+        sd2: poincareMetrics.sd2
     });
 
     // Calculate overall HRV score
