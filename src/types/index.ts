@@ -31,6 +31,23 @@ export interface UserProfile {
   updatedAt?: string;
 }
 
+export interface UserBaseline {
+  $id: string;
+  user_id: string;
+  rmssd_avg: number | null;
+  rmssd_stdev: number | null;
+  sdnn_avg: number | null;
+  sdnn_stdev: number | null;
+  hr_avg: number | null;
+  hr_stdev: number | null;
+  sd1_sd2_ratio_avg: number | null;
+  sd1_sd2_ratio_stdev: number | null;
+  sessions_count: number | null;
+  established: boolean;
+  last_updated: string | null;
+  createdAt: string;
+}
+
 export interface HRVMetric {
   label: string;
   value: number | null | undefined;

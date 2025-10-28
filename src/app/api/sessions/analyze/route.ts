@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionSummaryPayload, RawHeartData } from '@/types';
+import type { SessionSummaryPayload, RawHeartData, UserBaseline } from '@/types';
 import {
   calculateRMSSD,
   calculateSDNN,
@@ -13,6 +13,8 @@ import { calculateFrequencyDomain } from '@/utils/frequencyDomain';
 import { calculatePoincareMetrics } from '@/utils/poincare';
 import { calculateBaevskyMetrics } from '@/utils/baevsky';
 import { calculateHrvScore, calculateFourScores } from '@/utils/scoreCalculations';
+import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
+import { getAdminPb } from '@/lib/pbAdmin';
 import {
   START_END_WINDOW_SECONDS,
   flattenRrSeries,
@@ -78,13 +80,13 @@ const calculateBalanceMetrics = (sd1: number | null, sd2: number | null): {
 };
 
 // Main computation function
-const computeSessionSummaryPayload = ({
+const computeSessionSummaryPayload = async ({
     rawData,
     sessionStartTime,
     durationSeconds,
     userId,
     sessionId,
-}: SummaryMetricOptions): SessionSummaryPayload => {
+}: SummaryMetricOptions): Promise<SessionSummaryPayload> => {
     const sessionStartTimestamp = sessionStartTime ? Date.parse(sessionStartTime) : (rawData[0]?.timestamp ?? Date.now());
     const rrSeries = flattenRrSeries(rawData, sessionStartTimestamp);
     const rrValues = rrSeries.map((item) => item.value);
@@ -148,16 +150,66 @@ const computeSessionSummaryPayload = ({
         hti: hti
     });
 
-    // Calculate overall HRV score
-    const hrvScore = calculateHrvScore({
-        rmssd: rmssdSession,
-        sdnn: sdnnSession,
-        meanHR: meanHr,
-        rmssdStart,
-        rmssdEnd,
-        coherence: respCoherence,
-        restoration: restorationIndex
-    });
+    // Fetch user's baseline for personalized HRV Readiness Score
+    let userBaseline: UserBaseline | null = null;
+    try {
+        const pb = await getAdminPb();
+        const baseline = await pb.collection('user_baselines').getFirstListItem(
+            `user_id = "${userId}"`
+        );
+        userBaseline = {
+            $id: baseline.id,
+            user_id: baseline.user_id,
+            rmssd_avg: baseline.rmssd_avg,
+            rmssd_stdev: baseline.rmssd_stdev,
+            sdnn_avg: baseline.sdnn_avg,
+            sdnn_stdev: baseline.sdnn_stdev,
+            hr_avg: baseline.hr_avg,
+            hr_stdev: baseline.hr_stdev,
+            sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
+            sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
+            sessions_count: baseline.sessions_count,
+            established: baseline.established,
+            last_updated: baseline.last_updated,
+            createdAt: baseline.created
+        };
+    } catch (error: any) {
+        // Baseline doesn't exist yet (404) - will use fallback calculation
+        if (error.status !== 404) {
+            console.error('Error fetching user baseline:', error);
+        }
+    }
+
+    // Calculate HRV Readiness Score using personalized baseline (if available)
+    let hrvScore: number | null = null;
+    
+    if (userBaseline && userBaseline.established) {
+        // Use personalized baseline approach
+        const sd1_sd2_ratio = (poincareMetrics.sd1 !== null && poincareMetrics.sd2 !== null && poincareMetrics.sd2 > 0)
+            ? poincareMetrics.sd1 / poincareMetrics.sd2
+            : null;
+            
+        hrvScore = calculateHrvReadinessScore({
+            rmssd: rmssdSession,
+            sdnn: sdnnSession,
+            meanHR: meanHr,
+            sd1: poincareMetrics.sd1,
+            sd2: poincareMetrics.sd2
+        }, userBaseline);
+    }
+    
+    // Fallback to generic calculation if baseline not available
+    if (hrvScore === null) {
+        hrvScore = calculateHrvScore({
+            rmssd: rmssdSession,
+            sdnn: sdnnSession,
+            meanHR: meanHr,
+            rmssdStart,
+            rmssdEnd,
+            coherence: respCoherence,
+            restoration: restorationIndex
+        });
+    }
 
     return {
         session_id: sessionId,
@@ -213,7 +265,7 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const summaryPayload = computeSessionSummaryPayload({
+        const summaryPayload = await computeSessionSummaryPayload({
             rawData,
             sessionStartTime,
             durationSeconds: durationSeconds || 0,

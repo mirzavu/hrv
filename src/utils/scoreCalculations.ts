@@ -20,6 +20,10 @@ export const normalizeLFHF = (lfhfRatio: number): number => {
 
 /**
  * Calculate the overall HRV Score (0-100) as a composite of key HRV metrics
+ * 
+ * @deprecated This function is being replaced by the personalized baseline approach.
+ * Use calculateHrvReadinessScore from baselineCalculations.ts instead.
+ * This is kept for backward compatibility with existing sessions.
  */
 export const calculateHrvScore = (metrics: {
     rmssd: number | null;
@@ -30,7 +34,7 @@ export const calculateHrvScore = (metrics: {
     coherence: number | null;
     restoration: number | null;
 }): number | null => {
-    const { rmssd, sdnn, meanHR, rmssdStart, rmssdEnd, coherence, restoration } = metrics;
+    const { rmssd, sdnn, meanHR } = metrics;
     
     // Check if we have the minimum required metrics
     if (rmssd === null || sdnn === null || meanHR === null) {
@@ -38,6 +42,9 @@ export const calculateHrvScore = (metrics: {
     }
     
     try {
+        // Simplified approach for backward compatibility
+        // This uses generic population ranges instead of personalized baselines
+        
         // Normalize RMSSD (10-120 ms range, higher is better)
         const rmssdScore = normalizeMinMax(rmssd, 10, 120);
         
@@ -47,27 +54,12 @@ export const calculateHrvScore = (metrics: {
         // Invert heart rate (lower HR is better for HRV)
         const hrScore = normalizeMinMax(110 - meanHR, 0, 70); // Assuming 40-110 BPM range
         
-        // RMSSD trend (positive trend is better)
-        let trendScore = 0.5; // Neutral
-        if (rmssdStart !== null && rmssdEnd !== null && rmssdStart > 0) {
-            const trend = (rmssdEnd - rmssdStart) / rmssdStart;
-            trendScore = Math.max(0, Math.min(1, 0.5 + trend * 2)); // Normalize to 0-1
-        }
-        
-        // Coherence component (if available)
-        const coherenceScore = coherence !== null ? coherence / 100 : 0.5;
-        
-        // Restoration component (if available)
-        const restorationScore = restoration !== null ? restoration / 100 : 0.5;
-        
-        // Calculate composite HRV score
+        // Calculate simplified HRV score (matching new formula weights)
+        // Formula: (0.35 * RMSSD) + (0.35 * SDNN) + (0.30 * inverted_HR)
         const hrvScore = 
-            0.25 * rmssdScore +
-            0.20 * sdnnScore +
-            0.20 * hrScore +
-            0.15 * trendScore +
-            0.10 * coherenceScore +
-            0.10 * restorationScore;
+            0.35 * rmssdScore +
+            0.35 * sdnnScore +
+            0.30 * hrScore;
         
         return Number((hrvScore * 100).toFixed(1));
         
