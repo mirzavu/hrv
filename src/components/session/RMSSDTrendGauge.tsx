@@ -14,7 +14,7 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
         trend: 'neutral',
         colorClass: 'text-gray-400',
         bgColorClass: 'bg-gray-200',
-        borderGradient: 'from-slate-200 to-slate-200',
+        borderColor: '#e2e8f0',
         label: 'N/A',
         description: 'Data not available',
         rotation: 0
@@ -31,7 +31,7 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
         trend: 'improvement',
         colorClass: 'text-green-500',
         bgColorClass: 'bg-green-500',
-        borderGradient: 'from-emerald-300 to-green-400',
+        borderColor: '#86efac',
         label: 'Improving',
         description: 'RMSSD increased during session - good recovery',
         rotation: rotation
@@ -41,7 +41,7 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
         trend: 'decline',
         colorClass: 'text-red-500',
         bgColorClass: 'bg-red-500',
-        borderGradient: 'from-rose-400 to-red-500',
+        borderColor: '#fca5a5',
         label: 'Declining',
         description: 'RMSSD decreased during session - may indicate stress',
         rotation: -rotation
@@ -51,7 +51,7 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
         trend: 'stable',
         colorClass: 'text-blue-500',
         bgColorClass: 'bg-blue-500',
-        borderGradient: 'from-blue-300 to-blue-400',
+        borderColor: '#bedbff',
         label: 'Stable',
         description: 'RMSSD remained consistent throughout session',
         rotation: 0
@@ -62,13 +62,14 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
   const trendData = getTrendData();
 
   return (
-    <div className="bg-white rounded-2xl p-6">
-      <div className="text-center">
-        <h3 className="text-lg font-semibold text-slate-700 mb-4">RMSSD Trend</h3>
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: trendData.borderColor }}>
+      <div className="bg-white rounded-[15px] p-6">
+        <div className="text-center">
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">RMSSD Trend</h3>
         
         {/* Gauge */}
         <div className="relative w-32 h-16 mx-auto mb-4">
-          <div className={`w-full h-full rounded-full border-2 border-gray-300 bg-gradient-to-r ${trendData.borderGradient} flex items-end justify-center`}>
+          <div className="w-full h-full rounded-full border-2 border-gray-300 flex items-end justify-center" style={{ backgroundColor: trendData.borderColor }}>
             <div 
               className="w-1 h-8 bg-white rounded-full transform origin-bottom transition-transform duration-500"
               style={{ transform: `rotate(${trendData.rotation}deg)` }}
@@ -102,6 +103,7 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
             </p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

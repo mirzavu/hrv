@@ -130,7 +130,7 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="p-0.5 bg-gradient-to-br from-sky-200 via-blue-200 to-indigo-200 rounded-2xl">
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: '#bedbff' }}>
       <div className="bg-white rounded-[15px] p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>

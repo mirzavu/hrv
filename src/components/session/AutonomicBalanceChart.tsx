@@ -253,12 +253,13 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
   };
 
   return (
-    <div className="rounded-xl bg-white p-6">
-      <div className="mb-4">
-        <h3 className="text-lg font-semibold text-slate-700 mb-1">
-          Autonomic Activity Diagram
-        </h3>
-      </div>
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: '#bedbff' }}>
+      <div className="bg-white rounded-[15px] p-6">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-slate-700 mb-1">
+            Autonomic Activity Diagram
+          </h3>
+        </div>
 
       {/* === Two-column layout === */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -498,6 +499,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
           </div>
 
         </div>
+      </div>
       </div>
     </div>
   );

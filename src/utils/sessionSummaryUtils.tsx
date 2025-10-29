@@ -32,18 +32,18 @@ export const getSignalIcon = (type: SignalType): React.ReactNode => {
   }
 };
 
-export const getSignalGradient = (type: SignalType): string => {
+export const getSignalColor = (type: SignalType): string => {
   switch (type) {
     case 'good':
-      return 'from-emerald-300 to-green-400';
+      return '#86efac';
     case 'warning':
-      return 'from-amber-200 to-yellow-300';
+      return '#fde047';
     case 'alert':
-      return 'from-rose-400 to-red-500';
+      return '#fca5a5';
     case 'info':
-      return 'from-sky-300 to-blue-400';
+      return '#bedbff';
     default:
-      return 'from-slate-200 to-slate-200';
+      return '#e2e8f0';
   }
 };
 

@@ -4,7 +4,6 @@ migrate((app) => {
   const usersCollection = app.findCollectionByNameOrId("_pb_users_auth_");
 
   const collection = new Collection({
-    id: "user_baselines",
     name: "user_baselines",
     type: "base",
     system: false,
@@ -41,7 +40,7 @@ migrate((app) => {
       },
       {
         system: false,
-        id: "rmssd_std",
+        id: "rmssd_stdev",
         name: "rmssd_stdev",
         type: "number",
         required: false,
@@ -61,7 +60,7 @@ migrate((app) => {
       },
       {
         system: false,
-        id: "sdnn_std",
+        id: "sdnn_stdev",
         name: "sdnn_stdev",
         type: "number",
         required: false,
@@ -81,7 +80,7 @@ migrate((app) => {
       },
       {
         system: false,
-        id: "hr_std",
+        id: "hr_stdev",
         name: "hr_stdev",
         type: "number",
         required: false,
@@ -92,7 +91,7 @@ migrate((app) => {
       // SD1/SD2 ratio baseline metrics
       {
         system: false,
-        id: "sd1_sd2_avg",
+        id: "sd1_sd2_ratio_avg",
         name: "sd1_sd2_ratio_avg",
         type: "number",
         required: false,
@@ -101,7 +100,7 @@ migrate((app) => {
       },
       {
         system: false,
-        id: "sd1_sd2_std",
+        id: "sd1_sd2_ratio_stdev",
         name: "sd1_sd2_ratio_stdev",
         type: "number",
         required: false,
@@ -112,7 +111,7 @@ migrate((app) => {
       // Metadata
       {
         system: false,
-        id: "sess_count",
+        id: "sessions_count",
         name: "sessions_count",
         type: "number",
         required: false,
@@ -130,7 +129,7 @@ migrate((app) => {
       },
       {
         system: false,
-        id: "updated_at",
+        id: "last_updated",
         name: "last_updated",
         type: "date",
         required: false,

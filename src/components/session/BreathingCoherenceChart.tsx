@@ -93,8 +93,9 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
   };
 
   return (
-    <div className="rounded-xl bg-white p-6 border border-slate-200">
-      <div className="mb-4">
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: '#bedbff' }}>
+      <div className="bg-white rounded-[15px] p-6">
+        <div className="mb-4">
         <h3 className="text-lg font-semibold text-slate-700 mb-1">Breathing Coherence</h3>
         <p className="text-sm text-slate-500">
           Follow the wave to pace your breathing. Inhale as it rises, exhale as it falls.
@@ -171,6 +172,7 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
           <span className="inline-flex h-2 w-2 rounded-full bg-emerald-100 border border-emerald-300"></span>
           <span>Coherence Zone</span>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -160,7 +160,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Sparkles className="w-6 h-6 text-purple-600" />
               Wellness Scores
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
               <MetricCard
                 icon={<Zap className="w-5 h-5 text-yellow-500" />}
                 title="Energy Score"
@@ -243,7 +243,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   <Waves className="w-6 h-6 text-blue-600" />
                   HRV Analysis
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
                   <MetricCard
                     title="Session RMSSD"
                     value={summary.sessionRMSSD.value}

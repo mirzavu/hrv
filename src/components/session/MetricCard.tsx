@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-  getSignalGradient,
+  getSignalColor,
   getSignalIcon,
   getTrendIcon,
   getMetricSignal,
@@ -30,9 +30,8 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
 
   return (
     <div
-      className={`p-[1px] bg-gradient-to-br ${getSignalGradient(
-        actualSignal?.type || 'info'
-      )} rounded-2xl hover:shadow-lg transition-shadow duration-300`}
+      className="p-0.5 rounded-2xl"
+      style={{ backgroundColor: getSignalColor(actualSignal?.type || 'info') }}
     >
       <div className="bg-white rounded-[15px] p-5 h-full relative group">
         {actualSignal && (

@@ -25,7 +25,7 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   // Determine balance status
   let colorClass = 'text-gray-400';
   let bgColorClass = 'bg-gray-200';
-  let borderGradient = 'from-slate-200 to-slate-200';
+  let borderColor = '#e2e8f0';
   let label = 'N/A';
   let description = 'Data not available';
   let balanceScore = 0;
@@ -38,28 +38,28 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
     if (parasympatheticPercent > 60) {
       colorClass = 'text-green-500';
       bgColorClass = 'bg-green-500';
-      borderGradient = 'from-emerald-300 to-green-400';
+      borderColor = '#86efac';
       label = 'Parasympathetic Dominant';
       description = 'Excellent autonomic balance - well-rested state.';
       interpretation = 'Your nervous system shows strong parasympathetic activity, indicating excellent recovery and relaxation. This suggests you are well-rested and your body is in an optimal state for healing and restoration.';
     } else if (parasympatheticPercent > 45) {
       colorClass = 'text-blue-500';
       bgColorClass = 'bg-blue-500';
-      borderGradient = 'from-blue-300 to-blue-400';
+      borderColor = '#bedbff';
       label = 'Balanced';
       description = 'Good autonomic balance between systems.';
       interpretation = 'Your nervous system shows a healthy balance between sympathetic and parasympathetic activity. This indicates good adaptability and resilience, suggesting you can handle stress well while maintaining recovery capacity.';
     } else if (parasympatheticPercent > 30) {
       colorClass = 'text-yellow-500';
       bgColorClass = 'bg-yellow-500';
-      borderGradient = 'from-amber-200 to-yellow-300';
+      borderColor = '#fde047';
       label = 'Sympathetic Leaning';
       description = 'Moderate stress - consider relaxation techniques.';
       interpretation = 'Your nervous system shows elevated sympathetic activity, indicating moderate stress levels. Consider incorporating relaxation techniques like deep breathing, meditation, or gentle movement to help restore balance.';
     } else {
       colorClass = 'text-red-500';
       bgColorClass = 'bg-red-500';
-      borderGradient = 'from-rose-400 to-red-500';
+      borderColor = '#fca5a5';
       label = 'Sympathetic Dominant';
       description = 'High stress - prioritize rest and recovery.';
       interpretation = 'Your nervous system shows high sympathetic dominance, indicating significant stress or overstimulation. Prioritize rest, recovery activities, and stress management techniques. Consider reducing external stressors and increasing relaxation time.';
@@ -69,7 +69,7 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   const rotation = (balanceScore / 100) * 180 - 90; // -90 to 90 degrees
 
   return (
-    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl hover:shadow-lg transition-shadow duration-300`}>
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: borderColor }}>
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
         <div>
           <h3 className="text-lg font-semibold text-slate-700 mb-1">Nervous System Balance</h3>

@@ -17,46 +17,71 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
 
   let colorClass = 'text-gray-400';
   let bgColorClass = 'bg-gray-200';
-  let borderGradient = 'from-slate-200 to-slate-200';
+  let borderColor = '#e2e8f0';
   let label = 'N/A';
   let description = 'Data not available';
   let interpretation = '';
 
   // Special handling for "Waiting For Baseline" state
   if (waitingForBaseline) {
-    colorClass = 'text-blue-400';
-    bgColorClass = 'bg-blue-400';
-    borderGradient = 'from-blue-200 to-blue-300';
-    label = 'WFB';
-    description = 'Building your personal baseline';
-    interpretation = 'Your HRV score is being calculated using a generic method. Complete 7+ sessions across 5+ days to establish your personalized baseline for more accurate, individualized scoring.';
+    // Use the same color scheme as the score would normally have
+    // but add the info icon indicator
+    if (score > 70) {
+      colorClass = 'text-green-500';
+      bgColorClass = 'bg-green-500';
+      borderColor = '#86efac';
+      label = 'Excellent';
+      description = 'Strong cardiovascular health and autonomic function.';
+      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+    } else if (score > 50) {
+      colorClass = 'text-blue-500';
+      bgColorClass = 'bg-blue-500';
+      borderColor = '#bedbff';
+      label = 'Good';
+      description = 'Healthy autonomic nervous system function.';
+      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+    } else if (score > 30) {
+      colorClass = 'text-yellow-500';
+      bgColorClass = 'bg-yellow-500';
+      borderColor = '#fde047';
+      label = 'Moderate';
+      description = 'Some stress or fatigue detected.';
+      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+    } else {
+      colorClass = 'text-red-500';
+      bgColorClass = 'bg-red-500';
+      borderColor = '#fca5a5';
+      label = 'Low';
+      description = 'High stress or fatigue levels.';
+      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+    }
   } else if (score !== null && score !== undefined) {
     // Normal scoring (when baseline is established or not required)
     if (score > 70) {
       colorClass = 'text-green-500';
       bgColorClass = 'bg-green-500';
-      borderGradient = 'from-emerald-300 to-green-400';
+      borderColor = '#86efac';
       label = 'Excellent';
       description = 'Strong cardiovascular health and autonomic function.';
       interpretation = 'Excellent HRV indicating strong cardiovascular health and autonomic function. Your heart rate variability shows optimal adaptability and resilience, suggesting excellent recovery capacity and stress management.';
     } else if (score > 50) {
       colorClass = 'text-blue-500';
       bgColorClass = 'bg-blue-500';
-      borderGradient = 'from-blue-300 to-blue-400';
+      borderColor = '#bedbff';
       label = 'Good';
       description = 'Healthy autonomic nervous system function.';
       interpretation = 'Good HRV suggesting healthy autonomic nervous system function. Your cardiovascular system shows good adaptability to stress and recovery, indicating balanced autonomic regulation.';
     } else if (score > 30) {
       colorClass = 'text-yellow-500';
       bgColorClass = 'bg-yellow-500';
-      borderGradient = 'from-amber-200 to-yellow-300';
+      borderColor = '#fde047';
       label = 'Moderate';
       description = 'Some stress or fatigue detected.';
       interpretation = 'Moderate HRV indicating some stress or fatigue. Consider prioritizing rest, recovery, and stress management techniques to improve your autonomic function and overall well-being.';
     } else {
       colorClass = 'text-red-500';
       bgColorClass = 'bg-red-500';
-      borderGradient = 'from-rose-400 to-red-500';
+      borderColor = '#fca5a5';
       label = 'Low';
       description = 'High stress or fatigue levels.';
       interpretation = 'Low HRV suggesting high stress or fatigue. Focus on adequate sleep, relaxation, and reducing external stressors to improve your autonomic nervous system function and recovery.';
@@ -64,7 +89,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
   }
 
   return (
-    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl hover:shadow-lg transition-shadow duration-300`}>
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: borderColor }}>
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
         <div className="w-full">
           <div className="flex items-center justify-center gap-2 mb-1">

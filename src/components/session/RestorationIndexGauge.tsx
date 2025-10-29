@@ -10,7 +10,7 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
 
   let colorClass = 'text-gray-400';
   let bgColorClass = 'bg-gray-200';
-  let borderGradient = 'from-slate-200 to-slate-200';
+  let borderColor = '#e2e8f0';
   let label = 'N/A';
   let description = 'Data not available';
 
@@ -18,26 +18,26 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
     if (score < 30) {
       colorClass = 'text-red-500';
       bgColorClass = 'bg-red-500';
-      borderGradient = 'from-rose-400 to-red-500';
+      borderColor = '#fca5a5';
       label = 'Poor';
       description = 'Prioritize rest and recovery activities today.';
     } else if (score < 70) {
       colorClass = 'text-yellow-500';
       bgColorClass = 'bg-yellow-500';
-      borderGradient = 'from-amber-200 to-yellow-300';
+      borderColor = '#fde047';
       label = 'Good';
       description = 'You are showing adequate recovery.';
     } else {
       colorClass = 'text-green-500';
       bgColorClass = 'bg-green-500';
-      borderGradient = 'from-emerald-300 to-green-400';
+      borderColor = '#86efac';
       label = 'Excellent';
       description = 'Your body is well-rested and ready to perform.';
     }
   }
 
   return (
-    <div className={`p-[1px] bg-gradient-to-br ${borderGradient} rounded-2xl hover:shadow-lg transition-shadow duration-300`}>
+    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: borderColor }}>
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
       <div>
         <h3 className="text-lg font-semibold text-slate-700 mb-1">Restoration Index</h3>
