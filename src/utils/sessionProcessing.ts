@@ -110,16 +110,26 @@ export const computeHrvStability = (
     calculateSDNN: (rr: number[]) => number | null,
     calculateMeanHR: (rr: number[]) => number | null
 ): number | null => {
+    console.log('🔍 [HRV_STABILITY_DEBUG] Starting HRV Stability calculation');
+    console.log('🔍 [HRV_STABILITY_DEBUG] rrSeries.length:', rrSeries.length);
+    console.log('🔍 [HRV_STABILITY_DEBUG] sessionStartTimestamp:', sessionStartTimestamp);
+    
     if (rrSeries.length < 2) {
+        console.warn('⚠️ [HRV_STABILITY_DEBUG] Not enough RR intervals (need at least 2)');
         return null;
     }
 
     const windowSizeMs = 30 * 1000; // Use 30-second windows for shorter sessions
     const endTimestamp = rrSeries[rrSeries.length - 1].timestamp;
     const sessionEndTimestamp = sessionStartTimestamp + (endTimestamp - sessionStartTimestamp);
+    
+    console.log('🔍 [HRV_STABILITY_DEBUG] Window size (ms):', windowSizeMs);
+    console.log('🔍 [HRV_STABILITY_DEBUG] End timestamp:', endTimestamp);
+    console.log('🔍 [HRV_STABILITY_DEBUG] Session duration (ms):', sessionEndTimestamp - sessionStartTimestamp);
 
     // Calculate HRV scores for each window
     const hrvScoreWindows: number[] = [];
+    let windowIndex = 0;
     
     for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - windowSizeMs; windowStart += windowSizeMs) {
         const windowEnd = windowStart + windowSizeMs;
@@ -127,10 +137,18 @@ export const computeHrvStability = (
             .filter(sample => sample.timestamp >= windowStart && sample.timestamp <= windowEnd)
             .map(sample => sample.value);
         
+        console.log(`🔍 [HRV_STABILITY_DEBUG] Window ${windowIndex}: dataPoints=${windowData.length}`);
+        
         if (windowData.length >= 2) {
             const windowRmssd = calculateRMSSD(windowData);
             const windowSdnn = calculateSDNN(windowData);
             const windowMeanHr = calculateMeanHR(windowData);
+            
+            console.log(`🔍 [HRV_STABILITY_DEBUG] Window ${windowIndex} metrics:`, {
+                rmssd: windowRmssd,
+                sdnn: windowSdnn,
+                meanHr: windowMeanHr
+            });
             
             // Calculate HRV score for this window using the existing function
             const hrvScore = calculateHrvScore({
@@ -143,45 +161,74 @@ export const computeHrvStability = (
                 restoration: null
             });
             
+            console.log(`🔍 [HRV_STABILITY_DEBUG] Window ${windowIndex} HRV score:`, hrvScore);
+            
             if (hrvScore !== null) {
                 hrvScoreWindows.push(hrvScore);
             }
         }
+        windowIndex++;
     }
 
+    console.log('🔍 [HRV_STABILITY_DEBUG] Total windows with valid HRV scores:', hrvScoreWindows.length);
+    console.log('🔍 [HRV_STABILITY_DEBUG] HRV score windows:', hrvScoreWindows);
+
     if (hrvScoreWindows.length < 2) {
+        console.warn('⚠️ [HRV_STABILITY_DEBUG] Not enough windows with valid HRV scores (need at least 2)');
         return null;
     }
 
     // Calculate coefficient of variation (CV = std / mean * 100)
     const mean = hrvScoreWindows.reduce((sum, value) => sum + value, 0) / hrvScoreWindows.length;
-    if (mean === 0) return null;
+    console.log('🔍 [HRV_STABILITY_DEBUG] Mean HRV score:', mean);
+    
+    if (mean === 0) {
+        console.warn('⚠️ [HRV_STABILITY_DEBUG] Mean is zero, cannot calculate CV');
+        return null;
+    }
 
     const variance = hrvScoreWindows.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / hrvScoreWindows.length;
     const standardDeviation = Math.sqrt(variance);
     const coefficientOfVariation = (standardDeviation / mean) * 100;
+
+    console.log('🔍 [HRV_STABILITY_DEBUG] Calculation results:', {
+        variance,
+        standardDeviation,
+        coefficientOfVariation: Number(coefficientOfVariation.toFixed(2))
+    });
 
     return Number(coefficientOfVariation.toFixed(2));
 };
 
 export const flattenRrSeries = (rawData: RawHeartData[], sessionStartTimestamp: number): TimestampedRR[] => {
     const series: TimestampedRR[] = [];
-    let fallbackTimestamp = sessionStartTimestamp;
+    let cumulativeTime = sessionStartTimestamp;
+
+    console.log('🔍 [FLATTEN_DEBUG] Starting flattenRrSeries');
+    console.log('🔍 [FLATTEN_DEBUG] sessionStartTimestamp:', sessionStartTimestamp);
+    console.log('🔍 [FLATTEN_DEBUG] rawData.length:', rawData.length);
 
     for (const entry of rawData) {
-        const baseTimestamp = typeof entry.timestamp === 'number' ? entry.timestamp : fallbackTimestamp;
-        fallbackTimestamp = baseTimestamp;
-
         if (Array.isArray(entry.allRrIntervals) && entry.allRrIntervals.length > 0) {
+            // Properly distribute timestamps for each RR interval
+            // Each RR interval represents the time since the PREVIOUS heartbeat
             entry.allRrIntervals.forEach((rr) => {
                 if (typeof rr === 'number' && !Number.isNaN(rr) && rr > 0) {
-                    series.push({ timestamp: baseTimestamp, value: rr });
+                    series.push({ timestamp: cumulativeTime, value: rr });
+                    // Advance the cumulative timestamp by the RR interval duration
+                    cumulativeTime += rr;
                 }
             });
         } else if (typeof entry.rrInterval === 'number' && entry.rrInterval > 0) {
-            series.push({ timestamp: baseTimestamp, value: entry.rrInterval });
+            series.push({ timestamp: cumulativeTime, value: entry.rrInterval });
+            cumulativeTime += entry.rrInterval;
         }
     }
+
+    console.log('🔍 [FLATTEN_DEBUG] Total RR intervals:', series.length);
+    console.log('🔍 [FLATTEN_DEBUG] First timestamp:', series[0]?.timestamp);
+    console.log('🔍 [FLATTEN_DEBUG] Last timestamp:', series[series.length - 1]?.timestamp);
+    console.log('🔍 [FLATTEN_DEBUG] Duration (ms):', series.length > 0 ? series[series.length - 1].timestamp - series[0].timestamp : 0);
 
     return series.sort((a, b) => a.timestamp - b.timestamp);
 };

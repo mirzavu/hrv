@@ -9,6 +9,10 @@ export const buildSessionSummary = (
   dataPointsCount: number,
   rawData: Array<{timestamp: number; rrInterval?: number; allRrIntervals?: number[]}> = []
 ): SessionSummary => {
+  console.log('🔍 [BUILD_SUMMARY_DEBUG] Building session summary');
+  console.log('🔍 [BUILD_SUMMARY_DEBUG] payload.rmssd_cv_percent:', payload.rmssd_cv_percent);
+  console.log('🔍 [BUILD_SUMMARY_DEBUG] Full payload:', payload);
+  
   // Compute RMSSD Delta dynamically
   const rmssdDelta = (payload.rmssd_end_ms !== null && payload.rmssd_start_ms !== null) 
     ? payload.rmssd_end_ms - payload.rmssd_start_ms 

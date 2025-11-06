@@ -69,6 +69,24 @@ const AppContent = () => {
         latestSessionData.current = { elapsedTime, rawHeartData, sessionActive, sessionPaused, sessionStatus };
     }, [elapsedTime, rawHeartData, sessionActive, sessionPaused, sessionStatus]);
 
+    // Reset session when user signs in (to clear any previous demo session progress)
+    const prevUserRef = useRef<User | null>(null);
+    useEffect(() => {
+        const prevUser = prevUserRef.current;
+        const currentUser = user;
+        
+        // If user changed from null/guest to a logged-in user, reset session
+        if (currentUser && currentUser.$id !== 'guest' && 
+            (!prevUser || prevUser.$id === 'guest')) {
+            // User just signed in - reset any existing session state
+            if (sessionStatus === 'idle' && (elapsedTime > 0 || rawHeartData.length > 0)) {
+                resetSession();
+                setHr(null);
+            }
+        }
+        
+        prevUserRef.current = currentUser;
+    }, [user, sessionStatus, elapsedTime, rawHeartData.length, resetSession]);
 
     const {
         isConnected,

@@ -128,7 +128,16 @@ const computeSessionSummaryPayload = async ({
     // Calculate complex metrics
     const timeToStabilize = computeTimeToStabilize(rawData, sessionStartTimestamp, meanHr);
     const respCoherence = computeRespCoherenceScore(rmssdSession, sdnnSession, pnn50);
+    
+    console.log('🔍 [API_DEBUG] Before computeHrvStability:', {
+        rrSeriesLength: rrSeries.length,
+        sessionStartTimestamp,
+        durationSeconds
+    });
+    
     const hrvStability = computeHrvStability(rrSeries, sessionStartTimestamp, calculateRMSSD, calculateSDNN, calculateMeanHR);
+    
+    console.log('🔍 [API_DEBUG] HRV Stability result:', hrvStability);
 
     let sessionStressIndex: number | null = null;
     if (amode50 !== null && mxDmN && mxDmN !== 0) {

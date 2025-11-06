@@ -211,6 +211,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
           const finalSummaryPayload = await response.json();
 
+          console.log('🔍 [API_RESPONSE_DEBUG] API Response Payload:', finalSummaryPayload);
+          console.log('🔍 [API_RESPONSE_DEBUG] rmssd_cv_percent from API:', finalSummaryPayload.rmssd_cv_percent);
+
           console.log('💾 [DEBUG] Creating session_summary record:', {
             sessionId: finalSummaryPayload.session_id,
             userId: finalSummaryPayload.user_id,
@@ -226,6 +229,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           
           // Update the displayed summary with the final sessionId
           const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
+          console.log('🔍 [FINAL_SUMMARY_DEBUG] Final Summary Object:', finalSummary);
+          console.log('🔍 [FINAL_SUMMARY_DEBUG] HRV Stability in final summary:', finalSummary.hrvStability);
           setSessionSummary(finalSummary);
         } catch (summaryError) {
           console.error('Error saving session summary:', summaryError);
