@@ -216,7 +216,7 @@ const computeSessionSummaryPayload = async ({
         session_id: sessionId,
         user_id: userId,
         rmssd_session_ms: rmssdSession !== null ? Number(rmssdSession.toFixed(2)) : null,
-        ...(hrvStability !== null && { rmssd_cv_percent: hrvStability }),
+        rmssd_cv_percent: hrvStability !== null ? Number(hrvStability.toFixed(2)) : null,
         sdnn_session_ms: sdnnSession !== null ? Number(sdnnSession.toFixed(2)) : null,
         pnn50_percent: pnn50 !== null ? Number(pnn50.toFixed(2)) : null,
         session_mean_hr: meanHr !== null ? Number(meanHr.toFixed(2)) : null,

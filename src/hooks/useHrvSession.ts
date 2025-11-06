@@ -10,11 +10,13 @@ import { buildSessionSummary } from '@/utils/buildSessionSummary';
 type SessionStatus = 'idle' | 'connecting' | 'running' | 'paused' | 'completed' | 'error';
 
 const MAX_SESSION_DURATION = 900;
+const MIN_SESSION_DURATION = 120; // 2 minutes - minimum required
 const SESSION_MILESTONES: SessionMilestone[] = [
-  { label: 'Quick Check', value: 120 },
-  { label: 'Standard', value: 300 },
-  { label: 'Deep Insight', value: 600 },
-  { label: 'Full Analysis', value: 900 },
+  { label: '1 Minute', value: 60 },
+  { label: '2 Minutes', value: 120 },
+  { label: '3 Minutes', value: 180 },
+  { label: '4 Minutes', value: 240 },
+  { label: '5 Minutes', value: 300 },
 ];
 
 const CSV_HEADERS = ['timestamp', 'heartRate', 'rrInterval', 'rawValue', 'flags', 'rawBytes', 'allRrIntervals'] as const;
@@ -408,5 +410,6 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     milestonesReached,
     SESSION_MILESTONES,
     MAX_SESSION_DURATION,
+    MIN_SESSION_DURATION,
   };
 };

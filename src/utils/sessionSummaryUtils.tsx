@@ -67,19 +67,19 @@ export const getMetricSignal = (
 
   switch (metricName) {
     case 'Session Duration':
-      if (value >= 300)
+      if (value >= 300)  // 5 minutes = ideal
         return {
           type: 'good',
-          message: 'Excellent session duration for comprehensive analysis.',
+          message: 'Ideal session duration for comprehensive HRV analysis.',
         };
-      if (value >= 120)
+      if (value >= 180)  // 3 minutes = acceptable but below ideal
         return {
-          type: 'info',
-          message: 'Good session length for basic HRV assessment.',
+          type: 'warning',
+          message: 'Session duration below recommended minimum. For reliable HRV assessment, aim for at least 5 minutes.',
         };
       return {
         type: 'warning',
-        message: 'Short session - consider longer duration for better accuracy.',
+        message: 'Very short session. Minimum recommended duration is 3 minutes, ideal is 5 minutes.',
       };
 
     case 'Mean Heart Rate':

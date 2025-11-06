@@ -53,7 +53,8 @@ const AppContent = () => {
         setSessionSummary,
         endSession,
         resetSession,
-        demoDataGenerator
+        demoDataGenerator,
+        MIN_SESSION_DURATION
     } = useHrvSession(user, addToast); // Pass user and addToast
 
     // Create a ref to hold the latest session data for callbacks
@@ -291,30 +292,30 @@ const AppContent = () => {
         document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
     }, [darkMode]);
 
-    // Calculate current step for progress stepper
+    // Calculate current step for progress stepper (5 steps mapped to 1-5 minute milestones)
     const currentStep = useMemo(() => {
         if (!sessionActive) return -1;
-        if (elapsedTime < 120) return 0; // Start - 2min
-        if (elapsedTime < 240) return 1; // Quick Check - 4min
-        if (elapsedTime < 360) return 2; // Standard Analysis - 6min
-        if (elapsedTime < 600) return 3; // Deep Insight - 10min
-        return 4; // Full Analysis - 15min
+        if (elapsedTime < 60) return 0;   // Start - <1min
+        if (elapsedTime < 120) return 1;  // Quick Check - 1-2min
+        if (elapsedTime < 180) return 2;  // Standard Analysis - 2-3min
+        if (elapsedTime < 240) return 3;  // Deep Insight - 3-4min
+        return 4; // Full Analysis - 4-5min (Ideal duration)
     }, [sessionActive, elapsedTime]);
 
-    // Get current phase name and description
+    // Get current phase name and description (5 steps mapped to 1-5 minute milestones)
     const currentPhase = useMemo(() => {
         if (!sessionActive) return { name: '', description: '', color: '' };
-        if (elapsedTime < 120) return { name: 'Initialization', description: 'Session starting...', color: 'bg-blue-500' };
-        if (elapsedTime < 240) return { name: 'Quick Check', description: 'Collecting baseline data', color: 'bg-teal-500' };
-        if (elapsedTime < 360) return { name: 'Standard Analysis', description: 'Analyzing heart rate patterns', color: 'bg-emerald-500' };
-        if (elapsedTime < 600) return { name: 'Deep Insight', description: 'Evaluating ANS balance', color: 'bg-amber-500' };
-        return { name: 'Full Analysis', description: 'Comprehensive HRV assessment', color: 'bg-orange-500' };
+        if (elapsedTime < 60) return { name: 'Initialization', description: 'Session starting...', color: 'bg-blue-500' };
+        if (elapsedTime < 120) return { name: 'Quick Check', description: 'Collecting baseline data', color: 'bg-teal-500' };
+        if (elapsedTime < 180) return { name: 'Standard Analysis', description: 'Analyzing heart rate patterns', color: 'bg-emerald-500' };
+        if (elapsedTime < 240) return { name: 'Deep Insight', description: 'Evaluating ANS balance', color: 'bg-amber-500' };
+        return { name: 'Full Analysis', description: 'Ideal duration achieved', color: 'bg-orange-500' };
     }, [sessionActive, elapsedTime]);
 
-    // Calculate progress percentage
+    // Calculate progress percentage (based on 5-minute ideal duration)
     const progress = useMemo(() => {
-        const maxTime = 15 * 60; // 15 minutes
-        return Math.min(Math.round((elapsedTime / maxTime) * 100), 100);
+        const idealTime = 5 * 60; // 5 minutes (ideal duration)
+        return Math.min(Math.round((elapsedTime / idealTime) * 100), 100);
     }, [elapsedTime]);
 
     if (typeof window !== 'undefined' && window.location.pathname === '/auth/callback') {
@@ -420,7 +421,7 @@ const AppContent = () => {
                                 </div>
                                 <div className={`rounded-lg p-5 ${darkMode ? 'bg-gray-700' : 'bg-gray-50'}`}>
                                     <h4 className={`text-sm font-medium mb-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Session Time</h4>
-                                    <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}<span className={`text-3xl ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/15:00</span></p>
+                                    <p className={`text-4xl font-bold ${darkMode ? 'text-white' : 'text-gray-800'}`}>{Math.floor(liveMetrics.sessionTime / 60)}:{(liveMetrics.sessionTime % 60).toString().padStart(2, '0')}<span className={`text-3xl ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/5:00</span></p>
                                 </div>
                             </div>
                         </div>
@@ -503,6 +504,14 @@ const AppContent = () => {
                                     </button>
                                 )}
                                 <button onClick={() => {
+                                    // Validate minimum session duration
+                                    if (elapsedTime < MIN_SESSION_DURATION) {
+                                        const remainingSeconds = MIN_SESSION_DURATION - elapsedTime;
+                                        const remainingMinutes = Math.ceil(remainingSeconds / 60);
+                                        addToast(`⚠️ Session duration must be at least 2 minutes for reliable HRV assessment. Please continue for ${remainingMinutes} more minute${remainingMinutes > 1 ? 's' : ''}.`);
+                                        return;
+                                    }
+                                    
                                     // For real sessions, disconnect Bluetooth first
                                     if (isConnected) {
                                         disconnectDevice();
@@ -622,8 +631,9 @@ const AppContent = () => {
                                         )}
                                     </span>
                                     <h4 className={`font-medium ${currentStep === 4 ? 'text-teal-600' : currentStep >= 4 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Full Analysis</h4>
-                                    {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 4 ? 'Comprehensive analysis...' : currentStep >= 4 ? 'Full report ready' : 'Pending'}</p>}
+                                    {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 4 ? 'Comprehensive analysis...' : currentStep >= 4 ? 'Ideal duration achieved ✓' : 'Pending'}</p>}
                                 </li>
+                                
                             </ol>
                         </div>
                     </div>
