@@ -5,7 +5,6 @@ import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
-import RMSSDTrendGauge from './RMSSDTrendGauge';
 import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
 import HRVScoreGauge from './HRVScoreGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
@@ -243,16 +242,11 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   <Waves className="w-6 h-6 text-blue-600" />
                   HRV Analysis
                 </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
                   <MetricCard
                     title="Session RMSSD"
                     value={summary.sessionRMSSD.value}
                     unit={summary.sessionRMSSD.unit}
-                  />
-                  <MetricCard
-                    title="Time to Stabilize"
-                    value={summary.timeToStabilize.value}
-                    unit={summary.timeToStabilize.unit}
                   />
                   <MetricCard
                     title="HRV Stability"
@@ -279,14 +273,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   />
                 </div>
                 
-                {/* Restoration Index and RMSSD Trend */}
+                {/* Restoration Index */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <RestorationIndexGauge score={summary.restorationIndex.value} />
-                  <RMSSDTrendGauge 
-                    startRMSSD={summary.startRMSSD.value}
-                    endRMSSD={summary.endRMSSD.value}
-                    rmssdDelta={summary.rmssdDelta.value}
-                  />
                 </div>
               </section>
 
