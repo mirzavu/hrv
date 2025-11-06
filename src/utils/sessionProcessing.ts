@@ -1,6 +1,7 @@
 // Session processing and data transformation utilities
 
 import type { RawHeartData } from '@/types';
+import { calculateHrvScore } from './scoreCalculations';
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
@@ -102,7 +103,13 @@ export const computeRestorationIndex = (
     return Number((0.45 * rmssdComponent + 0.35 * coherenceComponent + 0.2 * timeComponent).toFixed(2));
 };
 
-export const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimestamp: number, calculateRMSSD: (rr: number[]) => number | null): number | null => {
+export const computeHrvStability = (
+    rrSeries: TimestampedRR[], 
+    sessionStartTimestamp: number, 
+    calculateRMSSD: (rr: number[]) => number | null,
+    calculateSDNN: (rr: number[]) => number | null,
+    calculateMeanHR: (rr: number[]) => number | null
+): number | null => {
     if (rrSeries.length < 2) {
         return null;
     }
@@ -111,8 +118,8 @@ export const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimes
     const endTimestamp = rrSeries[rrSeries.length - 1].timestamp;
     const sessionEndTimestamp = sessionStartTimestamp + (endTimestamp - sessionStartTimestamp);
 
-    // Calculate RMSSD windows
-    const rmssdWindows: number[] = [];
+    // Calculate HRV scores for each window
+    const hrvScoreWindows: number[] = [];
     
     for (let windowStart = sessionStartTimestamp; windowStart < sessionEndTimestamp - windowSizeMs; windowStart += windowSizeMs) {
         const windowEnd = windowStart + windowSizeMs;
@@ -122,21 +129,35 @@ export const computeHrvStability = (rrSeries: TimestampedRR[], sessionStartTimes
         
         if (windowData.length >= 2) {
             const windowRmssd = calculateRMSSD(windowData);
-            if (windowRmssd !== null) {
-                rmssdWindows.push(windowRmssd);
+            const windowSdnn = calculateSDNN(windowData);
+            const windowMeanHr = calculateMeanHR(windowData);
+            
+            // Calculate HRV score for this window using the existing function
+            const hrvScore = calculateHrvScore({
+                rmssd: windowRmssd,
+                sdnn: windowSdnn,
+                meanHR: windowMeanHr,
+                rmssdStart: null,
+                rmssdEnd: null,
+                coherence: null,
+                restoration: null
+            });
+            
+            if (hrvScore !== null) {
+                hrvScoreWindows.push(hrvScore);
             }
         }
     }
 
-    if (rmssdWindows.length < 2) {
+    if (hrvScoreWindows.length < 2) {
         return null;
     }
 
     // Calculate coefficient of variation (CV = std / mean * 100)
-    const mean = rmssdWindows.reduce((sum, value) => sum + value, 0) / rmssdWindows.length;
+    const mean = hrvScoreWindows.reduce((sum, value) => sum + value, 0) / hrvScoreWindows.length;
     if (mean === 0) return null;
 
-    const variance = rmssdWindows.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / rmssdWindows.length;
+    const variance = hrvScoreWindows.reduce((sum, value) => sum + Math.pow(value - mean, 2), 0) / hrvScoreWindows.length;
     const standardDeviation = Math.sqrt(variance);
     const coefficientOfVariation = (standardDeviation / mean) * 100;
 

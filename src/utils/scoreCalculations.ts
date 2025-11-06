@@ -20,10 +20,10 @@ export const normalizeLFHF = (lfhfRatio: number): number => {
 
 /**
  * Calculate the overall HRV Score (0-100) as a composite of key HRV metrics
+ * Uses generic population ranges instead of personalized baselines.
  * 
- * @deprecated This function is being replaced by the personalized baseline approach.
- * Use calculateHrvReadinessScore from baselineCalculations.ts instead.
- * This is kept for backward compatibility with existing sessions.
+ * Used as fallback for users who don't have baseline established and for HRV CV calculation.
+ * For personalized scoring with user baselines, use calculateHrvReadinessScore from baselineCalculations.ts
  */
 export const calculateHrvScore = (metrics: {
     rmssd: number | null;
