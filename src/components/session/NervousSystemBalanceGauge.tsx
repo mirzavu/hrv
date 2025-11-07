@@ -31,14 +31,14 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
     : { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' }; // Parasympathetic dominant
 
   return (
-    <div className="p-0.5 rounded-2xl bg-gray-200">
-      <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-700 mb-4">Nervous System Balance</h3>
+    <div className="p-0.5 rounded-2xl bg-gray-200 h-full flex flex-col">
+      <div className="bg-white rounded-[15px] p-6 text-center flex flex-col h-full">
+        <div className="mb-4">
+          <h3 className="text-lg font-semibold text-slate-700">Nervous System Balance</h3>
         </div>
         
         {/* Horizontal Bar Segmented Visualization */}
-        <div className="w-full max-w-lg flex flex-col items-center mb-4">
+        <div className="w-full max-w-lg flex flex-col items-center mb-4 mx-auto">
           {/* Marker Container */}
           <div className="relative w-full h-12">
             <div
