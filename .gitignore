@@ -17,6 +17,9 @@ dist/
 build/
 out/
 
+# TypeScript
+*.tsbuildinfo
+
 # IDE and editor files
 .vscode/
 .cursor/
@@ -25,6 +28,7 @@ out/
 *.swo
 *~
 .cursorignore
+.cursorrules
 
 # OS generated files
 .DS_Store

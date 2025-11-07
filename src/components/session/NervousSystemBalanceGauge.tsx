@@ -22,119 +22,56 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
     sympatheticPercent = propSympatheticPercent;
   }
   
-  // Determine balance status
-  let colorClass = 'text-gray-400';
-  let bgColorClass = 'bg-gray-200';
-  let borderColor = '#e2e8f0';
-  let label = 'N/A';
-  let description = 'Data not available';
-  let balanceScore = 0;
-  let interpretation = '';
-
-  if (parasympatheticPercent !== undefined && sympatheticPercent !== undefined) {
-    // Calculate balance score (0-100, where higher = more parasympathetic)
-    balanceScore = Math.min(100, Math.max(0, parasympatheticPercent));
-    
-    if (parasympatheticPercent > 60) {
-      colorClass = 'text-green-500';
-      bgColorClass = 'bg-green-500';
-      borderColor = '#86efac';
-      label = 'Parasympathetic Dominant';
-      description = 'Excellent autonomic balance - well-rested state.';
-      interpretation = 'Your nervous system shows strong parasympathetic activity, indicating excellent recovery and relaxation. This suggests you are well-rested and your body is in an optimal state for healing and restoration.';
-    } else if (parasympatheticPercent > 45) {
-      colorClass = 'text-blue-500';
-      bgColorClass = 'bg-blue-500';
-      borderColor = '#bedbff';
-      label = 'Balanced';
-      description = 'Good autonomic balance between systems.';
-      interpretation = 'Your nervous system shows a healthy balance between sympathetic and parasympathetic activity. This indicates good adaptability and resilience, suggesting you can handle stress well while maintaining recovery capacity.';
-    } else if (parasympatheticPercent > 30) {
-      colorClass = 'text-yellow-500';
-      bgColorClass = 'bg-yellow-500';
-      borderColor = '#fde047';
-      label = 'Sympathetic Leaning';
-      description = 'Moderate stress - consider relaxation techniques.';
-      interpretation = 'Your nervous system shows elevated sympathetic activity, indicating moderate stress levels. Consider incorporating relaxation techniques like deep breathing, meditation, or gentle movement to help restore balance.';
-    } else {
-      colorClass = 'text-red-500';
-      bgColorClass = 'bg-red-500';
-      borderColor = '#fca5a5';
-      label = 'Sympathetic Dominant';
-      description = 'High stress - prioritize rest and recovery.';
-      interpretation = 'Your nervous system shows high sympathetic dominance, indicating significant stress or overstimulation. Prioritize rest, recovery activities, and stress management techniques. Consider reducing external stressors and increasing relaxation time.';
-    }
-  }
-
-  const rotation = (balanceScore / 100) * 180 - 90; // -90 to 90 degrees
+  // Calculate balance score (0-100, where higher = more parasympathetic)
+  const balanceScore = Math.min(100, Math.max(0, parasympatheticPercent));
+  
+  // Determine color based on score: yellow for sympathetic (lower score), green for parasympathetic (higher score)
+  const scoreColorDetails = balanceScore < 50
+    ? { text: 'text-yellow-600', border: 'border-yellow-500', bg: 'bg-yellow-50' } // Sympathetic dominant
+    : { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' }; // Parasympathetic dominant
 
   return (
-    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: borderColor }}>
+    <div className="p-0.5 rounded-2xl bg-gray-200">
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
         <div>
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">Nervous System Balance</h3>
-          <p className="text-sm text-slate-500 mb-4">{description}</p>
+          <h3 className="text-lg font-semibold text-slate-700 mb-4">Nervous System Balance</h3>
         </div>
         
-        {/* Balance Visualization */}
-        <div className="relative w-48 h-24 mb-4">
-          <svg className="w-full h-full" viewBox="0 0 200 100">
-            {/* Background Arc */}
-            <path
-              d="M 20 100 A 80 80 0 0 1 180 100"
-              fill="none"
-              stroke="#e5e7eb"
-              strokeWidth="20"
-              strokeLinecap="round"
-            />
-            {/* Foreground Arc */}
-            <path
-              d="M 20 100 A 80 80 0 0 1 180 100"
-              fill="none"
-              stroke={parasympatheticPercent === 50 && sympatheticPercent === 50 ? '#e5e7eb' : `url(#balanceGradient)`}
-              strokeWidth="20"
-              strokeLinecap="round"
-              strokeDasharray={`${(balanceScore / 100) * 251.2}, 251.2`}
-              className="transition-all duration-700 ease-in-out"
-            />
-            <defs>
-              <linearGradient id="balanceGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#ef4444" />
-                <stop offset="30%" stopColor="#f59e0b" />
-                <stop offset="50%" stopColor="#3b82f6" />
-                <stop offset="70%" stopColor="#84cc16" />
-                <stop offset="100%" stopColor="#22c55e" />
-              </linearGradient>
-            </defs>
-          </svg>
-          
-          {/* Needle */}
-          <div
-            className="absolute bottom-0 left-1/2 -translate-x-1/2"
-            style={{
-              transform: `rotate(${rotation}deg)`,
-              transformOrigin: 'bottom center',
-              transition: 'transform 0.7s ease-in-out',
-              height: '48px',
-              width: '2px',
-            }}
-          >
-            <div className={`${bgColorClass} w-full h-full rounded-t-full`}></div>
+        {/* Horizontal Bar Segmented Visualization */}
+        <div className="w-full max-w-lg flex flex-col items-center mb-4">
+          {/* Marker Container */}
+          <div className="relative w-full h-12">
+            <div
+              className="absolute bottom-0 flex flex-col items-center"
+              style={{ left: `${balanceScore}%`, transform: 'translateX(-50%)', transition: 'left 0.7s ease-out' }}
+            >
+              {/* Pill part of the marker */}
+              <div className={`px-3 py-1 ${scoreColorDetails.bg} ${scoreColorDetails.border} border-2 rounded-full text-sm font-bold ${scoreColorDetails.text} shadow-md z-10`}>
+                {Math.round(balanceScore)}
+              </div>
+              {/* Connecting line */}
+              <div className="w-px h-3 bg-gray-300" />
+            </div>
           </div>
-          <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white rounded-full border-2 border-gray-300"></div>
+          
+          {/* Segments container */}
+          <div className="w-full flex h-8 rounded-full overflow-hidden shadow-inner bg-gray-100">
+            <div className="w-[50%] bg-yellow-200/70 flex items-center justify-center text-xs font-medium text-yellow-700/80">Sympathetic</div>
+            <div className="w-[50%] bg-emerald-200/70 flex items-center justify-center text-xs font-medium text-emerald-700/80">Parasympathetic</div>
+          </div>
         </div>
 
         {/* Balance Breakdown */}
         <div className="w-full space-y-2 mb-4">
           <div className="flex justify-between items-center text-sm">
             <span className="text-slate-600">Parasympathetic</span>
-            <span className={`font-semibold ${colorClass}`}>
+            <span className="font-semibold text-emerald-600">
               {parasympatheticPercent.toFixed(1)}%
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
             <span className="text-slate-600">Sympathetic</span>
-            <span className={`font-semibold ${colorClass}`}>
+            <span className="font-semibold text-yellow-600">
               {sympatheticPercent.toFixed(1)}%
             </span>
           </div>
@@ -146,12 +83,6 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
               </span>
             </div>
           )}
-        </div>
-
-        {/* Interpretation */}
-        <div className="w-full">
-          <p className={`font-semibold text-sm ${colorClass} mb-2`}>{label}</p>
-          <p className="text-xs text-slate-600 leading-relaxed">{interpretation}</p>
         </div>
       </div>
     </div>
