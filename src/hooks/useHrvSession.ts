@@ -9,7 +9,7 @@ import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
 type SessionStatus = 'idle' | 'connecting' | 'running' | 'paused' | 'completed' | 'error';
 
-const MAX_SESSION_DURATION = 900;
+const MAX_SESSION_DURATION = 300;
 const MIN_SESSION_DURATION = 120; // 2 minutes - minimum required
 const SESSION_MILESTONES: SessionMilestone[] = [
   { label: '1 Minute', value: 60 },
@@ -87,6 +87,22 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   useEffect(() => {
     sessionStatusRef.current = sessionStatus;
   }, [sessionStatus]);
+
+  const resetSession = useCallback(() => {
+    if (demoDataGenerator.current) {
+      clearInterval(demoDataGenerator.current);
+      demoDataGenerator.current = null;
+    }
+    setRawHeartData([]);
+    setElapsedTime(0);
+    setSessionSummary(null);
+    setSessionStartTime(null);
+    setSessionStatus('idle');
+    sessionStartTimestamp.current = null;
+    pausedTime.current = 0;
+    milestonesReached.current.clear();
+    isDemoSession.current = false;
+  }, []);
 
   const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[], rrQualityData?: any) => {
     console.log('🔴 [DEBUG] endSession called:', {
@@ -254,6 +270,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       localStorage.setItem('hrv_guest_session', JSON.stringify(guestSessionData));
       addToast('Session saved locally!');
     }
+    
+    // Don't reset session here - let the user view the summary modal
+    // Reset will happen when user clicks "Start New Session" in the modal
   }, [addToast, user, sessionStartTime]);
 
   useEffect(() => {
@@ -299,23 +318,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     if (elapsedTime >= MAX_SESSION_DURATION) {
       endSession(elapsedTime, rawHeartData, null); // RR quality not available in auto-end
     }
-  }, [elapsedTime, sessionStatus, addToast, rawHeartData]);
-
-  const resetSession = useCallback(() => {
-    if (demoDataGenerator.current) {
-      clearInterval(demoDataGenerator.current);
-      demoDataGenerator.current = null;
-    }
-    setRawHeartData([]);
-    setElapsedTime(0);
-    setSessionSummary(null);
-    setSessionStartTime(null);
-    setSessionStatus('idle');
-    sessionStartTimestamp.current = null;
-    pausedTime.current = 0;
-    milestonesReached.current.clear();
-    isDemoSession.current = false;
-  }, []);
+  }, [elapsedTime, sessionStatus, addToast, rawHeartData, endSession]);
 
   
   const startRealSession = useCallback(() => {
@@ -327,8 +330,28 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   }, [sessionStatus]);
   
   const startDemoSession = useCallback(() => {
-    if (sessionStatus !== 'idle') return false;
+    // If session is not idle, reset it first (synchronously using refs)
+    if (sessionStatusRef.current !== 'idle') {
+      // Reset synchronously
+      if (demoDataGenerator.current) {
+        clearInterval(demoDataGenerator.current);
+        demoDataGenerator.current = null;
+      }
+      setRawHeartData([]);
+      setElapsedTime(0);
+      setSessionSummary(null);
+      setSessionStartTime(null);
+      setSessionStatus('idle');
+      sessionStatusRef.current = 'idle';
+      sessionStartTimestamp.current = null;
+      pausedTime.current = 0;
+      milestonesReached.current.clear();
+      isDemoSession.current = false;
+    }
+    
+    // Now start the demo session
     isDemoSession.current = true;
+    sessionStatusRef.current = 'connecting';
     setSessionStatus('connecting'); // Demo also starts as connecting, timer starts on first data
     return true;
   }, [sessionStatus]);

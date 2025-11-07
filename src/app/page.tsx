@@ -15,6 +15,7 @@ import BluetoothCompatibilityCheck from '@/components/ui/BluetoothCompatibilityC
 import MetricCard from '@/components/ui/MetricCard';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import LegacyHeartRateChart from '@/components/session/LegacyHeartRateChart';
+import EndSessionConfirmationModal from '@/components/session/EndSessionConfirmationModal';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
@@ -114,6 +115,7 @@ const AppContent = () => {
     const [finalRRQuality, setFinalRRQuality] = useState<{percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number} | null>(null);
     const [showBluetoothMessage, setShowBluetoothMessage] = useState(false);
     const [showLoginFromStart, setShowLoginFromStart] = useState(false);
+    const [showEndSessionConfirmation, setShowEndSessionConfirmation] = useState(false);
 
     // Check if Web Bluetooth is supported
     const isWebBluetoothSupported = useMemo(() => {
@@ -216,15 +218,14 @@ const AppContent = () => {
             clearInterval(demoDataGenerator.current);
         }
         
-        // Reset session data
-        resetSession();
+        // Reset local UI state
         setHr(null);
         // Hide Bluetooth message when starting demo
         setShowBluetoothMessage(false);
         // Hide login modal if it was shown from start button
         setShowLoginFromStart(false);
         
-        // Start demo session (which sets status to 'connecting')
+        // Start demo session (hook will handle reset if needed)
         const sessionStarted = startDemoSessionFromHook();
         if (sessionStarted) {
             setStatusMessage('Demo connecting...');
@@ -253,6 +254,19 @@ const AppContent = () => {
                 });
             }, 45); // 20x speed: 900ms / 20 = 45ms
         }
+    };
+
+    const handleEndSessionConfirm = () => {
+        setShowEndSessionConfirmation(false);
+        
+        // For real sessions, disconnect Bluetooth first
+        if (isConnected) {
+            disconnectDevice();
+        }
+        const finalRRQualityData = getRRQuality(); // Get final RR quality before ending
+        setFinalRRQuality(finalRRQualityData); // Store for session summary display
+        endSession(elapsedTime, rawHeartData, finalRRQualityData);
+        setHr(null); // Clear heart rate display
     };
 
     const resetApp = () => {
@@ -522,22 +536,20 @@ const AppContent = () => {
                                     </button>
                                 )}
                                 <button onClick={() => {
-                                    // Validate minimum session duration
-                                    if (elapsedTime < MIN_SESSION_DURATION) {
-                                        const remainingSeconds = MIN_SESSION_DURATION - elapsedTime;
-                                        const remainingMinutes = Math.ceil(remainingSeconds / 60);
-                                        addToast(`⚠️ Session duration must be at least 2 minutes for reliable HRV assessment. Please continue for ${remainingMinutes} more minute${remainingMinutes > 1 ? 's' : ''}.`);
-                                        return;
+                                    // Show confirmation modal if session is less than 3 minutes
+                                    if (elapsedTime < 180) {
+                                        setShowEndSessionConfirmation(true);
+                                    } else {
+                                        // For sessions >= 3 minutes, end directly
+                                        // For real sessions, disconnect Bluetooth first
+                                        if (isConnected) {
+                                            disconnectDevice();
+                                        }
+                                        const finalRRQualityData = getRRQuality(); // Get final RR quality before ending
+                                        setFinalRRQuality(finalRRQualityData); // Store for session summary display
+                                        endSession(elapsedTime, rawHeartData, finalRRQualityData);
+                                        setHr(null); // Clear heart rate display
                                     }
-                                    
-                                    // For real sessions, disconnect Bluetooth first
-                                    if (isConnected) {
-                                        disconnectDevice();
-                                    }
-                                    const finalRRQualityData = getRRQuality(); // Get final RR quality before ending
-                                    setFinalRRQuality(finalRRQualityData); // Store for session summary display
-                                    endSession(elapsedTime, rawHeartData, finalRRQualityData);
-                                    setHr(null); // Clear heart rate display
                                     }} className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-4 py-3 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors text-base cursor-pointer">
                                         <LogOut className="w-5 h-5" />
                                         <span>End</span>
@@ -666,6 +678,16 @@ const AppContent = () => {
                     This app is for informational purposes only and is not a medical device.
                 </p>
             </footer>
+
+            {/* End Session Confirmation Modal */}
+            {showEndSessionConfirmation && (
+                <EndSessionConfirmationModal
+                    elapsedTime={elapsedTime}
+                    onConfirm={handleEndSessionConfirm}
+                    onCancel={() => setShowEndSessionConfirmation(false)}
+                    darkMode={darkMode}
+                />
+            )}
         </div>
     );
 };
