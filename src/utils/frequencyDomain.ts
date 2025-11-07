@@ -33,6 +33,9 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
         const timeSeries: number[] = [];
         
         // Interpolate RR intervals onto uniform time grid
+        // IMPORTANT: Convert RR intervals from milliseconds to seconds for FFT analysis
+        // This ensures the FFT produces power in s² units, which can then be correctly
+        // scaled to ms² by multiplying by 1,000,000 (1000²) in the final step
         let rrIndex = 0;
         for (let sampleIdx = 0; sampleIdx < numSamples; sampleIdx++) {
             const targetTime = sampleIdx * samplingInterval;
@@ -43,11 +46,12 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
             }
             
             // Use the RR interval that applies at this time point
+            // Convert from milliseconds to seconds for FFT analysis
             if (rrIndex < rrIntervals.length) {
-                timeSeries.push(rrIntervals[rrIndex]);
+                timeSeries.push(rrIntervals[rrIndex] / 1000);
             } else if (rrIntervals.length > 0) {
                 // Pad with last RR interval if beyond available data
-                timeSeries.push(rrIntervals[rrIntervals.length - 1]);
+                timeSeries.push(rrIntervals[rrIntervals.length - 1] / 1000);
             }
         }
 
@@ -64,6 +68,10 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
             };
         }
 
+        // Calculate frequency resolution (frequency bin width)
+        // Δf = samplingRate / windowSize (Hz)
+        const frequencyResolution = samplingRate / windowSize;
+        
         const frequencies: number[] = [];
         const powerSpectrum: number[] = [];
         
@@ -72,14 +80,30 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
             powerSpectrum.push(0);
         }
 
+        // Welch's method: process each window with proper normalization
         for (let w = 0; w < numWindows; w++) {
             const start = w * (windowSize - overlap);
             const window = timeSeries.slice(start, start + windowSize);
             
-            const windowed = window.map((value, i) => 
-                value * 0.5 * (1 - Math.cos(2 * Math.PI * i / (windowSize - 1)))
-            );
+            // CRITICAL FIX 1: Remove mean (detrend) to eliminate DC leakage
+            const windowMean = window.reduce((sum, val) => sum + val, 0) / window.length;
+            const detrendedWindow = window.map(val => val - windowMean);
             
+            // CRITICAL FIX 2: Apply Hanning window with proper normalization
+            // For Welch's method, we need to account for window energy
+            let windowEnergy = 0;
+            const windowed = detrendedWindow.map((value, i) => {
+                const hanningCoeff = 0.5 * (1 - Math.cos(2 * Math.PI * i / (windowSize - 1)));
+                windowEnergy += hanningCoeff * hanningCoeff;
+                return value * hanningCoeff;
+            });
+            
+            // Calculate normalization factor for Welch's method
+            // Standard Welch PSD formula: PSD = |FFT|² / (fs * sum(w²))
+            // Where fs = sampling frequency, sum(w²) = window energy
+            const windowNorm = samplingRate * windowEnergy;
+            
+            // Compute FFT for this window
             for (let i = 0; i <= windowSize / 2; i++) {
                 let real = 0;
                 let imag = 0;
@@ -90,11 +114,14 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
                     imag += windowed[j] * Math.sin(angle);
                 }
                 
-                const power = (real * real + imag * imag) / windowSize;
+                // Power spectral density (PSD) for this bin
+                // Normalize by window normalization factor
+                const power = (real * real + imag * imag) / windowNorm;
                 powerSpectrum[i] += power;
             }
         }
 
+        // Average across all windows (Welch's method)
         for (let i = 0; i < powerSpectrum.length; i++) {
             powerSpectrum[i] /= numWindows;
         }
@@ -106,23 +133,32 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
         const vlfStart = 0.0033;
         const vlfEnd = 0.04;
 
+        // CRITICAL FIX 3: Integrate PSD by multiplying by frequency bin width (Δf)
+        // Band power = Σ PSD(bin) × Δf
+        // CRITICAL FIX 4: Ignore DC bin (bin 0, i=0) to avoid DC leakage
         let lfPower = 0;
         let hfPower = 0;
         let vlfPower = 0;
 
-        for (let i = 0; i < frequencies.length; i++) {
+        for (let i = 1; i < frequencies.length; i++) { // Start from i=1 to skip DC (bin 0)
             const freq = frequencies[i];
-            const power = powerSpectrum[i];
+            const psd = powerSpectrum[i];
+            
+            // Integrate PSD: multiply by frequency bin width
+            const bandPower = psd * frequencyResolution;
             
             if (freq >= vlfStart && freq < vlfEnd) {
-                vlfPower += power;
+                vlfPower += bandPower;
             } else if (freq >= lfStart && freq < lfEnd) {
-                lfPower += power;
+                lfPower += bandPower;
             } else if (freq >= hfStart && freq <= hfEnd) {
-                hfPower += power;
+                hfPower += bandPower;
             }
         }
 
+        // Scale power from s² to ms² units
+        // Since we converted RR intervals to seconds before FFT, the power is in s² units
+        // Multiply by 1,000,000 (1000²) to convert to ms²
         const powerScale = 1000 * 1000;
         lfPower *= powerScale;
         hfPower *= powerScale;
