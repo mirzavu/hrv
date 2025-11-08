@@ -112,8 +112,11 @@ pb_data/
 # Playwright MCP files
 .playwright-mcp/
 
-# Documentation files
-*.md
+# Documentation files (internal docs - README.md is tracked)
+AUTOMATIC_BASELINE_SYSTEM.md
+HRV_BASELINE_SCORING.md
+Agents.md
+LICENSE.md
 
 # Backup and archive files
 *.backup
