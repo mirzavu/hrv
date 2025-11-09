@@ -137,6 +137,23 @@ export const buildSessionSummary = (
     },
     totalPower: payload.total_power_ms2,
     sd2_sd1_ratio: payload.sd2_sd1_ratio,
+    lfhfRatio: {
+      label: 'LF/HF Ratio',
+      value: payload.lfhf_ratio,
+      unit: 'log'
+    },
+
+    // Time domain metrics
+    sessionSDNN: {
+      label: 'Session SDNN',
+      value: payload.sdnn_session_ms,
+      unit: 'ms'
+    },
+    amode50: {
+      label: 'AMo50',
+      value: payload.amode_50,
+      unit: '%'
+    },
 
     // === NEW SD2/SD1-based Balance Percentages ===
     sd1_sd2_balance_score_nbs: payload.sd1_sd2_balance_score_nbs,

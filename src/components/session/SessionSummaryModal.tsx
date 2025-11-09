@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { SessionSummary } from '@/types';
+import React, { useMemo, useEffect, useState } from 'react';
+import { SessionSummary, UserBaseline } from '@/types';
 import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
@@ -10,6 +10,8 @@ import HRVScoreGauge from './HRVScoreGauge';
 import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
 import TachogramChart from './TachogramChart';
 import AutonomicBalanceChart from './AutonomicBalanceChart';
+import AutonomicInterpretation from './AutonomicInterpretation';
+import { interpretAutonomicState } from '@/utils/autonomicInterpretation';
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -19,6 +21,7 @@ interface SessionSummaryModalProps {
   onGuestLogin: () => void;
   onClose: () => void;
   rrQuality?: {percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number};
+  userId?: string | null;
 }
 
 const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
@@ -28,7 +31,44 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   onGuestLogin,
   onClose,
   rrQuality,
+  userId,
 }) => {
+  const [baseline, setBaseline] = useState<UserBaseline | null>(null);
+  const [loadingBaseline, setLoadingBaseline] = useState(false);
+
+  // Fetch baseline when modal opens
+  useEffect(() => {
+    if (!userId || isGuest) {
+      setBaseline(null);
+      return;
+    }
+
+    const fetchBaseline = async () => {
+      setLoadingBaseline(true);
+      try {
+        const response = await fetch(`/api/user/baseline?userId=${userId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBaseline(data.baseline);
+        } else {
+          setBaseline(null);
+        }
+      } catch (error) {
+        console.error('Error fetching baseline:', error);
+        setBaseline(null);
+      } finally {
+        setLoadingBaseline(false);
+      }
+    };
+
+    fetchBaseline();
+  }, [userId, isGuest]);
+
+  // Calculate interpretation
+  const interpretation = useMemo(() => {
+    if (loadingBaseline) return null;
+    return interpretAutonomicState(summary, baseline);
+  }, [summary, baseline, loadingBaseline]);
   const heartRateData = useMemo(() => {
     const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
@@ -298,6 +338,21 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   />
 
                 </div>
+              </section>
+
+              {/* Autonomic Interpretation Section */}
+              <section>
+                <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                  <Brain className="w-6 h-6 text-purple-600" />
+                  Autonomic Interpretation
+                </h2>
+                {loadingBaseline ? (
+                  <div className="bg-white rounded-xl border border-slate-200 p-6 text-center">
+                    <p className="text-slate-500">Loading interpretation...</p>
+                  </div>
+                ) : (
+                  <AutonomicInterpretation interpretation={interpretation} />
+                )}
               </section>
             </section>
           </div>
