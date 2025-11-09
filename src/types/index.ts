@@ -86,6 +86,11 @@ export interface SessionSummary {
   hfPower: HRVMetric;
   totalPower?: number | null | undefined;
   sd2_sd1_ratio?: number | null | undefined;
+  lfhfRatio?: number | null | undefined;
+  
+  // Additional HRV metrics
+  sdnn?: HRVMetric;
+  amode50?: number | null | undefined;
   
   // === NEW SD2/SD1-based Balance Percentages ===
   sd1_sd2_balance_score_nbs?: number | null | undefined;

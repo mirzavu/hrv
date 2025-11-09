@@ -394,6 +394,7 @@ const AppContent = () => {
                         onReset={resetApp}
                         isGuest={user?.$id === 'guest'}
                         onGuestLogin={() => setShowLoginModal(true)}
+                        userId={user?.$id ?? null}
                         onClose={() => setSessionSummary(null)}
                         rrQuality={finalRRQuality || undefined}
                     />

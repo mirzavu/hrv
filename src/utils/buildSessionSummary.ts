@@ -137,6 +137,15 @@ export const buildSessionSummary = (
     },
     totalPower: payload.total_power_ms2,
     sd2_sd1_ratio: payload.sd2_sd1_ratio,
+    lfhfRatio: payload.lfhf_ratio ?? null,
+    
+    // Additional HRV metrics
+    sdnn: {
+      label: 'SDNN',
+      value: payload.sdnn_session_ms,
+      unit: 'ms'
+    },
+    amode50: payload.amode_50 ?? null,
 
     // === NEW SD2/SD1-based Balance Percentages ===
     sd1_sd2_balance_score_nbs: payload.sd1_sd2_balance_score_nbs,
