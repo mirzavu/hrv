@@ -2,7 +2,6 @@
 
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { useAuth } from '@/hooks/useAuth';
-import { useSessions } from '@/hooks/useSessions';
 import Header from '@/components/ui/Header';
 import { useState } from 'react';
 
@@ -19,29 +18,16 @@ export default function CalendarPage() {
     }, 3000);
   };
 
-  const { sessions, loading: sessionsLoading, error } = useSessions(user?.$id || null);
-
-
   const handleViewCalendar = () => {
     window.location.href = '/calendar';
   };
 
-  if (authLoading || sessionsLoading) {
+  if (authLoading) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-4 md:p-6">
         <div className="bg-white p-6 rounded-2xl shadow-lg">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
           <p className="text-gray-600 mt-4 text-center">Loading calendar...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center p-2 sm:p-4 md:p-6">
-        <div className="bg-white p-6 rounded-2xl shadow-lg">
-          <p className="text-red-600 text-center">Error loading sessions: {error}</p>
         </div>
       </div>
     );
@@ -59,7 +45,7 @@ export default function CalendarPage() {
       
       <main className="flex-1 p-4 md:p-8 lg:p-10">
         <div className="max-w-7xl mx-auto">
-          <CalendarView sessions={sessions} />
+          <CalendarView userId={user?.$id || null} />
         </div>
       </main>
       
