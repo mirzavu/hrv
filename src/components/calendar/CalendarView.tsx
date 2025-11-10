@@ -339,37 +339,38 @@ export function CalendarView({ userId }: CalendarViewProps) {
                 </svg>
                 Month Analysis
               </button>
-              <div className="flex-1 overflow-y-auto space-y-3" style={{ maxHeight: 'calc(var(--calendar-height) - 100px)' }}>
+              <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(var(--calendar-height) - 100px)' }}>
                 {dayLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
                   </div>
                 ) : selectedDay && daySessions.length > 0 ? (
-                  daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
-                    const getBorderColor = (rmssd: number) => rmssd >= 60 ? 'border-green-200' : rmssd >= 40 ? 'border-yellow-200' : 'border-red-200';
-
-                    return (
-                      <div className={`p-3 sm:p-4 rounded-lg border-2 ${getBorderColor(s.rmssd)} bg-white hover:bg-gray-50`} key={s.id}>
-                        <div className="flex justify-between items-center">
-                          <p className="font-semibold text-gray-800 text-sm sm:text-base">{s.time}</p>
-                          <p className="text-xs sm:text-sm text-gray-900"><span className="font-semibold">{s.durationMin}</span> <span className="text-xs text-gray-500 font-normal">min</span></p>
+                  <div key={selectedDay} className="animate-fade-in space-y-3">
+                    {daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
+                      return (
+                        <div className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between" key={s.id}>
+                          <div className="flex flex-col gap-1">
+                            <span className="text-base font-semibold text-gray-800">{s.time}</span>
+                            <span className="text-xs font-medium text-gray-400">{s.durationMin} min</span>
+                          </div>
+                          <div className="flex items-center gap-5 text-right">
+                            <div className="flex flex-col">
+                              <span className="text-2xl font-bold text-gray-800 leading-tight">
+                                {s.hrvScore ?? 'N/A'}<span className="text-sm font-medium text-gray-400 ml-0.5">/100</span>
+                              </span>
+                              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">HRV Score</span>
+                            </div>
+                            <div className="flex flex-col">
+                              <span className="text-2xl font-bold text-gray-800 leading-tight">
+                                {s.rmssd}<span className="text-sm font-medium text-gray-400 ml-0.5">ms</span>
+                              </span>
+                              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">RMSSD</span>
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex justify-between items-center mt-2">
-                          <span className="text-sm font-medium text-gray-600">HRV Score</span>
-                          <span className="text-sm text-gray-900">
-                            <span className="font-semibold">{s.hrvScore ?? 'N/A'}</span>
-                            <span className="text-xs text-gray-500 font-normal">/100</span>
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center mt-1">
-                          <span className="text-xs text-gray-500">RMSSD</span>
-                          <span className="text-xs text-gray-500">
-                            <span className="font-medium">{s.rmssd}</span><span className="text-xs text-gray-400">ms</span>
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })
+                      );
+                    })}
+                  </div>
                 ) : (
                   <div className="text-xs sm:text-sm text-gray-500 p-4 text-center bg-white rounded-lg border border-dashed flex items-center justify-center h-full">Select a day to see sessions</div>
                 )}
