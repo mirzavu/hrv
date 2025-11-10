@@ -239,7 +239,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           await pb.collection('session_summary').create({
             ...finalSummaryPayload,
             rr_quality_data: rrQualityData,
-            createdAt: new Date().toISOString(),
+            session_date: finalStartTime, // Store session startTime for temporal distribution checks
           });
           console.log('✅ [DEBUG] session_summary record created');
           

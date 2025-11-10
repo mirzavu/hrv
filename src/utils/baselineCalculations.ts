@@ -278,45 +278,205 @@ export const shouldUpdateBaseline = (
 };
 
 /**
- * Check if sessions have valid temporal distribution for baseline
- * Sessions should be spread across multiple days, not all on the same day
+ * Group sessions by date (YYYY-MM-DD format)
  * 
- * @param sessions - Array of session records with timestamps
- * @returns Validation result with unique days count
+ * @param sessions - Array of session summary records with session_date field
+ * @returns Map of date string to array of sessions for that date
  */
-export const hasValidTemporalDistribution = (
-  sessions: Array<{ createdAt: string }>
-): { valid: boolean; uniqueDays: number; timeSpanDays: number } => {
-  if (sessions.length < 7) {
-    return { valid: false, uniqueDays: 0, timeSpanDays: 0 };
+const groupSessionsByDate = (
+  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
+): Map<string, typeof sessions> => {
+  console.log(`[BASELINE_CALC] groupSessionsByDate: Processing ${sessions.length} sessions`);
+  const grouped = new Map<string, typeof sessions>();
+  let skippedCount = 0;
+  
+  for (const session of sessions) {
+    const dateStr = session.session_date || session.created || session.createdAt;
+    if (!dateStr) {
+      skippedCount++;
+      continue;
+    }
+    
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) {
+      skippedCount++;
+      console.log(`[BASELINE_CALC] groupSessionsByDate: Invalid date for session ${session.id || 'unknown'}: ${dateStr}`);
+      continue;
+    }
+    
+    const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    if (!grouped.has(dateKey)) {
+      grouped.set(dateKey, []);
+    }
+    grouped.get(dateKey)!.push(session);
+  }
+  
+  console.log(`[BASELINE_CALC] groupSessionsByDate: Grouped into ${grouped.size} unique dates, skipped ${skippedCount} sessions`);
+  const dateCounts = Array.from(grouped.entries()).map(([date, sessions]) => `${date}: ${sessions.length}`);
+  console.log(`[BASELINE_CALC] groupSessionsByDate: Date breakdown:`, dateCounts.slice(0, 10).join(', '));
+  
+  return grouped;
+};
+
+/**
+ * Check if user can create baseline based on last 14 days
+ * Condition: At least 5 unique days with sessions in the last 14 days
+ * 
+ * @param sessions - Array of session summary records
+ * @returns Validation result
+ */
+export const canCreateBaseline = (
+  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
+): { valid: boolean; uniqueDays: number } => {
+  console.log(`[BASELINE_CALC] canCreateBaseline: Checking ${sessions.length} sessions`);
+  
+  if (sessions.length === 0) {
+    console.log(`[BASELINE_CALC] canCreateBaseline: No sessions provided - INVALID`);
+    return { valid: false, uniqueDays: 0 };
   }
 
-  // Extract unique dates (YYYY-MM-DD format)
-  const uniqueDates = new Set(
-    sessions.map(s => {
-      const date = new Date(s.createdAt);
-      return date.toISOString().split('T')[0];
-    })
-  );
-
-  const uniqueDays = uniqueDates.size;
+  const grouped = groupSessionsByDate(sessions);
   
-  // Require sessions to be spread across at least 5 different days
+  // Get current date and calculate 14 days ago
+  const now = new Date();
+  const fourteenDaysAgo = new Date(now);
+  fourteenDaysAgo.setDate(now.getDate() - 14);
+  
+  console.log(`[BASELINE_CALC] canCreateBaseline: Checking last 14 days from ${fourteenDaysAgo.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`);
+  
+  // Filter to sessions from last 14 days
+  const allDates = Array.from(grouped.keys());
+  const recentDates = allDates.filter(dateStr => {
+    const date = new Date(dateStr);
+    const isRecent = date >= fourteenDaysAgo;
+    if (!isRecent) {
+      console.log(`[BASELINE_CALC] canCreateBaseline: Date ${dateStr} is outside 14-day window`);
+    }
+    return isRecent;
+  });
+  
+  const uniqueDays = recentDates.length;
   const MIN_UNIQUE_DAYS = 5;
   
-  if (uniqueDays < MIN_UNIQUE_DAYS) {
-    return { valid: false, uniqueDays, timeSpanDays: 0 };
-  }
-
-  // Check time span (should be at least 5 days)
-  const timestamps = sessions.map(s => new Date(s.createdAt).getTime()).sort();
-  const timeSpanDays = (timestamps[timestamps.length - 1] - timestamps[0]) / (1000 * 60 * 60 * 24);
+  console.log(`[BASELINE_CALC] canCreateBaseline: Found ${uniqueDays} unique days in last 14 days (need ${MIN_UNIQUE_DAYS})`);
+  console.log(`[BASELINE_CALC] canCreateBaseline: Recent dates:`, recentDates.sort().join(', '));
   
-  const MIN_TIME_SPAN_DAYS = 5;
-  if (timeSpanDays < MIN_TIME_SPAN_DAYS) {
-    return { valid: false, uniqueDays, timeSpanDays };
+  const isValid = uniqueDays >= MIN_UNIQUE_DAYS;
+  console.log(`[BASELINE_CALC] canCreateBaseline: Result - ${isValid ? 'VALID' : 'INVALID'} (${uniqueDays} >= ${MIN_UNIQUE_DAYS})`);
+  
+  return {
+    valid: isValid,
+    uniqueDays
+  };
+};
+
+/**
+ * Select sessions for baseline calculation
+ * Logic: Get latest 7 dates, take up to 2 sessions per date (max 14 total, min 5)
+ * 
+ * @param sessions - Array of session summary records
+ * @returns Selected sessions for baseline calculation
+ */
+export const selectSessionsForBaseline = (
+  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
+): typeof sessions => {
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selecting from ${sessions.length} sessions`);
+  
+  if (sessions.length === 0) {
+    console.log(`[BASELINE_CALC] selectSessionsForBaseline: No sessions to select - returning empty array`);
+    return [];
   }
 
-  return { valid: true, uniqueDays, timeSpanDays };
+  const grouped = groupSessionsByDate(sessions);
+  
+  // Sort dates descending (most recent first)
+  const sortedDates = Array.from(grouped.keys()).sort((a, b) => {
+    return new Date(b).getTime() - new Date(a).getTime();
+  });
+  
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: All dates sorted:`, sortedDates.join(', '));
+  
+  // Get latest 7 dates
+  const latest7Dates = sortedDates.slice(0, 7);
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Latest 7 dates:`, latest7Dates.join(', '));
+  
+  // For each date, take up to 2 most recent sessions
+  const selected: typeof sessions = [];
+  const selectionLog: string[] = [];
+  
+  for (const date of latest7Dates) {
+    const dateSessions = grouped.get(date) || [];
+    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Date ${date} has ${dateSessions.length} sessions`);
+    
+    // Sort sessions by date descending (most recent first)
+    const sortedSessions = dateSessions.sort((a, b) => {
+      const dateA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
+      const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
+      return dateB - dateA;
+    });
+    
+    // Take up to 2 sessions from this date
+    const taken = sortedSessions.slice(0, 2);
+    selected.push(...taken);
+    selectionLog.push(`${date}: ${taken.length} session(s) (${dateSessions.length} available)`);
+    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selected ${taken.length} from ${date} (${dateSessions.length} total)`);
+  }
+  
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: After initial selection: ${selected.length} sessions`);
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selection breakdown:`, selectionLog.join('; '));
+  
+  // Ensure we have at least 5 sessions (if available)
+  if (selected.length < 5 && sessions.length >= 5) {
+    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Only ${selected.length} sessions selected, need at least 5. Fetching more...`);
+    
+    // If we don't have enough, take more from the latest dates
+    for (const date of latest7Dates) {
+      const dateSessions = grouped.get(date) || [];
+      const sortedSessions = dateSessions.sort((a, b) => {
+        const dateA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
+        const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
+        return dateB - dateA;
+      });
+      
+      // Add sessions we haven't already added
+      let addedFromDate = 0;
+      for (const session of sortedSessions) {
+        if (selected.length >= 14) break;
+        if (!selected.includes(session)) {
+          selected.push(session);
+          addedFromDate++;
+        }
+      }
+      if (addedFromDate > 0) {
+        console.log(`[BASELINE_CALC] selectSessionsForBaseline: Added ${addedFromDate} more from ${date}`);
+      }
+      if (selected.length >= 14) break;
+    }
+  }
+  
+  const finalSelection = selected.slice(0, 14); // Max 14 sessions
+  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Final selection: ${finalSelection.length} sessions (min: 5, max: 14)`);
+  
+  if (finalSelection.length < 5) {
+    console.log(`[BASELINE_CALC] selectSessionsForBaseline: WARNING - Only ${finalSelection.length} sessions selected (need at least 5)`);
+  }
+  
+  return finalSelection;
+};
+
+/**
+ * Legacy function for backwards compatibility
+ * @deprecated Use canCreateBaseline and selectSessionsForBaseline instead
+ */
+export const hasValidTemporalDistribution = (
+  sessions: Array<{ session_date?: string; createdAt?: string; created?: string }>
+): { valid: boolean; uniqueDays: number; timeSpanDays: number } => {
+  const check = canCreateBaseline(sessions);
+  return {
+    valid: check.valid,
+    uniqueDays: check.uniqueDays,
+    timeSpanDays: 0 // Not used in new logic
+  };
 };
 

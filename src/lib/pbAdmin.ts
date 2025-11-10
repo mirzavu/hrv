@@ -5,6 +5,7 @@ let adminPb: PocketBase | null = null;
 export async function getAdminPb(): Promise<PocketBase> {
   if (!adminPb) {
     adminPb = new PocketBase(process.env.PB_URL || 'http://127.0.0.1:8091');
+    adminPb.autoCancellation(false);
   }
 
   const email = process.env.PB_ADMIN_EMAIL!;

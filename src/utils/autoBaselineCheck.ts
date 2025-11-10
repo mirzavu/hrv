@@ -4,7 +4,7 @@
  */
 
 import { getAdminPb } from '@/lib/pbAdmin';
-import { calculateBaselineMetrics, hasValidTemporalDistribution } from './baselineCalculations';
+import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline } from './baselineCalculations';
 
 /**
  * Automatically check if user baseline can be established or updated
@@ -26,59 +26,90 @@ export const autoCheckAndUpdateBaseline = async (
   try {
     const pb = await getAdminPb();
 
-    // Fetch user's most recent 14 sessions
-    const sessions = await pb.collection('sessions').getList(1, 14, {
+    // Fetch user's sessions - get enough to check last 14 days
+    const sessions = await pb.collection('sessions').getList(1, 200, {
       filter: `userId = "${userId}"`,
       sort: '-startTime'
     });
 
-    if (sessions.items.length < 7) {
+    console.log(`[BASELINE_DEBUG] Fetched ${sessions.items.length} sessions for user ${userId}`);
+
+    if (sessions.items.length === 0) {
+      console.log(`[BASELINE_DEBUG] No sessions found`);
       return {
         success: true,
         action: 'insufficient_sessions',
-        message: `Need ${7 - sessions.items.length} more sessions`,
+        message: `Need at least 1 session to establish baseline`,
         baselineEstablished: false,
-        sessionsUsed: sessions.items.length
+        sessionsUsed: 0
       };
     }
 
-    // Fetch session summaries
+    // Fetch session summaries for all sessions
     const sessionIds = sessions.items.map(s => s.id);
     const summaryPromises = sessionIds.map(id =>
       pb.collection('session_summary').getFirstListItem(`session_id = "${id}"`)
         .catch(() => null)
     );
 
-    const summaries = (await Promise.all(summaryPromises))
+    const allSummaries = (await Promise.all(summaryPromises))
       .filter((s): s is any => s !== null);
 
-    if (summaries.length < 7) {
+    console.log(`[BASELINE_DEBUG] Found ${allSummaries.length} summaries with data`);
+
+    if (allSummaries.length === 0) {
+      console.log(`[BASELINE_DEBUG] No summaries found`);
       return {
         success: true,
         action: 'insufficient_sessions',
-        message: `Need ${7 - summaries.length} more sessions with complete data`,
+        message: `Need sessions with complete data to establish baseline`,
+        baselineEstablished: false,
+        sessionsUsed: 0
+      };
+    }
+
+    // Check if user can create baseline (at least 5 unique days in last 14 days)
+    const baselineCheck = canCreateBaseline(allSummaries);
+    console.log(`[BASELINE_DEBUG] Baseline check: valid=${baselineCheck.valid}, uniqueDays=${baselineCheck.uniqueDays} (in last 14 days)`);
+    
+    if (!baselineCheck.valid) {
+      console.log(`[BASELINE_DEBUG] Cannot create baseline - need at least 5 unique days in last 14 days`);
+      return {
+        success: true,
+        action: 'insufficient_days',
+        message: `Need sessions on at least 5 different days in the last 14 days. Current: ${baselineCheck.uniqueDays} days`,
+        baselineEstablished: false,
+        sessionsUsed: allSummaries.length,
+        uniqueDays: baselineCheck.uniqueDays
+      };
+    }
+
+    // Select sessions for baseline: latest 7 dates, up to 2 sessions per date (max 14, min 5)
+    const summaries = selectSessionsForBaseline(allSummaries);
+    console.log(`[BASELINE_DEBUG] Selected ${summaries.length} sessions for baseline calculation`);
+
+    if (summaries.length < 5) {
+      console.log(`[BASELINE_DEBUG] Not enough sessions selected: ${summaries.length} < 5`);
+      return {
+        success: true,
+        action: 'insufficient_sessions',
+        message: `Need at least 5 sessions to establish baseline`,
         baselineEstablished: false,
         sessionsUsed: summaries.length
       };
     }
 
-    // Check temporal distribution
-    const temporalCheck = hasValidTemporalDistribution(summaries);
-    if (!temporalCheck.valid) {
-      return {
-        success: true,
-        action: 'insufficient_days',
-        message: `Sessions must span at least 5 days across 5 unique dates`,
-        baselineEstablished: false,
-        sessionsUsed: summaries.length,
-        uniqueDays: temporalCheck.uniqueDays
-      };
-    }
-
     // Calculate baseline metrics
+    console.log(`[BASELINE_DEBUG] Calculating baseline metrics from ${summaries.length} summaries`);
     const baselineMetrics = calculateBaselineMetrics(summaries);
+    console.log(`[BASELINE_DEBUG] Baseline metrics calculated:`, {
+      rmssd_avg: baselineMetrics.rmssd_avg,
+      sdnn_avg: baselineMetrics.sdnn_avg,
+      hr_avg: baselineMetrics.hr_avg
+    });
 
     if (baselineMetrics.rmssd_avg === null) {
+      console.log(`[BASELINE_DEBUG] Cannot calculate baseline - insufficient valid data`);
       return {
         success: false,
         action: 'skipped',
@@ -96,17 +127,20 @@ export const autoCheckAndUpdateBaseline = async (
       existingBaseline = await pb.collection('user_baselines').getFirstListItem(
         `user_id = "${userId}"`
       );
+      console.log(`[BASELINE_DEBUG] Existing baseline found: ${existingBaseline.id}`);
     } catch (error: any) {
       // 404 is expected if no baseline exists yet
       if (error.status !== 404) {
         throw error;
       }
+      console.log(`[BASELINE_DEBUG] No existing baseline found - will create new one`);
     }
 
     let action: 'created' | 'updated' = 'created';
 
     if (existingBaseline) {
       // Update existing baseline
+      console.log(`[BASELINE_DEBUG] Updating existing baseline ${existingBaseline.id}`);
       await pb.collection('user_baselines').update(existingBaseline.id, {
         ...baselineMetrics,
         sessions_count: summaries.length,
@@ -114,9 +148,11 @@ export const autoCheckAndUpdateBaseline = async (
         last_updated: currentTime
       });
       action = 'updated';
+      console.log(`[BASELINE_DEBUG] Baseline updated successfully`);
     } else {
       // Create new baseline
-      await pb.collection('user_baselines').create({
+      console.log(`[BASELINE_DEBUG] Creating new baseline for user ${userId}`);
+      const newBaseline = await pb.collection('user_baselines').create({
         user_id: userId,
         ...baselineMetrics,
         sessions_count: summaries.length,
@@ -124,6 +160,7 @@ export const autoCheckAndUpdateBaseline = async (
         last_updated: currentTime
       });
       action = 'created';
+      console.log(`[BASELINE_DEBUG] Baseline created successfully: ${newBaseline.id}`);
     }
 
     return {
@@ -134,7 +171,7 @@ export const autoCheckAndUpdateBaseline = async (
         : 'Baseline updated with new session data',
       baselineEstablished: true,
       sessionsUsed: summaries.length,
-      uniqueDays: temporalCheck.uniqueDays
+      uniqueDays: baselineCheck.uniqueDays
     };
 
   } catch (error) {
@@ -194,7 +231,7 @@ export const getBaselineStatus = async (
     }
 
     // Fetch recent sessions to check progress
-    const sessions = await pb.collection('sessions').getList(1, 14, {
+    const sessions = await pb.collection('sessions').getList(1, 200, {
       filter: `userId = "${userId}"`,
       sort: '-startTime'
     });
@@ -209,16 +246,17 @@ export const getBaselineStatus = async (
       .filter((s): s is any => s !== null);
 
     const currentSessions = summaries.length;
-    const temporalCheck = hasValidTemporalDistribution(summaries);
+    const baselineCheck = canCreateBaseline(summaries);
+    const selectedSessions = selectSessionsForBaseline(summaries);
 
-    const sessionsNeeded = Math.max(0, 7 - currentSessions);
-    const daysNeeded = temporalCheck.valid ? 0 : Math.max(0, 5 - temporalCheck.uniqueDays);
+    const daysNeeded = baselineCheck.valid ? 0 : Math.max(0, 5 - baselineCheck.uniqueDays);
+    const sessionsNeeded = selectedSessions.length < 5 ? Math.max(0, 5 - selectedSessions.length) : 0;
 
     let message = '';
-    if (sessionsNeeded > 0) {
-      message = `Record ${sessionsNeeded} more session${sessionsNeeded > 1 ? 's' : ''} to establish baseline`;
-    } else if (daysNeeded > 0) {
-      message = `Sessions must span ${daysNeeded} more unique day${daysNeeded > 1 ? 's' : ''}`;
+    if (daysNeeded > 0) {
+      message = `Need sessions on ${daysNeeded} more unique day${daysNeeded > 1 ? 's' : ''} in the last 14 days`;
+    } else if (sessionsNeeded > 0) {
+      message = `Need ${sessionsNeeded} more session${sessionsNeeded > 1 ? 's' : ''} to establish baseline`;
     } else {
       message = 'Baseline will be established after this session';
     }
@@ -227,8 +265,8 @@ export const getBaselineStatus = async (
       hasBaseline: false,
       sessionsNeeded,
       daysNeeded,
-      currentSessions,
-      currentDays: temporalCheck.uniqueDays,
+      currentSessions: selectedSessions.length,
+      currentDays: baselineCheck.uniqueDays,
       message
     };
 

@@ -456,8 +456,18 @@ function matchPattern(comparison: MetricComparison): InterpretationResult | null
     };
   }
 
-  // No pattern matched - return generic interpretation
-  return null;
+  // No pattern matched - return generic fallback interpretation
+  // This ensures users with established baselines always get feedback
+  console.log('[AUTONOMIC_INTERP] No specific pattern matched, using fallback interpretation');
+  return {
+    patternId: 0, // Fallback pattern
+    physiologicalState: 'Baseline Established',
+    coreInterpretation: 'Your HRV metrics have been compared to your personal baseline. While this specific combination doesn\'t match a defined pattern, your baseline is active and being used for personalized analysis.',
+    recommendedAction: 'Continue monitoring: Keep tracking your sessions to build a more comprehensive understanding of your HRV patterns over time.',
+    technicalChanges: [],
+    relativeInterpretation: '',
+    combinedAdvice: 'Your baseline is established and active. Continue recording sessions to see how your metrics compare to your personal average. Look for trends over time rather than focusing on individual session variations.'
+  };
 }
 
 /**
@@ -550,14 +560,30 @@ export function interpretHRVSession(
   // Compare metrics to baseline
   const comparison = compareMetrics(summary, baseline);
   if (!comparison) {
+    console.log('[AUTONOMIC_INTERP] compareMetrics returned null');
     return null;
   }
+
+  console.log('[AUTONOMIC_INTERP] Metric comparison:', comparison);
+  console.log('[AUTONOMIC_INTERP] Summary values:', {
+    rmssd: summary.sessionRMSSD.value,
+    sdnn: summary.sdnn?.value,
+    lfhfRatio: summary.lfhfRatio,
+    amode50: summary.amode50
+  });
+  console.log('[AUTONOMIC_INTERP] Baseline values:', {
+    rmssd_avg: baseline.rmssd_avg,
+    sdnn_avg: baseline.sdnn_avg
+  });
 
   // Match pattern
   const interpretation = matchPattern(comparison);
   if (!interpretation) {
+    console.log('[AUTONOMIC_INTERP] No pattern matched for comparison:', comparison);
     return null;
   }
+  
+  console.log('[AUTONOMIC_INTERP] Pattern matched:', interpretation.patternId);
 
   // Generate technical changes
   interpretation.technicalChanges = generateTechnicalChanges(summary, baseline);

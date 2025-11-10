@@ -47,15 +47,22 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
       try {
         setBaselineLoading(true);
+        console.log(`[SessionSummaryModal] Fetching baseline for user ${userId}`);
         const response = await fetch(`/api/user/baseline?userId=${userId}`);
         if (response.ok) {
           const data = await response.json();
+          console.log(`[SessionSummaryModal] Baseline fetched:`, {
+            exists: !!data.baseline,
+            established: data.baseline?.established,
+            id: data.baseline?.id
+          });
           setBaseline(data.baseline);
         } else {
+          console.log(`[SessionSummaryModal] Baseline fetch failed: ${response.status}`);
           setBaseline(null);
         }
       } catch (error) {
-        console.error('Error fetching baseline:', error);
+        console.error('[SessionSummaryModal] Error fetching baseline:', error);
         setBaseline(null);
       } finally {
         setBaselineLoading(false);
@@ -68,9 +75,18 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   // Calculate interpretation when baseline or summary changes
   useEffect(() => {
     if (!baselineLoading) {
+      console.log('[SessionSummaryModal] Calculating interpretation:', {
+        hasBaseline: !!baseline,
+        baselineEstablished: baseline?.established,
+        baselineId: baseline?.$id
+      });
       const result = interpretHRVSession(summary, baseline);
+      console.log('[SessionSummaryModal] Interpretation result:', {
+        hasResult: !!result,
+        patternId: result?.patternId,
+        reason: !baseline ? 'no baseline' : !baseline.established ? 'baseline not established' : result ? 'success' : 'comparison/match failed'
+      });
       setInterpretation(result);
-      console.log('[SessionSummaryModal] interpretation updated', result);
     } else {
       console.log('[SessionSummaryModal] baseline loading...', { baseline, baselineLoading });
     }
@@ -310,7 +326,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
                   <HRVScoreGauge 
                     score={summary.hrvScore.value}
-                    baselineEstablished={false}
+                    baselineEstablished={baseline?.established ?? false}
                   />
                   <NervousSystemBalanceGauge 
                     parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}

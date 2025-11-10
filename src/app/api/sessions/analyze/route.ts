@@ -285,8 +285,17 @@ export async function POST(request: NextRequest) {
 
         // Auto-check and update baseline after session analysis
         // This runs in background - doesn't block response
-        autoCheckAndUpdateBaseline(userId).catch(error => {
-            console.error('Background baseline check failed:', error);
+        console.log(`[ANALYZE_API] Triggering baseline check for user ${userId}`);
+        autoCheckAndUpdateBaseline(userId).then(result => {
+            console.log(`[ANALYZE_API] Baseline check result:`, {
+                success: result.success,
+                action: result.action,
+                baselineEstablished: result.baselineEstablished,
+                sessionsUsed: result.sessionsUsed,
+                uniqueDays: result.uniqueDays
+            });
+        }).catch(error => {
+            console.error('[ANALYZE_API] Background baseline check failed:', error);
             // Don't throw - this is non-critical background task
         });
 

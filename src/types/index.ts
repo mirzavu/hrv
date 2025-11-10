@@ -163,6 +163,9 @@ export interface SessionSummaryRecord {
   // HRV Score (0-100)
   hrv_score?: number | null;
   
+  // Session date (stores session startTime for temporal distribution checks)
+  session_date?: string | null;
+  
   createdAt: string;
 }
 

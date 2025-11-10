@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
 import type { UserBaseline, SessionSummaryRecord } from '@/types';
-import { calculateBaselineMetrics, canEstablishBaseline, hasValidTemporalDistribution } from '@/utils/baselineCalculations';
+import { calculateBaselineMetrics, canEstablishBaseline, canCreateBaseline, selectSessionsForBaseline } from '@/utils/baselineCalculations';
 
 /**
  * GET /api/user/baseline?userId=xxx
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Fetch user's most recent sessions with summaries
-    const sessions = await pb.collection('sessions').getList(1, sessionCount, {
+    // Fetch user's sessions (get enough to check last 14 days)
+    const sessions = await pb.collection('sessions').getList(1, 200, {
       filter: `userId = "${userId}"`,
       sort: '-startTime'
     });
@@ -82,37 +82,46 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Fetch session summaries for these sessions
+    // Fetch session summaries for all sessions
     const sessionIds = sessions.items.map(s => s.id);
     const summaryPromises = sessionIds.map(id =>
       pb.collection('session_summary').getFirstListItem(`session_id = "${id}"`)
         .catch(() => null) // Skip sessions without summaries
     );
 
-    const summaries = (await Promise.all(summaryPromises))
+    const allSummaries = (await Promise.all(summaryPromises))
       .filter((s): s is any => s !== null)
       .map(s => ({
         ...withDollarId(s),
-        // Map PocketBase fields to SessionSummaryRecord format
       })) as SessionSummaryRecord[];
 
-    if (summaries.length < 7) {
+    if (allSummaries.length === 0) {
       return NextResponse.json({
-        error: 'Insufficient sessions',
-        message: `Need at least 7 sessions with complete data. Found ${summaries.length}.`,
-        sessionsCount: summaries.length
+        error: 'No session summaries found',
+        message: 'User has no sessions with complete data to calculate baseline from',
+        sessionsCount: 0
       }, { status: 400 });
     }
 
-    // Check temporal distribution
-    const temporalCheck = hasValidTemporalDistribution(summaries);
-    if (!temporalCheck.valid) {
+    // Check if user can create baseline (at least 5 unique days in last 14 days)
+    const baselineCheck = canCreateBaseline(allSummaries);
+    if (!baselineCheck.valid) {
       return NextResponse.json({
-        error: 'Invalid temporal distribution',
-        message: `Sessions must be spread across at least 5 different days spanning at least 5 days. Current: ${temporalCheck.uniqueDays} unique days over ${Math.round(temporalCheck.timeSpanDays)} days.`,
-        sessionsCount: summaries.length,
-        uniqueDays: temporalCheck.uniqueDays,
-        timeSpanDays: temporalCheck.timeSpanDays
+        error: 'Insufficient days',
+        message: `Need sessions on at least 5 different days in the last 14 days. Current: ${baselineCheck.uniqueDays} days.`,
+        sessionsCount: allSummaries.length,
+        uniqueDays: baselineCheck.uniqueDays
+      }, { status: 400 });
+    }
+
+    // Select sessions for baseline: latest 7 dates, up to 2 sessions per date (max 14, min 5)
+    const summaries = selectSessionsForBaseline(allSummaries);
+    
+    if (summaries.length < 5) {
+      return NextResponse.json({
+        error: 'Insufficient sessions',
+        message: `Need at least 5 sessions to calculate baseline. Found ${summaries.length}.`,
+        sessionsCount: summaries.length
       }, { status: 400 });
     }
 
