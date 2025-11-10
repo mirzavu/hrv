@@ -619,26 +619,33 @@ function generateAbsoluteInterpretation(
 ): string | undefined {
   const parts: string[] = [];
 
-  if (summary.sessionRMSSD.value !== null) {
-    if (summary.sessionRMSSD.value < popRef.rmssd.min) {
-      parts.push('RMSSD is below typical healthy range');
-    } else if (summary.sessionRMSSD.value >= popRef.rmssd.optimal) {
-      parts.push('RMSSD is in optimal range');
+  const rmssdValue = summary.sessionRMSSD.value;
+  if (rmssdValue !== null && rmssdValue !== undefined) {
+    const value = rmssdValue.toFixed(1);
+    if (rmssdValue < popRef.rmssd.min) {
+      parts.push(`RMSSD is ${value} ms which is below typical healthy range`);
+    } else if (rmssdValue >= popRef.rmssd.optimal) {
+      parts.push(`RMSSD is ${value} ms which is in optimal range`);
     }
   }
 
-  if (summary.sdnn?.value !== null) {
-    if (summary.sdnn.value < popRef.sdnn.min) {
-      parts.push('SDNN is below typical healthy range');
-    } else if (summary.sdnn.value >= popRef.sdnn.optimal) {
-      parts.push('SDNN is in optimal range');
+  const sdnnValue = summary.sdnn?.value;
+  if (sdnnValue !== null && sdnnValue !== undefined) {
+    const value = sdnnValue.toFixed(1);
+    if (sdnnValue < popRef.sdnn.min) {
+      parts.push(`SDNN is ${value} ms which is below typical healthy range`);
+    } else if (sdnnValue >= popRef.sdnn.optimal) {
+      parts.push(`SDNN is ${value} ms which is in optimal range`);
     }
   }
 
-  if (summary.lfPower.value !== null && summary.hfPower.value !== null && summary.hfPower.value > 0) {
-    const lfhf = summary.lfPower.value / summary.hfPower.value;
+  const lfValue = summary.lfPower.value;
+  const hfValue = summary.hfPower.value;
+  if (lfValue !== null && lfValue !== undefined && hfValue !== null && hfValue !== undefined && hfValue > 0) {
+    const lfhf = lfValue / hfValue;
+    const ratio = lfhf.toFixed(2);
     if (lfhf < popRef.lfhfRatio.min || lfhf > popRef.lfhfRatio.max) {
-      parts.push('LF/HF ratio is outside typical healthy range');
+      parts.push(`LF/HF ratio is ${ratio} which is outside typical healthy range`);
     }
   }
 

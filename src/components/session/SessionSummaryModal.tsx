@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline } from '@/types';
-import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3 } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
@@ -367,12 +367,14 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           {/* Autonomic Interpretation Section */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
-              <Brain className="w-6 h-6 text-purple-600" />
-              Result
+              <BarChart3 className="w-6 h-6 text-purple-600" />
+              Analysis
             </h2>
             <AutonomicInterpretation 
               interpretation={interpretation}
               isLoading={baselineLoading}
+              summary={summary}
+              userId={userId}
             />
           </section>
         </main>
