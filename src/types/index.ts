@@ -48,6 +48,23 @@ export interface UserBaseline {
   createdAt: string;
 }
 
+export interface BaselineHistory {
+  $id: string;
+  user_id: string;
+  snapshot_date: string;
+  rmssd_avg: number | null;
+  rmssd_stdev: number | null;
+  sdnn_avg: number | null;
+  sdnn_stdev: number | null;
+  hr_avg: number | null;
+  hr_stdev: number | null;
+  sd1_sd2_ratio_avg: number | null;
+  sd1_sd2_ratio_stdev: number | null;
+  sessions_count: number | null;
+  established: boolean;
+  createdAt: string;
+}
+
 export interface HRVMetric {
   label: string;
   value: number | null | undefined;

@@ -7,14 +7,49 @@ import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline } from './baselineCalculations';
 
 /**
+ * Check if user has any session for today (UTC date), excluding the current session
+ * 
+ * @param userId - User ID to check
+ * @param currentSessionId - Current session ID to exclude from check
+ * @returns true if at least one other session exists for today
+ */
+const hasSessionToday = async (userId: string, currentSessionId: string): Promise<boolean> => {
+  try {
+    const pb = await getAdminPb();
+    
+    // Get today's date range in UTC (start and end of day)
+    const now = new Date();
+    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+    const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    
+    const todayStartISO = todayStart.toISOString();
+    const todayEndISO = todayEnd.toISOString();
+    
+    // Check if any OTHER session exists for today (excluding current session)
+    const sessions = await pb.collection('sessions').getList(1, 1, {
+      filter: `userId = "${userId}" && startTime >= "${todayStartISO}" && startTime <= "${todayEndISO}" && id != "${currentSessionId}"`
+    });
+    
+    return sessions.items.length > 0;
+  } catch (error) {
+    console.error('[BASELINE_DEBUG] Error checking for today\'s session:', error);
+    // If check fails, allow baseline update to proceed (fail open)
+    return false;
+  }
+};
+
+/**
  * Automatically check if user baseline can be established or updated
  * Called after each session is completed and analyzed
+ * Only runs once per day (after first valid session of the day)
  * 
  * @param userId - User ID to check baseline for
+ * @param currentSessionId - Current session ID (to exclude from today's check)
  * @returns Result object with status and details
  */
 export const autoCheckAndUpdateBaseline = async (
-  userId: string
+  userId: string,
+  currentSessionId?: string
 ): Promise<{
   success: boolean;
   action: 'created' | 'updated' | 'skipped' | 'insufficient_sessions' | 'insufficient_days';
@@ -25,6 +60,20 @@ export const autoCheckAndUpdateBaseline = async (
 }> => {
   try {
     const pb = await getAdminPb();
+    
+    // Check if there's already another session for today - if so, skip baseline update
+    if (currentSessionId) {
+      const hasTodaySession = await hasSessionToday(userId, currentSessionId);
+      if (hasTodaySession) {
+        console.log(`[BASELINE_DEBUG] Another session already exists for today - skipping baseline update (runs once per day)`);
+        return {
+          success: true,
+          action: 'skipped',
+          message: 'Baseline update skipped - already updated today',
+          baselineEstablished: false
+        };
+      }
+    }
 
     // Fetch user's sessions - get enough to check last 14 days
     const sessions = await pb.collection('sessions').getList(1, 200, {
@@ -85,7 +134,7 @@ export const autoCheckAndUpdateBaseline = async (
     }
 
     // Select sessions for baseline: latest 7 dates, up to 2 sessions per date (max 14, min 5)
-    const summaries = selectSessionsForBaseline(allSummaries);
+    const summaries = selectSessionsForBaseline(allSummaries) as any[];
     console.log(`[BASELINE_DEBUG] Selected ${summaries.length} sessions for baseline calculation`);
 
     if (summaries.length < 5) {

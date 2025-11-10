@@ -285,8 +285,9 @@ export async function POST(request: NextRequest) {
 
         // Auto-check and update baseline after session analysis
         // This runs in background - doesn't block response
+        // Only runs once per day (after first valid session of the day)
         console.log(`[ANALYZE_API] Triggering baseline check for user ${userId}`);
-        autoCheckAndUpdateBaseline(userId).then(result => {
+        autoCheckAndUpdateBaseline(userId, sessionId).then(result => {
             console.log(`[ANALYZE_API] Baseline check result:`, {
                 success: result.success,
                 action: result.action,
