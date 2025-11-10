@@ -50,6 +50,21 @@ interface MetricComparison {
   amo50: '↑' | '↓' | '≈' | '↑↑' | '↓↓';
 }
 
+// Pattern definition for weighted scoring
+interface PatternDefinition {
+  patternId: number;
+  rmssd: ('↑' | '↓' | '≈' | '↑↑')[];
+  sdnn: ('↑' | '↓' | '≈' | '↑↑')[];
+  lf: ('↑' | '↓' | '≈')[];
+  hf: ('↑' | '↓' | '≈' | '↑↑')[];
+  lfhf: ('↑' | '↓' | '≈' | '<<' | '>>')[];
+  amo50: ('↑' | '↓' | '≈' | '↑↑' | '↓↓')[];
+  physiologicalState: string;
+  coreInterpretation: string;
+  recommendedAction: string;
+  combinedAdvice: string;
+}
+
 /**
  * Compare a metric value to baseline
  */
@@ -191,282 +206,372 @@ function compareMetrics(
 }
 
 /**
- * Match pattern to interpretation matrix
+ * Score a single metric match
+ * Returns: 0 (mismatch), points * 0.5 (partial match), or points (perfect match)
+ */
+function scoreMetricMatch(
+  userValue: string,
+  patternValues: string[],
+  points: number
+): number {
+  let bestScore = 0;
+  
+  // Handle OR logic: check all pattern values and return the best match
+  for (const patternValue of patternValues) {
+    // Perfect match
+    if (userValue === patternValue) {
+      return points; // Perfect match - return immediately
+    }
+    
+    // Handle double arrows vs single arrows
+    // User ↑↑ vs Pattern ↑ = 100% (specific matches general)
+    // User ↑ vs Pattern ↑↑ = 50% (general matches specific)
+    if (userValue === '↑↑' && patternValue === '↑') {
+      bestScore = Math.max(bestScore, points);
+    } else if (userValue === '↑' && patternValue === '↑↑') {
+      bestScore = Math.max(bestScore, points * 0.5);
+    } else if (userValue === '↓↓' && patternValue === '↓') {
+      bestScore = Math.max(bestScore, points);
+    } else if (userValue === '↓' && patternValue === '↓↓') {
+      bestScore = Math.max(bestScore, points * 0.5);
+    }
+    
+    // ≈ creates 50% partial match against any directional arrow
+    if (userValue === '≈' && (patternValue === '↑' || patternValue === '↓' || patternValue === '↑↑' || patternValue === '↓↓')) {
+      bestScore = Math.max(bestScore, points * 0.5);
+    } else if ((userValue === '↑' || userValue === '↓' || userValue === '↑↑' || userValue === '↓↓') && patternValue === '≈') {
+      bestScore = Math.max(bestScore, points * 0.5);
+    }
+  }
+  
+  return bestScore;
+}
+
+/**
+ * Score a pattern against user's metric comparison
+ * Returns total score (max 14 points)
+ */
+function scorePattern(
+  comparison: MetricComparison,
+  pattern: PatternDefinition
+): number {
+  let score = 0;
+  
+  // Tier 1 (High Priority): 3 points each
+  score += scoreMetricMatch(comparison.rmssd, pattern.rmssd, 3);
+  score += scoreMetricMatch(comparison.sdnn, pattern.sdnn, 3);
+  
+  // Tier 2 (Medium Priority): 2 points each
+  score += scoreMetricMatch(comparison.lf, pattern.lf, 2);
+  score += scoreMetricMatch(comparison.hf, pattern.hf, 2);
+  score += scoreMetricMatch(comparison.lfhf, pattern.lfhf, 2);
+  
+  // Tier 3 (Low Priority): 1 point
+  score += scoreMetricMatch(comparison.amo50, pattern.amo50, 1);
+  
+  return score;
+}
+
+// All pattern definitions for weighted scoring
+const PATTERNS: PatternDefinition[] = [
+  {
+    patternId: 1,
+    rmssd: ['↑'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↑'],
+    lfhf: ['≈', '↑', '↓'],
+    amo50: ['↓'],
+    physiologicalState: 'Optimal (Ready)',
+    coreInterpretation: 'High vagal tone and strong total variability. Sympathetic-parasympathetic balance intact. Indicates full recovery, high adaptability, and baroreflex responsiveness.',
+    recommendedAction: 'Maximize performance: This is an ideal day for peak physical performance (e.g., maximum lift, intense interval training, race day) or deep cognitive work (complex problem-solving, creative sprints). You are primed for success.',
+    combinedAdvice: 'Proceed with confidence. Ensure high-quality fuel (complex carbs, lean protein) pre-activity. Hydrate optimally. Double down on current successful sleep and nutrition patterns, as they are clearly working. Capture this feeling in a journal.'
+  },
+  {
+    patternId: 2,
+    rmssd: ['↑'],
+    sdnn: ['≈'],
+    lf: ['≈'],
+    hf: ['↑'],
+    lfhf: ['↓'],
+    amo50: ['↓'],
+    physiologicalState: 'Recovered (Stable)',
+    coreInterpretation: 'Acute recovery high, resilience stable. LF/HF < 1 confirms parasympathetic dominance.',
+    recommendedAction: 'Maintain momentum: Your recovery is solid, but not at peak adaptability. This is a great day for consistent progress.',
+    combinedAdvice: 'Engage in moderate exercise (steady-state cardio, strength training at 70-80% capacity, yoga). Focus on creative tasks and collaborative work. Be mindful of caffeine intake; you may not need your usual amount. Prioritize a nutritious, anti-inflammatory diet. Maintain your baseline sleep hygiene.'
+  },
+  {
+    patternId: 3,
+    rmssd: ['↑'],
+    sdnn: ['↓'],
+    lf: ['↓'],
+    hf: ['↑'],
+    lfhf: ['<<'],
+    amo50: ['↓'],
+    physiologicalState: 'Fragile (Protective Recovery)',
+    coreInterpretation: 'High parasympathetic drive but depleted total variability. Body diverting resources to deep recovery or healing.',
+    recommendedAction: 'Prioritize rest & nourishment: Your body is actively healing or recovering from a significant stressor (recent illness, heavy training block). Do not add more stress.',
+    combinedAdvice: 'This is a rest-oriented day. Focus on gentle mobility (walking, light stretching), not exercise. Emphasize hydration (water, electrolytes) and nutrient-dense, easily digestible meals (soups, stews). Ensure 8+ hours of sleep tonight. Avoid major stressors, intense work, or stimulants entirely.'
+  },
+  {
+    patternId: 4,
+    rmssd: ['≈'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↑'],
+    lfhf: ['≈', '↑', '↓'],
+    amo50: ['≈'],
+    physiologicalState: 'Adaptive (Resilient)',
+    coreInterpretation: 'Normal recovery with elevated adaptability. Indicates long-term training effect or strong baroreflex capacity.',
+    recommendedAction: 'Continue building resilience: You have a strong reserve capacity. Your current lifestyle is building long-term fitness.',
+    combinedAdvice: 'Continue existing healthy habits. You can handle moderate to high intensity exercise today, focusing perhaps on skill acquisition or strength endurance. To optimize further, add a 10-minute mindfulness or breathwork session to enhance vagal tone and mental clarity. Ensure consistent, quality sleep tonight.'
+  },
+  {
+    patternId: 5,
+    rmssd: ['≈'],
+    sdnn: ['≈'],
+    lf: ['≈'],
+    hf: ['≈'],
+    lfhf: ['≈'],
+    amo50: ['≈'],
+    physiologicalState: 'Baseline (Homeostasis)',
+    coreInterpretation: 'Balanced ANS, neither stressed nor deeply recovered. Maintenance state.',
+    recommendedAction: 'Focus on consistency: This is your control state. The goal is maintenance and observation.',
+    combinedAdvice: 'Maintain strict consistency in your sleep schedule, meal timing, and daily routine. Exercise at your standard moderate intensity. Log your subjective feelings and compare them to this reading. Avoid introducing new, major stressors or recovery protocols today. Observe trends across several days, not this single reading in isolation.'
+  },
+  {
+    patternId: 6,
+    rmssd: ['≈'],
+    sdnn: ['↓'],
+    lf: ['↓'],
+    hf: ['↓'],
+    lfhf: ['≈'],
+    amo50: ['↑'],
+    physiologicalState: 'Fatigued (Warning)',
+    coreInterpretation: 'Decreasing resilience with normal recovery level. Both frequency powers suppressed—indicates energy depletion.',
+    recommendedAction: 'Conserve energy & refuel: Your resilience is dropping, indicating accumulating fatigue or potential overreaching.',
+    combinedAdvice: 'Dial back training intensity significantly; opt for light activity like a walk or take a complete rest day. Focus heavily on micronutrient repletion (fruits, vegetables, quality protein), electrolyte balance, and hydration. Prioritize 7-9 hours of uninterrupted sleep tonight. Avoid late nights or social drinking.'
+  },
+  {
+    patternId: 7,
+    rmssd: ['↓'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↓'],
+    lfhf: ['>>', '↑'],
+    amo50: ['↑'],
+    physiologicalState: 'Stressed but Resilient',
+    coreInterpretation: 'Acute sympathetic activation with preserved adaptability. Typically due to short-term stressors (e.g., work, exertion).',
+    recommendedAction: 'De-stress proactively: Your body can handle the current stress, but you need to actively manage it to prevent burnout.',
+    combinedAdvice: 'Immediately engage the vagus nerve via slow, paced breathing (e.g., 4-7-8 method or box breathing for 5-10 minutes). Avoid caffeine in the afternoon. Take short, restorative walks throughout the day. Rehydrate consciously. Plan for an early night and a relaxing evening routine (e.g., warm bath, reading fiction).'
+  },
+  {
+    patternId: 8,
+    rmssd: ['↓'],
+    sdnn: ['≈'],
+    lf: ['↑'],
+    hf: ['↓'],
+    lfhf: ['>>', '↑'],
+    amo50: ['↑'],
+    physiologicalState: 'Strained (Fight-or-Flight)',
+    coreInterpretation: 'Parasympathetic withdrawal; resilience baseline but challenged. High sympathetic dominance confirmed by LF/HF >2.',
+    recommendedAction: 'Shift to recovery mode: Your nervous system is highly activated and needs active calming.',
+    combinedAdvice: 'This is a mandatory light or recovery training day only (walking, gentle stretching). Avoid stimulants (caffeine, high-sugar snacks). Implement stress management techniques: journaling, meditation, or light exposure to nature. Focus on grounding activities. Ensure you are nourished and hydrated to support the nervous system.'
+  },
+  {
+    patternId: 9,
+    rmssd: ['↓'],
+    sdnn: ['↓'],
+    lf: ['↓'],
+    hf: ['↓'],
+    lfhf: ['≈'],
+    amo50: ['↑'],
+    physiologicalState: 'Depleted (Autonomic Suppression)',
+    coreInterpretation: 'Both branches low → autonomic blunting. Low total and spectral power. Often post-illness, burnout, or deep fatigue.',
+    recommendedAction: 'Immediate and total rest: Your battery is critically low. The system is suppressed.',
+    combinedAdvice: 'Take a full rest day. Prioritize 8+ hours of high-quality sleep tonight, maybe even a short nap during the day if needed. Focus on hydration, getting sunlight exposure (even gentle walking outdoors helps synchronize circadian rhythm), and minimally processed, whole foods. No intensity or strain. Be kind to yourself.'
+  },
+  {
+    patternId: 10,
+    rmssd: ['↓'],
+    sdnn: ['↓'],
+    lf: ['↑'],
+    hf: ['↓'],
+    lfhf: ['>>'],
+    amo50: ['↑↑'],
+    physiologicalState: 'High Sympathetic Drive (Acute Stress)',
+    coreInterpretation: 'Very high LF/HF, narrow RR histogram. Acute mental or physical overload.',
+    recommendedAction: 'Emergency down-regulation: Your body is in a hyper-aroused state.',
+    combinedAdvice: 'Immediate intervention needed. Engage in diaphragmatic breathing for 10-15 minutes in a quiet space. Minimize sensory input (dark room, silence, remove phone). Prioritize hydration and a light, calming meal. Postpone any important decisions or intense physical activity until the metrics normalize. Focus solely on calming the nervous system today.'
+  },
+  {
+    patternId: 11,
+    rmssd: ['↑'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↑'],
+    lfhf: ['≈', '↑', '↓'],
+    amo50: ['↓↓'],
+    physiologicalState: 'High Autonomic Flux',
+    coreInterpretation: 'Both branches highly active → excellent responsiveness. Seen in elite fitness or during breath training.',
+    recommendedAction: 'Manage the volume: You have elite responsiveness, a sign of high fitness and recovery capacity.',
+    combinedAdvice: 'Maintain your current healthy habits. You are highly adaptable. Emphasize post-activity recovery to avoid "overshooting" into a strained state tomorrow. Consider an ice bath or contrast showers today, followed by extra hydration and protein intake. You can train hard, but recover harder.'
+  },
+  {
+    patternId: 12,
+    rmssd: ['↓'],
+    sdnn: ['↑'],
+    lf: ['↓'],
+    hf: ['↑'],
+    lfhf: ['<<'],
+    amo50: ['≈'],
+    physiologicalState: 'Parasympathetic Rebound (After Stress)',
+    coreInterpretation: 'Rapid vagal recovery following stress or exercise. LF reduced, HF high.',
+    recommendedAction: 'Facilitate active recovery: The body is actively recovering from a recent challenge.',
+    combinedAdvice: 'Continue active recovery efforts. Focus on hydration, slow, intentional breathing exercises, and gentle, restorative movement (walking, foam rolling, yin yoga). Avoid taxing the system further with intense exercise. Ensure you get quality sleep to lock in the recovery.'
+  },
+  {
+    patternId: 13,
+    rmssd: ['↑'],
+    sdnn: ['↓'],
+    lf: ['↑'],
+    hf: ['↑'],
+    lfhf: ['≈', '↑', '↓'],
+    amo50: ['↓'],
+    physiologicalState: 'Recovery Under Load',
+    coreInterpretation: 'PNS active but resilience low due to heavy prior stress; ANS working to restore.',
+    recommendedAction: 'Structured recovery focus: Your body is trying very hard to recover while under a heavy physiological load.',
+    combinedAdvice: 'Sleep 8+ hours tonight without compromise. Maintain optimal nutrition to support cellular repair. Limit all intensity (physical and mental) for the next 24 hours. Your body needs resources directed purely towards restoration to prevent a downward spiral into fatigue.'
+  },
+  {
+    patternId: 14,
+    rmssd: ['≈'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↓'],
+    lfhf: ['↑', '>>'],
+    amo50: ['↑'],
+    physiologicalState: 'High Alert Readiness',
+    coreInterpretation: 'Sympathetic activation with high adaptive capacity—"performance arousal" zone.',
+    recommendedAction: 'Optimal for competition: This is the "performance arousal" zone. You are alert and ready for competition or a major challenge.',
+    combinedAdvice: 'This is a good day for competition, public speaking, or a high-stakes meeting. Use this state to your advantage. Ensure you have a structured cool-down and a deliberate recovery plan in place immediately after the peak event to guide your system back to baseline. Hydration is key.'
+  },
+  {
+    patternId: 15,
+    rmssd: ['↑', '↑↑'],
+    sdnn: ['↑', '↑↑'],
+    lf: ['↓'],
+    hf: ['↑', '↑↑'],
+    lfhf: ['<<'],
+    amo50: ['↓', '↓↓'],
+    physiologicalState: 'Deep Recovery State',
+    coreInterpretation: 'PNS dominance with total adaptability preserved. Often after excellent sleep or mindfulness.',
+    recommendedAction: 'Sustain and use as reference: This is an ideal recovery state. You nailed it.',
+    combinedAdvice: 'Sustain your current routine that led to this result. Use this reading as the gold standard baseline reference point for future comparisons. Continue with healthy habits. No changes necessary, simply enjoy the feeling of being deeply recovered and ready for the next day.'
+  },
+  {
+    patternId: 16,
+    rmssd: ['↓'],
+    sdnn: ['↓'],
+    lf: ['↓'],
+    hf: ['↑'],
+    lfhf: ['<<', '↓'],
+    amo50: ['≈'],
+    physiologicalState: 'Autonomic Freeze / Suppressed Stress',
+    coreInterpretation: 'Reduced variability but paradoxically high HF (vagal overcompensation). Often seen under chronic suppressed emotion.',
+    recommendedAction: 'Address underlying stress: This points to a complex state where the body is stuck.',
+    combinedAdvice: 'Focus on gentle movement (walking, dancing, cycling). Incorporate expressive therapies like journaling, talking with a friend or professional, or creative expression. Avoid isolation or exposing yourself to overstimulation (loud noise, intense movies). Focus on safety and gentle emotional processing.'
+  },
+  {
+    patternId: 17,
+    rmssd: ['↑', '↑↑'],
+    sdnn: ['↓'],
+    lf: ['↓'],
+    hf: ['↑', '↑↑'],
+    lfhf: ['<<'],
+    amo50: ['↓', '↓↓'],
+    physiologicalState: 'Over-Recovered / Maladaptive Parasympathetic Surge',
+    coreInterpretation: 'Excess vagal activation without resilience backup—may indicate overtraining recovery edge or vagal overshoot.',
+    recommendedAction: 'Rebalance the system: You might be overdoing the recovery techniques (e.g., too much cold exposure, excessive intense breathwork).',
+    combinedAdvice: 'Reduce reliance on strong vagal interventions temporarily. Introduce light, stimulating physical activity to gently activate the sympathetic system (e.g., a brisk 20-minute walk or light jog). Ensure adequate protein intake to support muscle maintenance and return to a balanced state.'
+  },
+  {
+    patternId: 18,
+    rmssd: ['≈'],
+    sdnn: ['↓'],
+    lf: ['↑'],
+    hf: ['↓'],
+    lfhf: ['>>', '↑'],
+    amo50: ['↑'],
+    physiologicalState: 'Subclinical Stress Accumulation',
+    coreInterpretation: 'Declining adaptability, elevated sympathetic tone. Often precedes fatigue or illness.',
+    recommendedAction: 'Prevent burnout: You are trending towards fatigue. Detect this early and pivot immediately to recovery strategies.',
+    combinedAdvice: 'Prioritize sleep optimization—aim for an extra 30-60 minutes tonight and maintain strict sleep hygiene. Engage in only light movement (walking, stretching); cancel intense workouts. Increase hydration and ensure nutrient-dense meals. Avoid social engagements that add mental stress and focus on self-care.'
+  },
+  {
+    patternId: 19,
+    rmssd: ['↓'],
+    sdnn: ['↑'],
+    lf: ['↑'],
+    hf: ['↑'],
+    lfhf: ['≈', '↑', '↓'],
+    amo50: ['≈'],
+    physiologicalState: 'Dynamic Stress Adaptation',
+    coreInterpretation: 'Both branches elevated; body dynamically engaging stress response.',
+    recommendedAction: 'Manage the wind-down: Your system is highly active and responsive. This might follow an intense physical or mental challenge.',
+    combinedAdvice: 'Allow a dedicated post-stress wind-down window immediately after the event. Use calming techniques like paced breathing, meditation, or light stretching. Avoid secondary stimulants (extra coffee, intense media) that would prolong this elevated state. Transition smoothly into a restorative evening.'
+  },
+  {
+    patternId: 20,
+    rmssd: ['↑'],
+    sdnn: ['↑'],
+    lf: ['↓'],
+    hf: ['↑'],
+    lfhf: ['<<', '↓'],
+    amo50: ['↓'],
+    physiologicalState: 'High Flow State',
+    coreInterpretation: 'Strong vagal tone with low sympathetic modulation; often seen during creative focus.',
+    recommendedAction: 'Maximize productivity and protect the state: You are in an ideal state for creativity, deep focus, and sustained work.',
+    combinedAdvice: 'Maintain focus and leverage this productive window. Ensure you stay well-hydrated throughout this period. Protect yourself from overstimulation after the session ends to transition smoothly back to a restful state. Plan for a standard recovery evening to maintain this optimal pattern.'
+  }
+];
+
+/**
+ * Match pattern to interpretation matrix using weighted scoring
  */
 function matchPattern(comparison: MetricComparison): InterpretationResult | null {
-  const { rmssd, sdnn, lf, hf, lfhf, amo50 } = comparison;
+  // Score all patterns
+  const scoredPatterns = PATTERNS.map(pattern => ({
+    pattern,
+    score: scorePattern(comparison, pattern)
+  }));
 
-  // Pattern 1: RMSSD↑, SDNN↑, LF↑, HF↑, LF/HF≈1, AMo50↓
-  if (rmssd === '↑' && sdnn === '↑' && lf === '↑' && hf === '↑' && (lfhf === '≈' || lfhf === '↑' || lfhf === '↓') && amo50 === '↓') {
-    return {
-      patternId: 1,
-      physiologicalState: 'Optimal (Ready)',
-      coreInterpretation: 'High vagal tone and strong total variability. Sympathetic-parasympathetic balance intact. Indicates full recovery, high adaptability, and baroreflex responsiveness.',
-      recommendedAction: 'Maximize performance: This is an ideal day for peak physical performance (e.g., maximum lift, intense interval training, race day) or deep cognitive work (complex problem-solving, creative sprints). You are primed for success.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Proceed with confidence. Ensure high-quality fuel (complex carbs, lean protein) pre-activity. Hydrate optimally. Double down on current successful sleep and nutrition patterns, as they are clearly working. Capture this feeling in a journal.'
-    };
+  // Sort by score descending
+  scoredPatterns.sort((a, b) => b.score - a.score);
+
+  // Log top 3 matches for debugging
+  const top3 = scoredPatterns.slice(0, 3);
+  console.log('[AUTONOMIC_INTERP] Top 3 pattern matches:', top3.map(p => ({
+    patternId: p.pattern.patternId,
+    score: p.score,
+    state: p.pattern.physiologicalState
+  })));
+
+  // Return the highest scoring pattern
+  const bestMatch = scoredPatterns[0];
+  if (bestMatch.score === 0) {
+    console.log('[AUTONOMIC_INTERP] No pattern scored above 0');
+    return null;
   }
 
-  // Pattern 2: RMSSD↑, SDNN≈, LF≈, HF↑, LF/HF↓, AMo50↓
-  if (rmssd === '↑' && sdnn === '≈' && lf === '≈' && hf === '↑' && lfhf === '↓' && amo50 === '↓') {
-    return {
-      patternId: 2,
-      physiologicalState: 'Recovered (Stable)',
-      coreInterpretation: 'Acute recovery high, resilience stable. LF/HF < 1 confirms parasympathetic dominance.',
-      recommendedAction: 'Maintain momentum: Your recovery is solid, but not at peak adaptability. This is a great day for consistent progress.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Engage in moderate exercise (steady-state cardio, strength training at 70-80% capacity, yoga). Focus on creative tasks and collaborative work. Be mindful of caffeine intake; you may not need your usual amount. Prioritize a nutritious, anti-inflammatory diet. Maintain your baseline sleep hygiene.'
-    };
-  }
-
-  // Pattern 3: RMSSD↑, SDNN↓, HF↑, LF↓, LF/HF<<1, AMo50↓
-  if (rmssd === '↑' && sdnn === '↓' && hf === '↑' && lf === '↓' && lfhf === '<<' && amo50 === '↓') {
-    return {
-      patternId: 3,
-      physiologicalState: 'Fragile (Protective Recovery)',
-      coreInterpretation: 'High parasympathetic drive but depleted total variability. Body diverting resources to deep recovery or healing.',
-      recommendedAction: 'Prioritize rest & nourishment: Your body is actively healing or recovering from a significant stressor (recent illness, heavy training block). Do not add more stress.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'This is a rest-oriented day. Focus on gentle mobility (walking, light stretching), not exercise. Emphasize hydration (water, electrolytes) and nutrient-dense, easily digestible meals (soups, stews). Ensure 8+ hours of sleep tonight. Avoid major stressors, intense work, or stimulants entirely.'
-    };
-  }
-
-  // Pattern 4: RMSSD≈, SDNN↑, LF↑, HF↑, LF/HF≈1, AMo50≈
-  if (rmssd === '≈' && sdnn === '↑' && lf === '↑' && hf === '↑' && (lfhf === '≈' || lfhf === '↑' || lfhf === '↓') && amo50 === '≈') {
-    return {
-      patternId: 4,
-      physiologicalState: 'Adaptive (Resilient)',
-      coreInterpretation: 'Normal recovery with elevated adaptability. Indicates long-term training effect or strong baroreflex capacity.',
-      recommendedAction: 'Continue building resilience: You have a strong reserve capacity. Your current lifestyle is building long-term fitness.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Continue existing healthy habits. You can handle moderate to high intensity exercise today, focusing perhaps on skill acquisition or strength endurance. To optimize further, add a 10-minute mindfulness or breathwork session to enhance vagal tone and mental clarity. Ensure consistent, quality sleep tonight.'
-    };
-  }
-
-  // Pattern 5: RMSSD≈, SDNN≈, LF≈, HF≈, LF/HF≈1, AMo50≈
-  if (rmssd === '≈' && sdnn === '≈' && lf === '≈' && hf === '≈' && lfhf === '≈' && amo50 === '≈') {
-    return {
-      patternId: 5,
-      physiologicalState: 'Baseline (Homeostasis)',
-      coreInterpretation: 'Balanced ANS, neither stressed nor deeply recovered. Maintenance state.',
-      recommendedAction: 'Focus on consistency: This is your control state. The goal is maintenance and observation.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Maintain strict consistency in your sleep schedule, meal timing, and daily routine. Exercise at your standard moderate intensity. Log your subjective feelings and compare them to this reading. Avoid introducing new, major stressors or recovery protocols today. Observe trends across several days, not this single reading in isolation.'
-    };
-  }
-
-  // Pattern 6: RMSSD≈, SDNN↓, LF↓, HF↓, LF/HF≈1, AMo50↑
-  if (rmssd === '≈' && sdnn === '↓' && lf === '↓' && hf === '↓' && lfhf === '≈' && amo50 === '↑') {
-    return {
-      patternId: 6,
-      physiologicalState: 'Fatigued (Warning)',
-      coreInterpretation: 'Decreasing resilience with normal recovery level. Both frequency powers suppressed—indicates energy depletion.',
-      recommendedAction: 'Conserve energy & refuel: Your resilience is dropping, indicating accumulating fatigue or potential overreaching.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Dial back training intensity significantly; opt for light activity like a walk or take a complete rest day. Focus heavily on micronutrient repletion (fruits, vegetables, quality protein), electrolyte balance, and hydration. Prioritize 7-9 hours of uninterrupted sleep tonight. Avoid late nights or social drinking.'
-    };
-  }
-
-  // Pattern 7: RMSSD↓, SDNN↑, LF↑, HF↓, LF/HF>2, AMo50↑
-  if (rmssd === '↓' && sdnn === '↑' && lf === '↑' && hf === '↓' && (lfhf === '>>' || lfhf === '↑') && amo50 === '↑') {
-    return {
-      patternId: 7,
-      physiologicalState: 'Stressed but Resilient',
-      coreInterpretation: 'Acute sympathetic activation with preserved adaptability. Typically due to short-term stressors (e.g., work, exertion).',
-      recommendedAction: 'De-stress proactively: Your body can handle the current stress, but you need to actively manage it to prevent burnout.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Immediately engage the vagus nerve via slow, paced breathing (e.g., 4-7-8 method or box breathing for 5-10 minutes). Avoid caffeine in the afternoon. Take short, restorative walks throughout the day. Rehydrate consciously. Plan for an early night and a relaxing evening routine (e.g., warm bath, reading fiction).'
-    };
-  }
-
-  // Pattern 8: RMSSD↓, SDNN≈, LF↑, HF↓, LF/HF>2, AMo50↑
-  if (rmssd === '↓' && sdnn === '≈' && lf === '↑' && hf === '↓' && (lfhf === '>>' || lfhf === '↑') && amo50 === '↑') {
-    return {
-      patternId: 8,
-      physiologicalState: 'Strained (Fight-or-Flight)',
-      coreInterpretation: 'Parasympathetic withdrawal; resilience baseline but challenged. High sympathetic dominance confirmed by LF/HF >2.',
-      recommendedAction: 'Shift to recovery mode: Your nervous system is highly activated and needs active calming.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'This is a mandatory light or recovery training day only (walking, gentle stretching). Avoid stimulants (caffeine, high-sugar snacks). Implement stress management techniques: journaling, meditation, or light exposure to nature. Focus on grounding activities. Ensure you are nourished and hydrated to support the nervous system.'
-    };
-  }
-
-  // Pattern 9: RMSSD↓, SDNN↓, LF↓, HF↓, LF/HF≈1, AMo50↑
-  if (rmssd === '↓' && sdnn === '↓' && lf === '↓' && hf === '↓' && lfhf === '≈' && amo50 === '↑') {
-    return {
-      patternId: 9,
-      physiologicalState: 'Depleted (Autonomic Suppression)',
-      coreInterpretation: 'Both branches low → autonomic blunting. Low total and spectral power. Often post-illness, burnout, or deep fatigue.',
-      recommendedAction: 'Immediate and total rest: Your battery is critically low. The system is suppressed.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Take a full rest day. Prioritize 8+ hours of high-quality sleep tonight, maybe even a short nap during the day if needed. Focus on hydration, getting sunlight exposure (even gentle walking outdoors helps synchronize circadian rhythm), and minimally processed, whole foods. No intensity or strain. Be kind to yourself.'
-    };
-  }
-
-  // Pattern 10: RMSSD↓, SDNN↓, LF↑, HF↓, LF/HF>3, AMo50↑↑
-  if (rmssd === '↓' && sdnn === '↓' && lf === '↑' && hf === '↓' && lfhf === '>>' && amo50 === '↑↑') {
-    return {
-      patternId: 10,
-      physiologicalState: 'High Sympathetic Drive (Acute Stress)',
-      coreInterpretation: 'Very high LF/HF, narrow RR histogram. Acute mental or physical overload.',
-      recommendedAction: 'Emergency down-regulation: Your body is in a hyper-aroused state.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Immediate intervention needed. Engage in diaphragmatic breathing for 10-15 minutes in a quiet space. Minimize sensory input (dark room, silence, remove phone). Prioritize hydration and a light, calming meal. Postpone any important decisions or intense physical activity until the metrics normalize. Focus solely on calming the nervous system today.'
-    };
-  }
-
-  // Pattern 11: RMSSD↑, SDNN↑, LF↑, HF↑, LF/HF≈1, AMo50↓ (same as pattern 1, but with double arrows)
-  if (rmssd === '↑' && sdnn === '↑' && lf === '↑' && hf === '↑' && (lfhf === '≈' || lfhf === '↑' || lfhf === '↓') && amo50 === '↓↓') {
-    return {
-      patternId: 11,
-      physiologicalState: 'High Autonomic Flux',
-      coreInterpretation: 'Both branches highly active → excellent responsiveness. Seen in elite fitness or during breath training.',
-      recommendedAction: 'Manage the volume: You have elite responsiveness, a sign of high fitness and recovery capacity.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Maintain your current healthy habits. You are highly adaptable. Emphasize post-activity recovery to avoid "overshooting" into a strained state tomorrow. Consider an ice bath or contrast showers today, followed by extra hydration and protein intake. You can train hard, but recover harder.'
-    };
-  }
-
-  // Pattern 12: RMSSD↓, SDNN↑, LF↓, HF↑, LF/HF<0.5, AMo50≈
-  if (rmssd === '↓' && sdnn === '↑' && lf === '↓' && hf === '↑' && lfhf === '<<' && amo50 === '≈') {
-    return {
-      patternId: 12,
-      physiologicalState: 'Parasympathetic Rebound (After Stress)',
-      coreInterpretation: 'Rapid vagal recovery following stress or exercise. LF reduced, HF high.',
-      recommendedAction: 'Facilitate active recovery: The body is actively recovering from a recent challenge.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Continue active recovery efforts. Focus on hydration, slow, intentional breathing exercises, and gentle, restorative movement (walking, foam rolling, yin yoga). Avoid taxing the system further with intense exercise. Ensure you get quality sleep to lock in the recovery.'
-    };
-  }
-
-  // Pattern 13: RMSSD↑, SDNN↓, LF↑, HF↑, LF/HF≈1, AMo50↓
-  if (rmssd === '↑' && sdnn === '↓' && lf === '↑' && hf === '↑' && (lfhf === '≈' || lfhf === '↑' || lfhf === '↓') && amo50 === '↓') {
-    return {
-      patternId: 13,
-      physiologicalState: 'Recovery Under Load',
-      coreInterpretation: 'PNS active but resilience low due to heavy prior stress; ANS working to restore.',
-      recommendedAction: 'Structured recovery focus: Your body is trying very hard to recover while under a heavy physiological load.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Sleep 8+ hours tonight without compromise. Maintain optimal nutrition to support cellular repair. Limit all intensity (physical and mental) for the next 24 hours. Your body needs resources directed purely towards restoration to prevent a downward spiral into fatigue.'
-    };
-  }
-
-  // Pattern 14: RMSSD≈, SDNN↑, LF↑, HF↓, LF/HF>1.5, AMo50↑
-  if (rmssd === '≈' && sdnn === '↑' && lf === '↑' && hf === '↓' && (lfhf === '↑' || lfhf === '>>') && amo50 === '↑') {
-    return {
-      patternId: 14,
-      physiologicalState: 'High Alert Readiness',
-      coreInterpretation: 'Sympathetic activation with high adaptive capacity—"performance arousal" zone.',
-      recommendedAction: 'Optimal for competition: This is the "performance arousal" zone. You are alert and ready for competition or a major challenge.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'This is a good day for competition, public speaking, or a high-stakes meeting. Use this state to your advantage. Ensure you have a structured cool-down and a deliberate recovery plan in place immediately after the peak event to guide your system back to baseline. Hydration is key.'
-    };
-  }
-
-  // Pattern 15: RMSSD↑↑, SDNN↑↑, LF↓, HF↑↑, LF/HF<0.5, AMo50↓↓
-  if ((rmssd === '↑' || rmssd === '↑↑') && (sdnn === '↑' || sdnn === '↑↑') && lf === '↓' && (hf === '↑' || hf === '↑↑') && lfhf === '<<' && (amo50 === '↓' || amo50 === '↓↓')) {
-    return {
-      patternId: 15,
-      physiologicalState: 'Deep Recovery State',
-      coreInterpretation: 'PNS dominance with total adaptability preserved. Often after excellent sleep or mindfulness.',
-      recommendedAction: 'Sustain and use as reference: This is an ideal recovery state. You nailed it.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Sustain your current routine that led to this result. Use this reading as the gold standard baseline reference point for future comparisons. Continue with healthy habits. No changes necessary, simply enjoy the feeling of being deeply recovered and ready for the next day.'
-    };
-  }
-
-  // Pattern 16: RMSSD↓, SDNN↓, LF↓, HF↑, LF/HF<0.7, AMo50≈
-  if (rmssd === '↓' && sdnn === '↓' && lf === '↓' && hf === '↑' && (lfhf === '<<' || lfhf === '↓') && amo50 === '≈') {
-    return {
-      patternId: 16,
-      physiologicalState: 'Autonomic Freeze / Suppressed Stress',
-      coreInterpretation: 'Reduced variability but paradoxically high HF (vagal overcompensation). Often seen under chronic suppressed emotion.',
-      recommendedAction: 'Address underlying stress: This points to a complex state where the body is stuck.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Focus on gentle movement (walking, dancing, cycling). Incorporate expressive therapies like journaling, talking with a friend or professional, or creative expression. Avoid isolation or exposing yourself to overstimulation (loud noise, intense movies). Focus on safety and gentle emotional processing.'
-    };
-  }
-
-  // Pattern 17: RMSSD↑↑, SDNN↓, LF↓, HF↑↑, LF/HF<<1, AMo50↓↓
-  if ((rmssd === '↑' || rmssd === '↑↑') && sdnn === '↓' && lf === '↓' && (hf === '↑' || hf === '↑↑') && lfhf === '<<' && (amo50 === '↓' || amo50 === '↓↓')) {
-    return {
-      patternId: 17,
-      physiologicalState: 'Over-Recovered / Maladaptive Parasympathetic Surge',
-      coreInterpretation: 'Excess vagal activation without resilience backup—may indicate overtraining recovery edge or vagal overshoot.',
-      recommendedAction: 'Rebalance the system: You might be overdoing the recovery techniques (e.g., too much cold exposure, excessive intense breathwork).',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Reduce reliance on strong vagal interventions temporarily. Introduce light, stimulating physical activity to gently activate the sympathetic system (e.g., a brisk 20-minute walk or light jog). Ensure adequate protein intake to support muscle maintenance and return to a balanced state.'
-    };
-  }
-
-  // Pattern 18: RMSSD≈, SDNN↓, LF↑, HF↓, LF/HF>2, AMo50↑
-  if (rmssd === '≈' && sdnn === '↓' && lf === '↑' && hf === '↓' && (lfhf === '>>' || lfhf === '↑') && amo50 === '↑') {
-    return {
-      patternId: 18,
-      physiologicalState: 'Subclinical Stress Accumulation',
-      coreInterpretation: 'Declining adaptability, elevated sympathetic tone. Often precedes fatigue or illness.',
-      recommendedAction: 'Prevent burnout: You are trending towards fatigue. Detect this early and pivot immediately to recovery strategies.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Prioritize sleep optimization—aim for an extra 30-60 minutes tonight and maintain strict sleep hygiene. Engage in only light movement (walking, stretching); cancel intense workouts. Increase hydration and ensure nutrient-dense meals. Avoid social engagements that add mental stress and focus on self-care.'
-    };
-  }
-
-  // Pattern 19: RMSSD↓, SDNN↑, LF↑, HF↑, LF/HF≈1, AMo50≈
-  if (rmssd === '↓' && sdnn === '↑' && lf === '↑' && hf === '↑' && (lfhf === '≈' || lfhf === '↑' || lfhf === '↓') && amo50 === '≈') {
-    return {
-      patternId: 19,
-      physiologicalState: 'Dynamic Stress Adaptation',
-      coreInterpretation: 'Both branches elevated; body dynamically engaging stress response.',
-      recommendedAction: 'Manage the wind-down: Your system is highly active and responsive. This might follow an intense physical or mental challenge.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Allow a dedicated post-stress wind-down window immediately after the event. Use calming techniques like paced breathing, meditation, or light stretching. Avoid secondary stimulants (extra coffee, intense media) that would prolong this elevated state. Transition smoothly into a restorative evening.'
-    };
-  }
-
-  // Pattern 20: RMSSD↑, SDNN↑, LF↓, HF↑, LF/HF<1, AMo50↓
-  if (rmssd === '↑' && sdnn === '↑' && lf === '↓' && hf === '↑' && (lfhf === '<<' || lfhf === '↓') && amo50 === '↓') {
-    return {
-      patternId: 20,
-      physiologicalState: 'High Flow State',
-      coreInterpretation: 'Strong vagal tone with low sympathetic modulation; often seen during creative focus.',
-      recommendedAction: 'Maximize productivity and protect the state: You are in an ideal state for creativity, deep focus, and sustained work.',
-      technicalChanges: [],
-      relativeInterpretation: '',
-      combinedAdvice: 'Maintain focus and leverage this productive window. Ensure you stay well-hydrated throughout this period. Protect yourself from overstimulation after the session ends to transition smoothly back to a restful state. Plan for a standard recovery evening to maintain this optimal pattern.'
-    };
-  }
-
-  // No pattern matched - return generic fallback interpretation
-  // This ensures users with established baselines always get feedback
-  console.log('[AUTONOMIC_INTERP] No specific pattern matched, using fallback interpretation');
   return {
-    patternId: 0, // Fallback pattern
-    physiologicalState: 'Baseline Established',
-    coreInterpretation: 'Your HRV metrics have been compared to your personal baseline. While this specific combination doesn\'t match a defined pattern, your baseline is active and being used for personalized analysis.',
-    recommendedAction: 'Continue monitoring: Keep tracking your sessions to build a more comprehensive understanding of your HRV patterns over time.',
+    patternId: bestMatch.pattern.patternId,
+    physiologicalState: bestMatch.pattern.physiologicalState,
+    coreInterpretation: bestMatch.pattern.coreInterpretation,
+    recommendedAction: bestMatch.pattern.recommendedAction,
     technicalChanges: [],
     relativeInterpretation: '',
-    combinedAdvice: 'Your baseline is established and active. Continue recording sessions to see how your metrics compare to your personal average. Look for trends over time rather than focusing on individual session variations.'
+    combinedAdvice: bestMatch.pattern.combinedAdvice
   };
 }
 
