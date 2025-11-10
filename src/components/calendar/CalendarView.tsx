@@ -221,6 +221,21 @@ export function CalendarView({ userId }: CalendarViewProps) {
   const startDayOfWeek = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay();
   const paddingEndCount = Math.max(0, 42 - (startDayOfWeek + days.length));
 
+  useEffect(() => {
+    const grid = document.getElementById('calendar-grid');
+    const wrapper = document.getElementById('session-column');
+    if (!grid || !wrapper) return;
+
+    const updateHeight = () => {
+      const height = grid.offsetHeight;
+      document.documentElement.style.setProperty('--calendar-height', `${height}px`);
+    };
+
+    updateHeight();
+    window.addEventListener('resize', updateHeight);
+    return () => window.removeEventListener('resize', updateHeight);
+  }, [viewMonth, monthData]);
+
   return (
     <div className="w-full max-w-7xl mx-auto font-sans">
       {/* Top Bar */}
@@ -266,124 +281,99 @@ export function CalendarView({ userId }: CalendarViewProps) {
         </div>
 
         <div className="flex flex-col xl:flex-row gap-4 xl:gap-8 xl:items-start">
-          {/* Calendar Grid */}
-          <div className="flex-1 min-w-0">
-            <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 mb-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d}>{d}</div>)}
-            </div>
-            <div className="grid grid-cols-7 gap-1 w-full max-w-none sm:max-w-[520px] mx-auto xl:mx-0 xl:max-w-none">
-              {Array.from({ length: startDayOfWeek }).map((_, i) => <div key={`pad-start-${i}`} />)}
-              {monthLoading ? (
-                <div className="col-span-7 flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                </div>
-              ) : (
-                days.map(d => {
-                  const dateData = d.dateData;
-                  const sessionCount = dateData?.count || 0;
-                  const sessions = dateData?.sessions || [];
-                  
-                  return (
-                    <button
-                      key={d.key}
-                      className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
-                        selectedDay === d.key ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'
-                      }`}
-                      onClick={() => selectDay(d.key)}
-                      aria-label={`Day ${d.dateObj.getDate()}, ${sessionCount} sessions`}
-                    >
-                      <div className={`text-xs sm:text-sm font-medium ${selectedDay === d.key ? 'text-blue-700' : 'text-gray-700'}`}>{d.dateObj.getDate()}</div>
-                      <div className="flex flex-wrap gap-1 items-center">
-                        {sessions.slice(0, 3).map(s => {
-                            const colorClass = s.rmssd >= 60 ? 'bg-green-500' : s.rmssd >= 40 ? 'bg-yellow-500' : 'bg-red-500';
-                            return <span key={s.id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${colorClass}`} />;
-                        })}
-                        {sessionCount > 3 && <span className="text-[8px] sm:text-[10px] text-gray-500 font-semibold">+{sessionCount - 3}</span>}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
-              {Array.from({ length: paddingEndCount }).map((_, i) => <div key={`pad-end-${i}`} />)}
-            </div>
-          </div>
-
-          {/* Sessions View */}
-          <div className="w-full xl:w-80 xl:border-l xl:border-gray-200 xl:pl-8 flex flex-col">
-            <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
-              Sessions {selectedDay ? `— ${new Date(selectedDay + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
-            </h3>
-
-            {/* Month Analysis Button */}
-            <button
-              onClick={() => alert('Month Analysis for ' + (selectedDay || 'today'))}
-              className="w-full mb-4 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 flex items-center justify-center gap-2"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-4 sm:h-4">
-                <path d="M3 3v18h18"/>
-                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-              </svg>
-              Month Analysis
-            </button>
-            <div className="space-y-2 sm:space-y-3 max-h-[420px] sm:max-h-[480px] overflow-y-auto">
-              {dayLoading ? (
-                <div className="flex items-center justify-center h-full min-h-[200px]">
-                  <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-                </div>
-              ) : selectedDay && daySessions.length > 0 ? (
-                daySessions
-                  .sort((a,b) => a.time.localeCompare(b.time))
-                  .map(s => {
-                    // Determine HRV status based on rmssd value
-                    const getHRVStatus = (rmssd: number) => {
-                      if (rmssd >= 60) return { status: 'Good', color: 'text-green-600', bgColor: 'bg-green-100' };
-                      if (rmssd >= 40) return { status: 'Fair', color: 'text-yellow-600', bgColor: 'bg-yellow-100' };
-                      return { status: 'Low', color: 'text-red-600', bgColor: 'bg-red-100' };
-                    };
-                    
-                    const hrvStatus = getHRVStatus(s.rmssd);
-                    
-                    // Determine border color based on HRV status
-                    const getBorderColor = (rmssd: number) => {
-                      if (rmssd >= 60) return 'border-green-200';
-                      if (rmssd >= 40) return 'border-yellow-200';
-                      return 'border-red-200';
-                    };
+          {/* Calendar and Session Columns Wrapper */}
+          <div className="flex flex-col xl:flex-row gap-4 xl:gap-8 w-full">
+            {/* Calendar Grid */}
+            <div className="flex-1 min-w-0" id="calendar-wrapper">
+              <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 mb-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d}>{d}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1 w-full mx-auto xl:mx-0" id="calendar-grid">
+                {Array.from({ length: startDayOfWeek }).map((_, i) => <div key={`pad-start-${i}`} />)}
+                {monthLoading ? (
+                  <div className="col-span-7 flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : (
+                  days.map(d => {
+                    const dateData = d.dateData;
+                    const sessionCount = dateData?.count || 0;
+                    const sessions = dateData?.sessions || [];
                     
                     return (
-                      <div className={`p-3 sm:p-4 rounded-lg border-2 ${getBorderColor(s.rmssd)} bg-white hover:bg-gray-50 transition-colors`} key={s.id}>
+                      <button
+                        key={d.key}
+                        className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors ${
+                          selectedDay === d.key ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'
+                        }`}
+                        onClick={() => selectDay(d.key)}
+                      >
+                        <div className={`text-xs sm:text-sm font-medium ${selectedDay === d.key ? 'text-blue-700' : 'text-gray-700'}`}>{d.dateObj.getDate()}</div>
+                        <div className="flex flex-wrap gap-1 items-center">
+                          {sessions.slice(0, 3).map(s => {
+                            const colorClass = s.rmssd >= 60 ? 'bg-green-500' : s.rmssd >= 40 ? 'bg-yellow-500' : 'bg-red-500';
+                            return <span key={s.id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${colorClass}`} />;
+                          })}
+                          {sessionCount > 3 && <span className="text-[8px] sm:text-[10px] text-gray-500 font-semibold">+{sessionCount - 3}</span>}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+                {Array.from({ length: paddingEndCount }).map((_, i) => <div key={`pad-end-${i}`} />)}
+              </div>
+            </div>
+
+            {/* Sessions View */}
+            <div className="w-full xl:w-80 xl:border-l xl:border-gray-200 xl:pl-8 flex flex-col" id="session-column">
+              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+                Sessions {selectedDay ? `— ${new Date(selectedDay + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
+              </h3>
+              <button
+                onClick={() => alert('Month Analysis for ' + (selectedDay || 'today'))}
+                className="w-full mb-4 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 flex items-center justify-center gap-2"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-4 sm:h-4">
+                  <path d="M3 3v18h18"/>
+                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                </svg>
+                Month Analysis
+              </button>
+              <div className="flex-1 overflow-y-auto space-y-3" style={{ maxHeight: 'calc(var(--calendar-height) - 100px)' }}>
+                {dayLoading ? (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                  </div>
+                ) : selectedDay && daySessions.length > 0 ? (
+                  daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
+                    const getBorderColor = (rmssd: number) => rmssd >= 60 ? 'border-green-200' : rmssd >= 40 ? 'border-yellow-200' : 'border-red-200';
+
+                    return (
+                      <div className={`p-3 sm:p-4 rounded-lg border-2 ${getBorderColor(s.rmssd)} bg-white hover:bg-gray-50`} key={s.id}>
                         <div className="flex justify-between items-center">
                           <p className="font-semibold text-gray-800 text-sm sm:text-base">{s.time}</p>
                           <p className="text-xs sm:text-sm text-gray-900"><span className="font-semibold">{s.durationMin}</span> <span className="text-xs text-gray-500 font-normal">min</span></p>
                         </div>
-                        
                         <div className="flex justify-between items-center mt-2">
                           <span className="text-sm font-medium text-gray-600">HRV Score</span>
                           <span className="text-sm text-gray-900">
-                            <span className="font-semibold">{s.hrvScore ?? 'N/A'}</span> 
+                            <span className="font-semibold">{s.hrvScore ?? 'N/A'}</span>
                             <span className="text-xs text-gray-500 font-normal">/100</span>
                           </span>
                         </div>
-                        
-                        {/* Additional RMSSD info */}
                         <div className="flex justify-between items-center mt-1">
                           <span className="text-xs text-gray-500">RMSSD</span>
                           <span className="text-xs text-gray-500">
-                            <span className="font-medium">{s.rmssd}</span> 
-                            <span className="text-xs text-gray-400">ms</span>
+                            <span className="font-medium">{s.rmssd}</span><span className="text-xs text-gray-400">ms</span>
                           </span>
-                        </div>
-                        
-                        {/* Session ID for debugging */}
-                        <div className="mt-2 pt-2 border-t border-gray-100">
-                          <p className="text-xs text-gray-400 font-mono">ID: {s.id}</p>
                         </div>
                       </div>
                     );
                   })
-              ) : (
-                <div className="text-xs sm:text-sm text-gray-500 p-4 sm:p-6 text-center bg-white rounded-lg border border-dashed flex items-center justify-center">Select a day to see sessions</div>
-              )}
+                ) : (
+                  <div className="text-xs sm:text-sm text-gray-500 p-4 text-center bg-white rounded-lg border border-dashed flex items-center justify-center h-full">Select a day to see sessions</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
