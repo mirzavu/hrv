@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import PocketBase from 'pocketbase';
 import { pb } from '@/lib/pocketbase';
 import { User } from '@/types';
 
@@ -51,6 +52,38 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
     onClose();
   };
 
+  const handleDevLogin = async () => {
+    // Only available in development mode
+    if (process.env.NODE_ENV !== 'development') {
+      setError('This feature is only available in development mode');
+      return;
+    }
+
+    setError('');
+    setLoading(true);
+    
+    try {
+      // For development, we'll create a mock user object and skip authentication
+      // This is a simplified approach for development only
+      const devUser = {
+        $id: 'dev-user-mirza',
+        name: 'Mirza',
+        email: 'mirza.ekm@gmail.com',
+      };
+      
+      console.log('Development login successful (mock):', devUser);
+      setLoading(false);
+      
+      onLoginSuccess(devUser);
+      onClose();
+      
+    } catch (err: unknown) {
+      console.error('[FRONTEND ERROR] Development login failed:', err);
+      setError('Development login failed');
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs flex items-center justify-center z-50">
       <div className={`${darkMode ? 'bg-gray-800 text-white' : 'bg-white text-gray-800'} p-8 rounded-xl shadow-2xl w-full max-w-md mx-4`}>
@@ -68,6 +101,20 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
         )}
 
         <div className="space-y-4">
+          {/* Development-only one-click login */}
+          {process.env.NODE_ENV === 'development' && (
+            <button
+              onClick={handleDevLogin}
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-400 focus:ring-opacity-75 transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 2L2 7V12C2 16.5 4.23 20.68 7.62 23.15L12 21L16.38 23.15C19.77 20.68 22 16.5 22 12V7L12 2Z" fill="currentColor"/>
+              </svg>
+              {loading ? 'Logging in...' : 'Dev Login (mirza.ekm@gmail.com)'}
+            </button>
+          )}
+
           <button
             onClick={handleGoogleLogin}
             disabled={loading}

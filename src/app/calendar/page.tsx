@@ -45,7 +45,7 @@ export default function CalendarPage() {
       
       <main className="flex-1 p-4 md:p-8 lg:p-10">
         <div className="max-w-7xl mx-auto">
-          <CalendarView userId={user?.$id || null} />
+          <CalendarView userId={user?.$id || null} darkMode={darkMode} />
         </div>
       </main>
       

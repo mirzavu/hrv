@@ -2,6 +2,8 @@
 
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { sessionCache } from '@/lib/sessionCache';
+import { SessionSummary } from '@/types';
+import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 
 // SVG Icons
 const ChevronLeft = (props: React.SVGProps<SVGSVGElement>) => (
@@ -43,15 +45,18 @@ interface MonthDateData {
 
 interface CalendarViewProps {
   userId: string | null;
+  darkMode?: boolean;
 }
 
-export function CalendarView({ userId }: CalendarViewProps) {
+export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [monthData, setMonthData] = useState<Record<string, MonthDateData>>({});
   const [daySessions, setDaySessions] = useState<CalendarSession[]>([]);
   const [monthLoading, setMonthLoading] = useState(false);
   const [dayLoading, setDayLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
+  const [selectedSessionSummary, setSelectedSessionSummary] = useState<SessionSummary | null>(null);
+  const [sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
 
   // State for the currently viewed month
   const today = new Date();
@@ -217,6 +222,26 @@ export function CalendarView({ userId }: CalendarViewProps) {
   const selectDay = (key: string) => {
     setSelectedDay(key);
   };
+
+  // Handle session click - fetch and show session summary
+  const handleSessionClick = async (sessionId: string) => {
+    if (!sessionId) return;
+
+    setSessionSummaryLoading(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch session: ${response.status}`);
+      }
+      const data = await response.json();
+      setSelectedSessionSummary(data.summary);
+    } catch (error) {
+      console.error('Error fetching session summary:', error);
+      alert('Failed to load session summary. Please try again.');
+    } finally {
+      setSessionSummaryLoading(false);
+    }
+  };
   
   const startDayOfWeek = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay();
   const paddingEndCount = Math.max(0, 42 - (startDayOfWeek + days.length));
@@ -348,7 +373,11 @@ export function CalendarView({ userId }: CalendarViewProps) {
                   <div key={selectedDay} className="animate-fade-in space-y-3">
                     {daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
                       return (
-                        <div className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between" key={s.id}>
+                        <div 
+                          className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition-colors" 
+                          key={s.id}
+                          onClick={() => handleSessionClick(s.id)}
+                        >
                           <div className="flex flex-col gap-1">
                             <span className="text-base font-semibold text-gray-800">{s.time}</span>
                             <span className="text-xs font-medium text-gray-400">{s.durationMin} min</span>
@@ -379,6 +408,19 @@ export function CalendarView({ userId }: CalendarViewProps) {
           </div>
         </div>
       </div>
+
+      {/* Session Summary Modal */}
+      {selectedSessionSummary && (
+        <SessionSummaryModal
+          summary={selectedSessionSummary}
+          darkMode={darkMode}
+          onReset={() => {}}
+          isGuest={userId === 'guest' || !userId}
+          onGuestLogin={() => {}}
+          onClose={() => setSelectedSessionSummary(null)}
+          userId={userId}
+        />
+      )}
     </div>
   );
 }
