@@ -3,6 +3,7 @@ import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 import { SessionSummaryPayload } from '@/types';
+import * as fflate from 'fflate';
 
 // GET /api/sessions/[sessionId] - Fetch full session data with summary
 export async function GET(
@@ -43,6 +44,116 @@ export async function GET(
     const startTime = new Date(session.startTime);
     const endTime = new Date(session.endTime);
     const durationSeconds = Math.round((endTime.getTime() - startTime.getTime()) / 1000);
+
+    // Fetch and process raw data if available
+    const rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = [];
+
+    if (session.rawFile) {
+      try {
+        const fileUrl = pb.files.getUrl(session, session.rawFile);
+        console.log(`[API] Fetching raw file from: ${fileUrl}`);
+
+        // Fetch the file
+        const fileResponse = await fetch(fileUrl);
+        if (fileResponse.ok) {
+          const arrayBuffer = await fileResponse.arrayBuffer();
+          const uint8Array = new Uint8Array(arrayBuffer);
+
+          // Unzip the file
+          const unzipped = fflate.unzipSync(uint8Array);
+
+          // Find the CSV file inside the zip (there should be only one)
+          const csvFileName = Object.keys(unzipped).find(name => name.endsWith('.csv'));
+
+          if (csvFileName) {
+            const csvContent = fflate.strFromU8(unzipped[csvFileName]);
+            const lines = csvContent.split('\n');
+
+            // Find header line
+            let headerIndex = -1;
+            const dataLines = [];
+
+            for (let i = 0; i < lines.length; i++) {
+              const line = lines[i].trim();
+              if (line.startsWith('#')) continue; // Skip comments
+              if (!line) continue; // Skip empty lines
+
+              if (headerIndex === -1) {
+                headerIndex = i;
+              } else {
+                dataLines.push(line);
+              }
+            }
+
+            if (headerIndex !== -1) {
+              const headers = lines[headerIndex].split(',').map(h => h.trim().replace(/"/g, ''));
+              const rrIndex = headers.indexOf('rrInterval');
+              const timestampIndex = headers.indexOf('timestamp');
+              const allRrIndex = headers.indexOf('allRrIntervals');
+
+              if (rrIndex !== -1 && timestampIndex !== -1) {
+                // Parse data lines
+                for (const line of dataLines) {
+                  // Handle potential quoted CSV values (simple parser)
+                  // For our simple CSV where arrays might be quoted "[1,2]"
+                  let columns: string[] = [];
+                  let inQuote = false;
+                  let currentValue = '';
+
+                  for (let c = 0; c < line.length; c++) {
+                    const char = line[c];
+                    if (char === '"') {
+                      inQuote = !inQuote;
+                    } else if (char === ',' && !inQuote) {
+                      columns.push(currentValue);
+                      currentValue = '';
+                    } else {
+                      currentValue += char;
+                    }
+                  }
+                  columns.push(currentValue);
+
+                  if (columns.length > rrIndex && columns.length > timestampIndex) {
+                    const timestamp = parseFloat(columns[timestampIndex]);
+                    const rrInterval = parseFloat(columns[rrIndex]);
+
+                    if (!isNaN(timestamp) && !isNaN(rrInterval)) {
+                      const entry: { timestamp: number; rrInterval: number; allRrIntervals?: number[] } = {
+                        timestamp,
+                        rrInterval
+                      };
+
+                      // Try to parse allRrIntervals if present
+                      if (allRrIndex !== -1 && columns.length > allRrIndex) {
+                        try {
+                          const allRrStr = columns[allRrIndex].replace(/^"|"$/g, '').trim();
+                          if (allRrStr.startsWith('[') && allRrStr.endsWith(']')) {
+                            const parsed = JSON.parse(allRrStr);
+                            if (Array.isArray(parsed)) {
+                              entry.allRrIntervals = parsed;
+                            }
+                          }
+                        } catch (e) {
+                          // Ignore parsing error for array
+                        }
+                      }
+
+                      rawData.push(entry);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } else {
+          console.error(`[API] Failed to fetch raw file: ${fileResponse.status}`);
+        }
+      } catch (error) {
+        console.error('[API] Error processing raw file:', error);
+      }
+    }
+
+    console.log(`[API] Extracted ${rawData.length} data points from raw file`);
 
     // Convert SessionSummaryRecord to SessionSummaryPayload
     const payload: SessionSummaryPayload = {
@@ -87,10 +198,10 @@ export async function GET(
       session_date: summaryRecord.session_date ?? null,
     };
 
-    // Build SessionSummary (without RR intervals for now - can be added later if needed)
-    // Estimate data points count from duration (rough estimate: ~1 beat per second)
-    const estimatedDataPoints = Math.max(60, durationSeconds);
-    const sessionSummary = buildSessionSummary(payload, durationSeconds, estimatedDataPoints, []);
+    // Build SessionSummary with ACTUAL raw data
+    // If raw extraction failed (rawData empty), fall back to estimate for data points count
+    const dataPointsCount = rawData.length > 0 ? rawData.length : Math.max(60, durationSeconds);
+    const sessionSummary = buildSessionSummary(payload, durationSeconds, dataPointsCount, rawData);
 
     return NextResponse.json({
       session: withDollarId(session),
