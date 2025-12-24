@@ -9,7 +9,7 @@ interface HRVScoreGaugeProps {
 
 const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablished = true }) => {
   const [showPopover, setShowPopover] = useState(false);
-  
+
   const normalizedScore = Math.max(0, Math.min(score ?? 0, 100));
 
   // Check if we're in "Waiting For Baseline" state
@@ -17,7 +17,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
 
   // Determine color based on score ranges: 0-40 yellow, 40-50 light blue, 50-100 green
   let scoreColorDetails = { text: 'text-gray-400', border: 'border-gray-400', bg: 'bg-gray-50' };
-  
+
   if (normalizedScore < 40) {
     scoreColorDetails = { text: 'text-yellow-600', border: 'border-yellow-500', bg: 'bg-yellow-50' };
   } else if (normalizedScore < 50) {
@@ -29,7 +29,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
   // Get interpretation - use personalized if baseline established, otherwise use generic
   let label = 'N/A';
   let interpretation = '';
-  
+
   if (score === null || score === undefined) {
     label = 'N/A';
     interpretation = 'Data not available';
@@ -59,7 +59,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
   }
 
   return (
-    <div className="p-0.5 rounded-2xl bg-gray-200 h-full flex flex-col">
+    <div className="p-0.5 rounded-2xl bg-slate-200 h-full flex flex-col">
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col h-full">
         <div className="mb-4">
           <div className="flex items-center justify-center gap-2">
@@ -76,7 +76,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
                   <Info size={18} />
                 </button>
                 {showPopover && (
-                  <div className="absolute z-50 w-72 p-4 bg-white border border-blue-200 rounded-lg shadow-xl -left-32 top-8">
+                  <div className="absolute z-50 w-72 p-4 bg-white border border-slate-200 rounded-lg shadow-xl -left-32 top-8">
                     <div className="text-left space-y-2">
                       <p className="text-sm font-semibold text-blue-600">Building Your Personal Baseline</p>
                       <p className="text-xs text-slate-600">
@@ -91,14 +91,14 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
                         Once established, your scores will reflect deviations from <em>your</em> personal average, providing more meaningful insights.
                       </p>
                     </div>
-                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-blue-200"></div>
+                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-slate-200"></div>
                   </div>
                 )}
               </div>
             )}
           </div>
         </div>
-        
+
         {/* Horizontal Bar Segmented Visualization */}
         <div className="w-full max-w-lg flex flex-col items-center mb-4 mx-auto">
           {/* Marker Container */}
@@ -117,7 +117,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
               </div>
             )}
           </div>
-          
+
           {/* Segments container - no labels, just colors */}
           <div className="w-full flex h-8 rounded-full overflow-hidden shadow-inner bg-gray-100">
             <div className="w-[40%] bg-yellow-200/70"></div>

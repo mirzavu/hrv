@@ -7,7 +7,7 @@ interface NervousSystemBalanceGaugeProps {
   sd2_sd1_ratio?: number | null | undefined;
 }
 
-const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({ 
+const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   parasympatheticPercent: propParasympatheticPercent,
   sympatheticPercent: propSympatheticPercent,
   sd2_sd1_ratio
@@ -15,28 +15,28 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   // Use SD2/SD1-based percentages - no fallback
   let parasympatheticPercent: number = 50; // Default neutral
   let sympatheticPercent: number = 50; // Default neutral
-  
+
   if (propParasympatheticPercent !== null && propParasympatheticPercent !== undefined &&
-      propSympatheticPercent !== null && propSympatheticPercent !== undefined) {
+    propSympatheticPercent !== null && propSympatheticPercent !== undefined) {
     parasympatheticPercent = propParasympatheticPercent;
     sympatheticPercent = propSympatheticPercent;
   }
-  
+
   // Calculate balance score (0-100, where higher = more parasympathetic)
   const balanceScore = Math.min(100, Math.max(0, parasympatheticPercent));
-  
+
   // Determine color based on score: yellow for sympathetic (lower score), green for parasympathetic (higher score)
   const scoreColorDetails = balanceScore < 50
     ? { text: 'text-yellow-600', border: 'border-yellow-500', bg: 'bg-yellow-50' } // Sympathetic dominant
     : { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' }; // Parasympathetic dominant
 
   return (
-    <div className="p-0.5 rounded-2xl bg-gray-200 h-full flex flex-col">
+    <div className="p-0.5 rounded-2xl bg-slate-200 h-full flex flex-col">
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col h-full">
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-slate-700">Nervous System Balance</h3>
         </div>
-        
+
         {/* Horizontal Bar Segmented Visualization */}
         <div className="w-full max-w-lg flex flex-col items-center mb-4 mx-auto">
           {/* Marker Container */}
@@ -53,7 +53,7 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
               <div className="w-px h-3 bg-gray-300" />
             </div>
           </div>
-          
+
           {/* Segments container */}
           <div className="w-full flex h-8 rounded-full overflow-hidden shadow-inner bg-gray-100">
             <div className="w-[50%] bg-yellow-200/70 flex items-center justify-center text-xs font-medium text-yellow-700/80">Sympathetic</div>

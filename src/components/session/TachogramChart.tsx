@@ -116,10 +116,10 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
     if (rrInterval === undefined || rrInterval === null) {
       return null;
     }
-    
+
     const beatNumber = data.find(point => point.rrInterval === rrInterval)?.beatNumber || 0;
     const time = data.find(point => point.rrInterval === rrInterval)?.time || 0;
-    
+
     return (
       <div className="rounded-xl border border-white/10 bg-slate-900/90 px-4 py-3 text-white shadow-xl backdrop-blur-md">
         <p className="text-xs uppercase tracking-wide text-slate-300">Beat #{beatNumber}</p>
@@ -130,7 +130,7 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: '#bedbff' }}>
+    <div className="p-0.5 rounded-2xl bg-slate-200">
       <div className="bg-white rounded-[15px] p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>

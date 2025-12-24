@@ -21,8 +21,8 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
       ? title === 'RMSSD Change'
         ? formatRmssdDelta(value).value
         : title === 'Beats'
-        ? Math.round(value).toString()
-        : value.toFixed(1)
+          ? Math.round(value).toString()
+          : value.toFixed(1)
       : 'N/A';
 
   const actualSignal = getMetricSignal(title, value);
@@ -30,8 +30,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
 
   return (
     <div
-      className="p-0.5 rounded-2xl"
-      style={{ backgroundColor: getSignalColor(actualSignal?.type || 'info') }}
+      className="p-0.5 rounded-2xl bg-slate-200"
     >
       <div className="bg-white rounded-[15px] p-5 h-full relative group">
         {actualSignal && (

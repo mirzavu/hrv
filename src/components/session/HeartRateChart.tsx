@@ -141,7 +141,7 @@ const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime
   };
 
   return (
-    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: '#bedbff' }}>
+    <div className="p-0.5 rounded-2xl bg-slate-200">
       <div className="bg-white rounded-[15px] p-6">
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>

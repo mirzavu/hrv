@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline } from '@/types';
-import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3 } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
@@ -20,7 +20,7 @@ interface SessionSummaryModalProps {
   isGuest: boolean;
   onGuestLogin: () => void;
   onClose: () => void;
-  rrQuality?: {percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number};
+  rrQuality?: { percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number };
   userId?: string | null;
 }
 
@@ -127,7 +127,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           rr,
         };
       })
-      .filter((point): point is { time: number; bpm: number; rr: number } => 
+      .filter((point): point is { time: number; bpm: number; rr: number } =>
         Boolean(point) &&
         Number.isFinite(point?.bpm) &&
         Number.isFinite(point?.rr)
@@ -135,7 +135,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   }, [summary.rrIntervals]);
 
   const poincareData = useMemo(() => {
-        const intervals = summary.rrIntervals ?? [];
+    const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
       (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
     );
@@ -173,7 +173,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
     return valid.map((interval, index) => {
       const rr = interval.value ?? 0;
-      
+
       if (startTimestamp !== null && typeof interval.timestamp === 'number') {
         elapsedSeconds = (interval.timestamp - startTimestamp) / 1000;
       } else if (index === 0) {
@@ -229,7 +229,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 unit={summary.energyScore.unit}
               />
               <MetricCard
-                icon={<AlertTriangle className="w-5 h-5 text-red-500" />}
+                icon={<Gauge className="w-5 h-5 text-red-500" />}
                 title="Stress Score"
                 value={summary.stressScore.value}
                 unit={summary.stressScore.unit}
@@ -254,7 +254,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Activity className="w-6 h-6 text-blue-600" />
               Key Metrics
             </h2>
-            
+
             {/* First Row: Session Duration, Mean Heart Rate, Beats */}
             <div className={`grid grid-cols-1 gap-6 ${rrQuality ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
               <MetricCard
@@ -276,19 +276,18 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               />
               {rrQuality && (
                 <MetricCard
-                  icon={<Activity className={`w-5 h-5 ${
-                    rrQuality.quality === 'excellent' ? 'text-green-500' :
+                  icon={<Activity className={`w-5 h-5 ${rrQuality.quality === 'excellent' ? 'text-green-500' :
                     rrQuality.quality === 'good' ? 'text-blue-500' :
-                    rrQuality.quality === 'fair' ? 'text-yellow-500' :
-                    'text-red-500'
-                  }`} />}
+                      rrQuality.quality === 'fair' ? 'text-yellow-500' :
+                        'text-red-500'
+                    }`} />}
                   title="RR Quality"
                   value={rrQuality.percentage}
                   unit="%"
                 />
               )}
             </div>
-            
+
             <div className="mt-8">
               <HeartRateChart
                 data={heartRateData}
@@ -321,20 +320,20 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     unit={summary.respCoherence.unit}
                   />
                 </div>
-                
+
                 {/* HRV Score and Nervous System Balance */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
-                  <HRVScoreGauge 
+                  <HRVScoreGauge
                     score={summary.hrvScore.value}
                     baselineEstablished={baseline?.established ?? false}
                   />
-                  <NervousSystemBalanceGauge 
+                  <NervousSystemBalanceGauge
                     parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
                     sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
                     sd2_sd1_ratio={summary.sd2_sd1_ratio}
                   />
                 </div>
-                
+
                 {/* Restoration Index */}
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                   <RestorationIndexGauge score={summary.restorationIndex.value} />
@@ -349,10 +348,10 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 <div className="space-y-6">
                   <TachogramChart data={tachogramData} />
                   <PoincarePlot data={poincareData} />
-                  
+
                   {/* New Breathing Coherence Chart */}
                   <BreathingCoherenceChart data={heartRateData} />
-                  
+
                   {/* Autonomic Balance Chart */}
                   <AutonomicBalanceChart
                     currentRatio={summary.sd2_sd1_ratio ?? null}
@@ -370,7 +369,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <BarChart3 className="w-6 h-6 text-purple-600" />
               Analysis
             </h2>
-            <AutonomicInterpretation 
+            <AutonomicInterpretation
               interpretation={interpretation}
               isLoading={baselineLoading}
               summary={summary}
@@ -378,10 +377,10 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             />
           </section>
         </main>
-        
+
         <footer className="sticky bottom-0 bg-white/70 backdrop-blur-md rounded-b-3xl border-t border-slate-200 p-5 mt-auto">
           {isGuest && (
-            <div className="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
               <div className="flex items-start gap-3">
                 <div className="text-2xl">💡</div>
                 <div className="flex-1">

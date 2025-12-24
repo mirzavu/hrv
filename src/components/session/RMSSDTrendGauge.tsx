@@ -62,48 +62,48 @@ const RMSSDTrendGauge: React.FC<RMSSDTrendGaugeProps> = ({ startRMSSD, endRMSSD,
   const trendData = getTrendData();
 
   return (
-    <div className="p-0.5 rounded-2xl" style={{ backgroundColor: trendData.borderColor }}>
+    <div className="p-0.5 rounded-2xl bg-slate-200">
       <div className="bg-white rounded-[15px] p-6">
         <div className="text-center">
           <h3 className="text-lg font-semibold text-slate-700 mb-4">RMSSD Trend</h3>
-        
-        {/* Gauge */}
-        <div className="relative w-32 h-16 mx-auto mb-4">
-          <div className="w-full h-full rounded-full border-2 border-gray-300 flex items-end justify-center" style={{ backgroundColor: trendData.borderColor }}>
-            <div 
-              className="w-1 h-8 bg-white rounded-full transform origin-bottom transition-transform duration-500"
-              style={{ transform: `rotate(${trendData.rotation}deg)` }}
-            ></div>
+
+          {/* Gauge */}
+          <div className="relative w-32 h-16 mx-auto mb-4">
+            <div className="w-full h-full rounded-full border-2 border-gray-300 flex items-end justify-center" style={{ backgroundColor: trendData.borderColor }}>
+              <div
+                className="w-1 h-8 bg-white rounded-full transform origin-bottom transition-transform duration-500"
+                style={{ transform: `rotate(${trendData.rotation}deg)` }}
+              ></div>
+            </div>
+            <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white rounded-full border-2 border-gray-300"></div>
           </div>
-          <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white rounded-full border-2 border-gray-300"></div>
-        </div>
-        
-        <div className="mt-2">
-          <span className={`text-4xl font-bold ${trendData.colorClass}`}>
-            {rmssdDelta !== null && rmssdDelta !== undefined ? 
-              `${rmssdDelta > 0 ? '+' : ''}${rmssdDelta.toFixed(1)}` : '--'
-            }
-          </span>
-          <span className="text-lg text-slate-500">ms</span>
-          <p className={`font-semibold mt-1 ${trendData.colorClass}`}>{trendData.label}</p>
-        </div>
-        
-        {/* Start/End Values */}
-        <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <p className="text-slate-500">Start RMSSD</p>
-            <p className="font-semibold text-slate-700">
-              {startRMSSD !== null && startRMSSD !== undefined ? `${startRMSSD.toFixed(1)}ms` : '--'}
-            </p>
+
+          <div className="mt-2">
+            <span className={`text-4xl font-bold ${trendData.colorClass}`}>
+              {rmssdDelta !== null && rmssdDelta !== undefined ?
+                `${rmssdDelta > 0 ? '+' : ''}${rmssdDelta.toFixed(1)}` : '--'
+              }
+            </span>
+            <span className="text-lg text-slate-500">ms</span>
+            <p className={`font-semibold mt-1 ${trendData.colorClass}`}>{trendData.label}</p>
           </div>
-          <div>
-            <p className="text-slate-500">End RMSSD</p>
-            <p className="font-semibold text-slate-700">
-              {endRMSSD !== null && endRMSSD !== undefined ? `${endRMSSD.toFixed(1)}ms` : '--'}
-            </p>
+
+          {/* Start/End Values */}
+          <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-slate-500">Start RMSSD</p>
+              <p className="font-semibold text-slate-700">
+                {startRMSSD !== null && startRMSSD !== undefined ? `${startRMSSD.toFixed(1)}ms` : '--'}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-500">End RMSSD</p>
+              <p className="font-semibold text-slate-700">
+                {endRMSSD !== null && endRMSSD !== undefined ? `${endRMSSD.toFixed(1)}ms` : '--'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
       </div>
     </div>
   );
