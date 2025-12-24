@@ -5,6 +5,7 @@ import { sessionCache } from '@/lib/sessionCache';
 import { SessionSummary } from '@/types';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import WeeklyRecoveryReport from '@/components/reports/WeeklyRecoveryReport';
+import MonthlyAnalysisReport from '@/components/reports/MonthlyAnalysisReport';
 
 // SVG Icons
 const ChevronLeft = (props: React.SVGProps<SVGSVGElement>) => (
@@ -59,6 +60,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [selectedSessionSummary, setSelectedSessionSummary] = useState<SessionSummary | null>(null);
   const [sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+  const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
 
   // Check baseline status
@@ -300,8 +302,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
               onClick={() => baselineEstablished && setShowWeeklyReport(true)}
               disabled={!baselineEstablished}
               className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 ${baselineEstablished
-                  ? 'text-white bg-blue-600 hover:bg-blue-700'
-                  : 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                ? 'text-white bg-blue-600 hover:bg-blue-700'
+                : 'text-slate-400 bg-slate-100 cursor-not-allowed'
                 }`}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -388,16 +390,25 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
               <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
                 Sessions {selectedDay ? `— ${new Date(selectedDay + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
               </h3>
-              <button
-                onClick={() => alert('Month Analysis for ' + (selectedDay || 'today'))}
-                className="w-full mb-4 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 flex items-center justify-center gap-2"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-4 sm:h-4">
-                  <path d="M3 3v18h18" />
-                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
-                </svg>
-                Month Analysis
-              </button>
+
+              <div className="w-full mb-4">
+                <button
+                  onClick={() => baselineEstablished && setShowMonthlyReport(true)}
+                  disabled={!baselineEstablished}
+                  className={`w-full px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold rounded-lg shadow-sm border transition-colors duration-200 flex items-center justify-center gap-2 ${baselineEstablished
+                      ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                      : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                    }`}
+                  title={!baselineEstablished ? "Establish a baseline first" : "View Monthly Trends"}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-4 sm:h-4">
+                    <path d="M3 3v18h18" />
+                    <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+                  </svg>
+                  Month Analysis
+                </button>
+              </div>
+
               <div className="flex-1 overflow-y-auto" style={{ maxHeight: 'calc(var(--calendar-height) - 100px)' }}>
                 {dayLoading ? (
                   <div className="flex items-center justify-center h-full">
@@ -460,6 +471,12 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         isOpen={showWeeklyReport}
         onClose={() => setShowWeeklyReport(false)}
         userId={userId}
+      />
+      <MonthlyAnalysisReport
+        isOpen={showMonthlyReport}
+        onClose={() => setShowMonthlyReport(false)}
+        userId={userId}
+        currentMonth={viewMonth}
       />
     </div>
   );
