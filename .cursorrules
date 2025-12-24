@@ -1,9 +1,0 @@
-# HRV Project Rules
-
-This project uses a split rules system:
-
-## Project-Specific Rules
-See `.cursor/rules/project.mdc` for HRV app-specific rules.
-
-## General Rules
-See `Agents.md` in the root directory for general coding guidelines.

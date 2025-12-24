@@ -42,6 +42,10 @@ export interface UserBaseline {
   hr_stdev: number | null;
   sd1_sd2_ratio_avg: number | null;
   sd1_sd2_ratio_stdev: number | null;
+  lf_power_avg?: number | null;
+  hf_power_avg?: number | null;
+  lf_hf_avg?: number | null;
+  amo50_avg?: number | null;
   sessions_count: number | null;
   established: boolean;
   last_updated: string | null;
@@ -75,49 +79,49 @@ export interface SessionSummary {
   // Core session metrics
   duration: HRVMetric;
   meanHR: HRVMetric;
-  
+
   // HRV metrics
   sessionRMSSD: HRVMetric;
   startRMSSD: HRVMetric;
   endRMSSD: HRVMetric;
   rmssdDelta: HRVMetric;
   hrvStability: HRVMetric;
-  
+
   // Performance metrics
   timeToStabilize: HRVMetric;
   respCoherence: HRVMetric;
   restorationIndex: HRVMetric;
   sessionStressIndex: HRVMetric;
-  
+
   // New 4-score metrics
   energyScore: HRVMetric;
   stressScore: HRVMetric;
   healthScore: HRVMetric;
   focusScore: HRVMetric;
-  
+
   // HRV Score (0-100)
   hrvScore: HRVMetric;
-  
+
   // Frequency domain metrics
   lfPower: HRVMetric;
   hfPower: HRVMetric;
   totalPower?: number | null | undefined;
   sd2_sd1_ratio?: number | null | undefined;
   lfhfRatio?: number | null | undefined;
-  
+
   // Additional HRV metrics
   sdnn?: HRVMetric;
   amode50?: number | null | undefined;
-  
+
   // === NEW SD2/SD1-based Balance Percentages ===
   sd1_sd2_balance_score_nbs?: number | null | undefined;
   sd1_sd2_parasympathetic_percent?: number | null | undefined;
   sd1_sd2_sympathetic_percent?: number | null | undefined;
   // === END NEW ===
-  
+
   // Data quality
   dataPoints: HRVMetric;
-  
+
   // Raw data for visualization
   rrIntervals: Array<{ timestamp: number; value: number }>;
 }
@@ -126,7 +130,7 @@ export interface SessionSummaryRecord {
   $id: string;
   session_id: string;
   user_id: string;
-  
+
   // Existing time-domain metrics
   rmssd_session_ms: number | null;
   rmssd_cv_percent?: number | null;
@@ -144,45 +148,45 @@ export interface SessionSummaryRecord {
   resp_coherence_score: number | null;
   restoration_index: number | null;
   session_stress_index: number | null;
-  
+
   // New time-domain metrics
   mean_rr_ms?: number | null;
-  
+
   // Frequency-domain metrics
   lf_power_ms2?: number | null;
   hf_power_ms2?: number | null;
   lfhf_ratio?: number | null;
   total_power_ms2?: number | null;
-  
+
   // Nonlinear/Poincaré plot metrics
   sd1_ms?: number | null;
   sd2_ms?: number | null;
   sd2_sd1_ratio?: number | null;
-  
+
   // Full Baevsky Stress Index components
   baevsky_mo?: number | null;
   baevsky_amo?: number | null;
   baevsky_mxdmn_ms?: number | null;
   baevsky_stress_index?: number | null;
-  
+
   // === NEW SD2/SD1-based Balance Percentages ===
   sd1_sd2_balance_score_nbs?: number | null; // Normalized Balance Score (0-100)
   sd1_sd2_parasympathetic_percent?: number | null;
   sd1_sd2_sympathetic_percent?: number | null;
   // === END NEW ===
-  
+
   // New 4-Score metrics
   energy_score?: number | null;
   stress_score?: number | null;
   health_score?: number | null;
   focus_score?: number | null;
-  
+
   // HRV Score (0-100)
   hrv_score?: number | null;
-  
+
   // Session date (stores session startTime for temporal distribution checks)
   session_date?: string | null;
-  
+
   createdAt: string;
 }
 

@@ -123,3 +123,6 @@ LICENSE.md
 *.zip
 *.tar.gz
 *.rar 
+
+# Markdown files
+*.md

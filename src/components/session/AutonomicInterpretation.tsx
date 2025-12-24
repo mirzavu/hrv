@@ -1,5 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { AlertTriangle, Info, Lightbulb } from 'lucide-react';
+import {
+  Waves,
+  TrendingUp,
+  TrendingDown,
+  Wind,
+  Info,
+  Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Lightbulb
+} from 'lucide-react';
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 import type { SessionSummary } from '@/types';
 
@@ -8,6 +18,7 @@ interface HistoricalComparison {
   sdnn?: { change: number; direction: 'up' | 'down' };
   lf?: { change: number; direction: 'up' | 'down' };
   hf?: { change: number; direction: 'up' | 'down' };
+  amo50?: { change: number; direction: 'up' | 'down' };
 }
 
 interface AutonomicInterpretationProps {
@@ -17,14 +28,54 @@ interface AutonomicInterpretationProps {
   userId?: string | null;
 }
 
+// Reusable Metric Card matching the requested design
+const MetricCard = ({
+  label,
+  value,
+  subValue,
+  change,
+  trend,
+  unit = "ms",
+  borderColor = "border-slate-200"
+}: {
+  label: string,
+  value: string,
+  subValue: string | number,
+  change: string | number,
+  trend: 'up' | 'down' | 'stable',
+  unit?: string,
+  borderColor?: string
+}) => (
+  <div className={`bg-white border-[2.5px] ${borderColor} p-4 rounded-xl hover:border-indigo-200 transition-all flex flex-col justify-between group flex-1 min-w-[140px]`}>
+    <div className="flex justify-between items-start mb-2">
+      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">{label}</span>
+      <span className={`text-[9px] font-black px-1.5 py-0.5 rounded flex items-center ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' :
+        trend === 'down' ? 'bg-slate-100 text-slate-600' : 'bg-slate-100 text-slate-600'
+        }`}>
+        {trend === 'up' && <TrendingUp size={10} className="mr-1" />}
+        {trend === 'down' && <TrendingDown size={10} className="mr-1" />}
+        {trend === 'stable' && <span className="mr-1">=</span>}
+        {change}%
+      </span>
+    </div>
+    <div className="flex items-baseline gap-1">
+      <span className="text-xl font-black text-slate-800 tabular-nums">{value}</span>
+      <span className="text-slate-400 text-[9px] font-bold uppercase">{unit}</span>
+    </div>
+    <div className="mt-3 pt-2 border-t border-slate-50 flex justify-between items-center text-[9px]">
+      <span className="text-slate-400 uppercase font-semibold">vs 7 Days</span>
+      <span className="text-slate-600 font-bold">{subValue}</span>
+    </div>
+  </div>
+);
+
 const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
   interpretation,
   isLoading = false,
   summary,
   userId
 }) => {
-  const [yesterdayComparison, setYesterdayComparison] = useState<HistoricalComparison | null>(null);
-  const [monthAgoComparison, setMonthAgoComparison] = useState<HistoricalComparison | null>(null);
+  const [sevenDayComparison, setSevenDayComparison] = useState<HistoricalComparison | null>(null);
   const [loadingComparisons, setLoadingComparisons] = useState(false);
 
   // Fetch historical sessions for comparison
@@ -37,78 +88,55 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
       setLoadingComparisons(true);
       try {
         const now = new Date();
-        const yesterday = new Date(now);
-        yesterday.setDate(yesterday.getDate() - 1);
-        const monthAgo = new Date(now);
-        monthAgo.setMonth(monthAgo.getMonth() - 1);
+        const sevenDaysAgo = new Date(now);
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-        // Fetch sessions from yesterday and a month ago
-        const [yesterdayResponse, monthAgoResponse] = await Promise.all([
-          fetch(`/api/sessions/calendar?userId=${userId}&startDate=${yesterday.toISOString().split('T')[0]}&endDate=${yesterday.toISOString().split('T')[0]}`),
-          fetch(`/api/sessions/calendar?userId=${userId}&startDate=${monthAgo.toISOString().split('T')[0]}&endDate=${monthAgo.toISOString().split('T')[0]}`)
-        ]);
+        // Fetch session from 7 days ago
+        const response = await fetch(`/api/sessions/calendar?userId=${userId}&startDate=${sevenDaysAgo.toISOString().split('T')[0]}&endDate=${sevenDaysAgo.toISOString().split('T')[0]}`);
+        const data = await response.json();
+        const sevenDaySession = data.sessions?.[0];
 
-        const yesterdayData = await yesterdayResponse.json();
-        const monthAgoData = await monthAgoResponse.json();
-
-        // Get the most recent session from each period
-        const yesterdaySession = yesterdayData.sessions?.[0];
-        const monthAgoSession = monthAgoData.sessions?.[0];
-
-        // Fetch session summaries for LF/HF power values
-        const fetchSummary = async (sessionId: string) => {
+        // Fetch summary if session exists
+        let sevenDaySummary = null;
+        if (sevenDaySession) {
           try {
-            const response = await fetch(`/api/sessions/summary?sessionId=${sessionId}`);
-            if (response.ok) {
-              const data = await response.json();
-              return data.summary;
+            const sumResp = await fetch(`/api/sessions/summary?sessionId=${sevenDaySession.id}`);
+            if (sumResp.ok) {
+              const sumData = await sumResp.json();
+              sevenDaySummary = sumData.summary;
             }
-          } catch (error) {
-            console.error('Error fetching session summary:', error);
-          }
-          return null;
-        };
+          } catch (e) { console.error(e); }
+        }
 
-        const [yesterdaySummary, monthAgoSummary] = await Promise.all([
-          yesterdaySession ? fetchSummary(yesterdaySession.id) : Promise.resolve(null),
-          monthAgoSession ? fetchSummary(monthAgoSession.id) : Promise.resolve(null)
-        ]);
-
-        // Calculate comparisons for yesterday
-        if (yesterdaySession) {
+        // Calculate comparisons
+        if (sevenDaySummary) {
           const comparison: HistoricalComparison = {};
-          if (summary.sessionRMSSD.value && yesterdaySession.rmssd) {
-            const change = ((summary.sessionRMSSD.value - yesterdaySession.rmssd) / yesterdaySession.rmssd) * 100;
+
+          if (summary.sessionRMSSD.value && sevenDaySession.rmssd) {
+            const change = ((summary.sessionRMSSD.value - sevenDaySession.rmssd) / sevenDaySession.rmssd) * 100;
             comparison.rmssd = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
           }
-          if (summary.sdnn?.value && yesterdaySummary?.sdnn_session_ms) {
-            const change = ((summary.sdnn.value - yesterdaySummary.sdnn_session_ms) / yesterdaySummary.sdnn_session_ms) * 100;
+          if (summary.sdnn?.value && sevenDaySummary.sdnn_session_ms) {
+            const change = ((summary.sdnn.value - sevenDaySummary.sdnn_session_ms) / sevenDaySummary.sdnn_session_ms) * 100;
             comparison.sdnn = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
           }
-          if (summary.lfPower.value && yesterdaySummary?.lf_power_ms2 && yesterdaySummary.lf_power_ms2 > 0) {
-            const change = ((summary.lfPower.value - yesterdaySummary.lf_power_ms2) / yesterdaySummary.lf_power_ms2) * 100;
+          if (summary.lfPower.value && sevenDaySummary.lf_power_ms2) {
+            const change = ((summary.lfPower.value - sevenDaySummary.lf_power_ms2) / sevenDaySummary.lf_power_ms2) * 100;
             comparison.lf = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
           }
-          setYesterdayComparison(comparison);
-        }
-
-        // Calculate comparisons for a month ago
-        if (monthAgoSession) {
-          const comparison: HistoricalComparison = {};
-          if (summary.sessionRMSSD.value && monthAgoSession.rmssd) {
-            const change = ((summary.sessionRMSSD.value - monthAgoSession.rmssd) / monthAgoSession.rmssd) * 100;
-            comparison.rmssd = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
-          }
-          if (summary.sdnn?.value && monthAgoSummary?.sdnn_session_ms) {
-            const change = ((summary.sdnn.value - monthAgoSummary.sdnn_session_ms) / monthAgoSummary.sdnn_session_ms) * 100;
-            comparison.sdnn = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
-          }
-          if (summary.hfPower.value && monthAgoSummary?.hf_power_ms2 && monthAgoSummary.hf_power_ms2 > 0) {
-            const change = ((summary.hfPower.value - monthAgoSummary.hf_power_ms2) / monthAgoSummary.hf_power_ms2) * 100;
+          if (summary.hfPower.value && sevenDaySummary.hf_power_ms2) {
+            const change = ((summary.hfPower.value - sevenDaySummary.hf_power_ms2) / sevenDaySummary.hf_power_ms2) * 100;
             comparison.hf = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
           }
-          setMonthAgoComparison(comparison);
+          // AMo50 comparison
+          if (summary.amode50 && sevenDaySummary.amode_50) {
+            const change = ((summary.amode50 - sevenDaySummary.amode_50) / sevenDaySummary.amode_50) * 100;
+            comparison.amo50 = { change: Math.abs(change), direction: change > 0 ? 'up' : 'down' };
+          }
+
+          setSevenDayComparison(comparison);
         }
+
       } catch (error) {
         console.error('Error fetching historical comparisons:', error);
       } finally {
@@ -119,201 +147,201 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
     fetchHistoricalComparisons();
   }, [userId, summary, isLoading]);
 
-  // Determine color based on pattern ID
-  const getStateColor = (patternId: number) => {
-    // Stressed/Depleted states (red)
-    if ([7, 8, 9, 10, 16].includes(patternId)) {
-      return {
-        headerBg: 'bg-red-50/50',
-        borderColor: 'border-red-200',
-        textColor: 'text-red-700'
-      };
-    }
-    // Warning/Fatigue states (yellow/orange)
-    if ([3, 6, 13, 18].includes(patternId)) {
-      return {
-        headerBg: 'bg-yellow-50/50',
-        borderColor: 'border-yellow-200',
-        textColor: 'text-yellow-700'
-      };
-    }
-    // Optimal/Recovered states (green)
-    if ([1, 2, 4, 11, 15, 20].includes(patternId)) {
-      return {
-        headerBg: 'bg-green-50/50',
-        borderColor: 'border-green-200',
-        textColor: 'text-green-700'
-      };
-    }
-    // Neutral/Baseline states (blue)
-    return {
-      headerBg: 'bg-blue-50/50',
-      borderColor: 'border-blue-200',
-      textColor: 'text-blue-700'
-    };
-  };
-
   if (isLoading || loadingComparisons) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm">
-        <div className="animate-pulse space-y-4 p-5">
-          <div className="h-6 bg-gray-200 rounded w-1/3"></div>
-          <div className="h-4 bg-gray-200 rounded w-full"></div>
-          <div className="h-4 bg-gray-200 rounded w-5/6"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!interpretation) {
-    return (
-      <div className="bg-white border border-blue-200 rounded-lg shadow-sm">
-        <div className="p-5">
-          <div className="flex items-start space-x-3">
-            <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-blue-900 mb-1">Baseline Not Established</h3>
-              <p className="text-sm text-blue-700">
-                We need at least 7 sessions over 5+ days to establish your personal baseline. 
-                Once established, you'll receive personalized interpretations and recommendations 
-                based on your unique HRV patterns.
-              </p>
-            </div>
+      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+        <div className="animate-pulse flex items-center space-x-4">
+          <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
+          <div className="space-y-2 flex-1">
+            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
           </div>
         </div>
       </div>
     );
   }
 
-  const stateColor = getStateColor(interpretation.patternId);
-  
-  // Check if this is a green (optimal/recovered) state
-  const isGreenState = [1, 2, 4, 11, 15, 20].includes(interpretation.patternId);
+  if (!interpretation) return null;
 
-  // Helper function to check if a comparison has any data
-  const hasComparisonData = (comparison: HistoricalComparison | null): boolean => {
-    if (!comparison) return false;
-    return !!(comparison.rmssd || comparison.sdnn || comparison.lf || comparison.hf);
+  // Configuration based on physiological state (Pattern ID)
+  // Optimal (Green)
+  const isOptimalPattern = [1, 2, 4, 11, 15, 20].includes(interpretation.patternId);
+
+  // Check if RMSSD is trending up or stable-positive to force Green theme (User Feedback)
+  const rmssdDetail = interpretation.baselineDetails?.find(d => d.metric === 'RMSSD');
+  const isPositiveTrend = rmssdDetail?.direction === 'up' || (rmssdDetail?.direction === 'stable' && (rmssdDetail.percentChange || 0) >= 0);
+
+  const useGreenTheme = isOptimalPattern || isPositiveTrend;
+
+  let theme = {
+    headerBg: "bg-slate-900", // Static dark header
+    accent: "text-indigo-400",
+    bannerContainer: "bg-slate-100/50 border-slate-200/50", // Default Grey
+    bannerIcon: "text-slate-500",
+    pulseColor: "bg-indigo-400",
+    protocolBg: "bg-indigo-600",
+    protocolShadow: "shadow-indigo-100"
   };
 
-  // Helper function to render metric comparison
-  const renderMetricComparison = (
-    label: string,
-    comparison?: { change: number; direction: 'up' | 'down' }
-  ) => {
-    if (!comparison) return null;
+  if (useGreenTheme) {
+    theme = {
+      headerBg: "bg-slate-900",
+      accent: "text-emerald-400",
+      bannerContainer: "bg-emerald-50/40 border-emerald-100/50", // Green for Optimal/Positive
+      bannerIcon: "text-emerald-600",
+      pulseColor: "bg-emerald-400",
+      protocolBg: "bg-emerald-600",
+      protocolShadow: "shadow-emerald-100"
+    };
+  } else {
+    // All other states (Stress, Warning, Neutral) use the 'Grey' (Slate) theme for negative/neutral feedback
+    theme = {
+      headerBg: "bg-slate-900",
+      accent: "text-indigo-400",
+      bannerContainer: "bg-slate-100/50 border-slate-200/50",
+      bannerIcon: "text-slate-500",
+      pulseColor: "bg-slate-400",
+      protocolBg: "bg-slate-700",
+      protocolShadow: "shadow-slate-100"
+    };
+  }
 
-    const isUp = comparison.direction === 'up';
-    const arrowColor = isUp ? 'text-green-500' : 'text-red-500';
-    const textColor = isUp ? 'text-green-600' : 'text-red-600';
-    const sign = isUp ? '+' : '-';
-
-    return (
-      <li className="flex justify-between items-center">
-        <span className="text-sm font-medium text-gray-700">{label}</span>
-        <div className="flex items-center space-x-1.5">
-          {isUp ? (
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${arrowColor}`} viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-8.707l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L9 9.414V13a1 1 0 102 0V9.414l1.293 1.293a1 1 0 001.414-1.414z" clipRule="evenodd" />
-            </svg>
-          ) : (
-            <svg xmlns="http://www.w3.org/2000/svg" className={`h-4 w-4 ${arrowColor}`} viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm-1.707-6.707l-3-3a1 1 0 011.414-1.414L9 10.586V7a1 1 0 112 0v3.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0z" clipRule="evenodd" />
-            </svg>
-          )}
-          <span className={`text-sm font-semibold ${textColor}`}>
-            {sign}{comparison.change.toFixed(1)}%
-          </span>
-        </div>
-      </li>
-    );
+  // Format 7D comparison for display
+  const get7DDisplay = (metricKey: keyof HistoricalComparison) => {
+    const comp = sevenDayComparison?.[metricKey];
+    if (!comp) return '-';
+    const arrow = comp.direction === 'up' ? '↗' : '↘';
+    return `${arrow} ${comp.change.toFixed(0)}%`;
   };
-
-  // Check if we have any comparison data to show
-  const hasYesterdayData = hasComparisonData(yesterdayComparison);
-  const hasMonthAgoData = hasComparisonData(monthAgoComparison);
-  const hasAnyComparisonData = hasYesterdayData || hasMonthAgoData;
-
 
   return (
-    <div className={`bg-white border ${stateColor.borderColor} rounded-lg shadow-sm`}>
-      {/* Result Header */}
-      {isGreenState && (
-        <div className={`flex items-start space-x-3 p-5 ${stateColor.headerBg} rounded-t-lg`}>
-          <AlertTriangle className={`h-6 w-6 ${stateColor.textColor} flex-shrink-0`} />
-          <div>
-            <h2 className={`text-lg font-semibold ${stateColor.textColor}`}>
-              {interpretation.physiologicalState}
-            </h2>
-          </div>
+    <div className="w-full">
+
+      {/* Status Header */}
+      <div className={`bg-slate-900 text-white rounded-t-2xl p-6 flex items-center gap-6 shadow-lg relative overflow-hidden transition-colors duration-500`}>
+        {/* Subtle wave pattern background */}
+        <div className="absolute inset-0 opacity-[0.03] flex items-center justify-center pointer-events-none scale-150">
+          <Waves size={400} strokeWidth={1} />
         </div>
-      )}
 
-      {/* Card Body */}
-      <div className="p-5 space-y-6">
-        {/* Relative to Your Baseline Section */}
-        {hasAnyComparisonData && (
-          <div>
-            <h3 className="text-base font-semibold text-gray-700 mb-3">Relative to Your Baseline</h3>
-            <div className={`grid gap-4 ${hasYesterdayData && hasMonthAgoData ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1'}`}>
-              {/* Yesterday Card */}
-              {hasYesterdayData && (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-3">vs. Yesterday</h4>
-                  <ul className="space-y-2.5">
-                    {renderMetricComparison('RMSSD', yesterdayComparison?.rmssd)}
-                    {renderMetricComparison('SDNN', yesterdayComparison?.sdnn)}
-                    {renderMetricComparison('LF', yesterdayComparison?.lf)}
-                  </ul>
-                </div>
-              )}
+        <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-sm border border-white/10 relative z-10">
+          <Activity size={28} className={theme.accent} />
+        </div>
 
-              {/* A Month Ago Card */}
-              {hasMonthAgoData && (
-                <div className="border border-gray-200 rounded-lg p-4">
-                  <h4 className="text-sm font-medium text-gray-500 mb-3">vs. A Month Ago</h4>
-                  <ul className="space-y-2.5">
-                    {renderMetricComparison('RMSSD', monthAgoComparison?.rmssd)}
-                    {renderMetricComparison('SDNN', monthAgoComparison?.sdnn)}
-                    {renderMetricComparison('HF', monthAgoComparison?.hf)}
-                  </ul>
-                </div>
-              )}
+        <div className="relative z-10">
+          <div className="flex items-center gap-2 mb-1">
+            <span className={`text-[9px] font-black uppercase tracking-[0.3em] opacity-80 ${theme.accent}`}>System Insight</span>
+            <div className="flex gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full animate-pulse ${theme.pulseColor}`}></span>
             </div>
           </div>
-        )}
-
-        {/* Population Reference */}
-        {interpretation.absoluteInterpretation && (
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
-            <div className="flex items-start space-x-3">
-              <Info className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <h3 className="text-base font-semibold text-gray-700">Population Reference</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                  {interpretation.absoluteInterpretation}
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Recommended Action */}
-        <div className="bg-white border border-gray-200 rounded-lg p-4">
-          <div className="flex items-start space-x-3">
-            <Lightbulb className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-base font-semibold text-gray-700">Recommended Action</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                {interpretation.combinedAdvice}
-              </p>
-            </div>
-          </div>
+          <h1 className="text-2xl font-black tracking-tight uppercase leading-none text-slate-50">
+            {interpretation.physiologicalState}
+          </h1>
         </div>
       </div>
+
+      {/* Dashboard Body */}
+      <div className="bg-white border-x border-b border-slate-200 rounded-b-2xl p-6">
+
+        {/* Interpretation Info Banner */}
+        <div className={`mb-6 flex items-center gap-4 p-4 border rounded-xl transition-colors duration-500 ${theme.bannerContainer}`}>
+          <div className={`shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm ${theme.bannerIcon}`}>
+            <Info size={18} />
+          </div>
+          <div className="flex-1">
+            <p className="text-sm font-medium text-slate-600 leading-tight">
+              <span className="font-bold text-slate-900">{interpretation.relativeInterpretation}</span>
+            </p>
+          </div>
+        </div>
+
+        {/* Metrics Row */}
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
+          <MetricCard
+            label="RMSSD"
+            value={summary.sessionRMSSD.value?.toFixed(0) || '-'}
+            subValue={get7DDisplay('rmssd')}
+            change={interpretation.baselineDetails?.find(d => d.metric === 'RMSSD')?.percentChange.toFixed(0) || '-'}
+            trend={interpretation.baselineDetails?.find(d => d.metric === 'RMSSD')?.direction as any}
+          />
+          <MetricCard
+            label="SDNN"
+            value={summary.sdnn?.value?.toFixed(0) || '-'}
+            subValue={get7DDisplay('sdnn')}
+            change={interpretation.baselineDetails?.find(d => d.metric === 'SDNN')?.percentChange.toFixed(0) || '-'}
+            trend={interpretation.baselineDetails?.find(d => d.metric === 'SDNN')?.direction as any}
+          />
+          <MetricCard
+            label="LF"
+            value={summary.lfPower.value?.toFixed(0) || '-'}
+            subValue={get7DDisplay('lf')}
+            unit="ms²"
+            change={interpretation.baselineDetails?.find(d => d.metric === 'LF')?.percentChange.toFixed(0) || '-'}
+            trend={interpretation.baselineDetails?.find(d => d.metric === 'LF')?.direction as any}
+          />
+          <MetricCard
+            label="HF"
+            value={summary.hfPower.value?.toFixed(0) || '-'}
+            subValue={get7DDisplay('hf')}
+            unit="ms²"
+            change={interpretation.baselineDetails?.find(d => d.metric === 'HF')?.percentChange.toFixed(0) || '-'}
+            trend={interpretation.baselineDetails?.find(d => d.metric === 'HF')?.direction as any}
+          />
+          <MetricCard
+            label="AMo50"
+            value={summary.amode50?.toFixed(1) || '-'}
+            subValue={get7DDisplay('amo50')}
+            unit="%"
+            change={interpretation.baselineDetails?.find(d => d.metric === 'AMo50')?.percentChange.toFixed(0) || '-'}
+            trend={interpretation.baselineDetails?.find(d => d.metric === 'AMo50')?.direction as any}
+          />
+        </div>
+
+        {/* Protocol Recommendation Section */}
+        <div className="bg-slate-50 rounded-[2.5rem] p-8 lg:p-10 flex flex-col items-center text-center relative overflow-hidden border border-slate-100">
+          {/* Watermark detail */}
+          <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
+            <Wind size={160} />
+          </div>
+
+          {/* Active Recovery Protocol Pill - Original Indigo Design */}
+          <div className="inline-flex items-center gap-2 bg-indigo-600 text-white px-5 py-1.5 rounded-full shadow-lg shadow-indigo-100 mb-8">
+            <Wind size={16} strokeWidth={2.5} />
+            <span className="text-[11px] font-black uppercase tracking-[0.2em]">Active Recovery Protocol</span>
+          </div>
+
+          {/* Main Instruction */}
+          <p className="text-slate-900 text-xl md:text-2xl font-black tracking-tight leading-tight mb-6 max-w-2xl">
+            {interpretation.recommendedAction || "Focus on recovery"}
+          </p>
+
+          {/* Soft Separator */}
+          <div className="w-16 h-1 bg-indigo-200 rounded-full mb-6 opacity-50"></div>
+
+          {/* Secondary Context - Clean advice only */}
+          <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed max-w-3xl">
+            {interpretation.combinedAdvice}
+          </p>
+        </div>
+
+      </div>
+
+      {/* Footer meta info */}
+      <div className="mt-6 flex flex-col md:flex-row justify-between items-center gap-4 px-2 opacity-40">
+        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">HRV Analytics • v1.0</p>
+        <div className="flex gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <div className={`w-1.5 h-1.5 rounded-full ${theme.pulseColor} shadow-sm`}></div>
+            <span className="text-[9px] font-black text-slate-600 uppercase">Analysis Complete</span>
+          </div>
+          <div className="h-3 w-[1px] bg-slate-300"></div>
+          <CheckCircle2 size={12} className="text-slate-400" />
+        </div>
+      </div>
+
     </div>
   );
 };
 
 export default AutonomicInterpretation;
-

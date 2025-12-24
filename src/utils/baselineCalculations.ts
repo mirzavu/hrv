@@ -43,11 +43,15 @@ export const calculateBaselineMetrics = (
   hr_stdev: number | null;
   sd1_sd2_ratio_avg: number | null;
   sd1_sd2_ratio_stdev: number | null;
+  lf_power_avg: number | null;
+  hf_power_avg: number | null;
+  lf_hf_avg: number | null;
+  amo50_avg: number | null;
 } => {
   // Filter out sessions with missing critical metrics
-  const validSessions = sessions.filter(s => 
-    s.rmssd_session_ms !== null && 
-    s.sdnn_session_ms !== null && 
+  const validSessions = sessions.filter(s =>
+    s.rmssd_session_ms !== null &&
+    s.sdnn_session_ms !== null &&
     s.session_mean_hr !== null
   );
 
@@ -62,40 +66,68 @@ export const calculateBaselineMetrics = (
       hr_stdev: null,
       sd1_sd2_ratio_avg: null,
       sd1_sd2_ratio_stdev: null,
+      lf_power_avg: null,
+      hf_power_avg: null,
+      lf_hf_avg: null,
+      amo50_avg: null,
     };
   }
 
   // Extract RMSSD values
   const rmssdValues = validSessions
     .map(s => s.rmssd_session_ms)
-    .filter((v): v is number => v !== null);
+    .filter((v): v is number => v != null);
   const rmssd_avg = calculateMean(rmssdValues);
   const rmssd_stdev = calculateStdev(rmssdValues, rmssd_avg);
 
   // Extract SDNN values
   const sdnnValues = validSessions
     .map(s => s.sdnn_session_ms)
-    .filter((v): v is number => v !== null);
+    .filter((v): v is number => v != null);
   const sdnn_avg = calculateMean(sdnnValues);
   const sdnn_stdev = calculateStdev(sdnnValues, sdnn_avg);
 
   // Extract HR values
   const hrValues = validSessions
     .map(s => s.session_mean_hr)
-    .filter((v): v is number => v !== null);
+    .filter((v): v is number => v != null);
   const hr_avg = calculateMean(hrValues);
   const hr_stdev = calculateStdev(hrValues, hr_avg);
+
+  // Extract LF Power values
+  const lfValues = validSessions
+    .map(s => s.lf_power_ms2)
+    .filter((v): v is number => v != null && v > 0);
+  const lf_power_avg = lfValues.length >= 5 ? calculateMean(lfValues) : null;
+
+  // Extract HF Power values
+  const hfValues = validSessions
+    .map(s => s.hf_power_ms2)
+    .filter((v): v is number => v != null && v > 0);
+  const hf_power_avg = hfValues.length >= 5 ? calculateMean(hfValues) : null;
+
+  // Extract LF/HF Ratio values (calculate from avg LF/HF? Or avg of ratios? Avg of ratios is better for baseline)
+  const lfhfValues = validSessions
+    .map(s => s.lfhf_ratio)
+    .filter((v): v is number => v != null && v > 0);
+  const lf_hf_avg = lfhfValues.length >= 5 ? calculateMean(lfhfValues) : null;
+
+  // Extract AMo50 values
+  const amo50Values = validSessions
+    .map(s => s.amode_50)
+    .filter((v): v is number => v != null);
+  const amo50_avg = amo50Values.length >= 5 ? calculateMean(amo50Values) : null;
 
   // Extract SD1/SD2 ratio values (optional)
   const sd1Sd2Values = validSessions
     .filter(s => s.sd1_ms !== null && s.sd2_ms !== null && s.sd1_ms! > 0 && s.sd2_ms! > 0)
     .map(s => s.sd1_ms! / s.sd2_ms!);
-  
-  const sd1_sd2_ratio_avg = sd1Sd2Values.length >= 7 
-    ? calculateMean(sd1Sd2Values) 
+
+  const sd1_sd2_ratio_avg = sd1Sd2Values.length >= 7
+    ? calculateMean(sd1Sd2Values)
     : null;
-  const sd1_sd2_ratio_stdev = sd1Sd2Values.length >= 7 
-    ? calculateStdev(sd1Sd2Values, sd1_sd2_ratio_avg!) 
+  const sd1_sd2_ratio_stdev = sd1Sd2Values.length >= 7
+    ? calculateStdev(sd1Sd2Values, sd1_sd2_ratio_avg!)
     : null;
 
   return {
@@ -105,6 +137,10 @@ export const calculateBaselineMetrics = (
     sdnn_stdev: Number(sdnn_stdev.toFixed(2)),
     hr_avg: Number(hr_avg.toFixed(2)),
     hr_stdev: Number(hr_stdev.toFixed(2)),
+    lf_power_avg: lf_power_avg ? Number(lf_power_avg.toFixed(2)) : null,
+    hf_power_avg: hf_power_avg ? Number(hf_power_avg.toFixed(2)) : null,
+    lf_hf_avg: lf_hf_avg ? Number(lf_hf_avg.toFixed(2)) : null,
+    amo50_avg: amo50_avg ? Number(amo50_avg.toFixed(1)) : null,
     sd1_sd2_ratio_avg: sd1_sd2_ratio_avg !== null ? Number(sd1_sd2_ratio_avg.toFixed(4)) : null,
     sd1_sd2_ratio_stdev: sd1_sd2_ratio_stdev !== null ? Number(sd1_sd2_ratio_stdev.toFixed(4)) : null,
   };
@@ -139,8 +175,8 @@ export const calculateHrvReadinessScore = (
 
   // Check if we have required session metrics
   if (
-    sessionMetrics.rmssd === null || 
-    sessionMetrics.sdnn === null || 
+    sessionMetrics.rmssd === null ||
+    sessionMetrics.sdnn === null ||
     sessionMetrics.meanHR === null
   ) {
     return null;
@@ -148,11 +184,11 @@ export const calculateHrvReadinessScore = (
 
   // Check if we have required baseline metrics
   if (
-    baseline.rmssd_avg === null || 
+    baseline.rmssd_avg === null ||
     baseline.rmssd_stdev === null ||
-    baseline.sdnn_avg === null || 
+    baseline.sdnn_avg === null ||
     baseline.sdnn_stdev === null ||
-    baseline.hr_avg === null || 
+    baseline.hr_avg === null ||
     baseline.hr_stdev === null
   ) {
     return null;
@@ -270,10 +306,10 @@ export const shouldUpdateBaseline = (
   daysSinceUpdate: number = 28
 ): boolean => {
   if (!lastUpdated) return true;
-  
+
   const lastUpdateDate = new Date(lastUpdated);
   const daysSince = (Date.now() - lastUpdateDate.getTime()) / (1000 * 60 * 60 * 24);
-  
+
   return daysSince >= daysSinceUpdate;
 };
 
@@ -283,39 +319,39 @@ export const shouldUpdateBaseline = (
  * @param sessions - Array of session summary records with session_date field
  * @returns Map of date string to array of sessions for that date
  */
-const groupSessionsByDate = (
-  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
-): Map<string, typeof sessions> => {
+const groupSessionsByDate = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
+  sessions: T[]
+): Map<string, T[]> => {
   console.log(`[BASELINE_CALC] groupSessionsByDate: Processing ${sessions.length} sessions`);
-  const grouped = new Map<string, typeof sessions>();
+  const grouped = new Map<string, T[]>();
   let skippedCount = 0;
-  
+
   for (const session of sessions) {
     const dateStr = session.session_date || session.created || session.createdAt;
     if (!dateStr) {
       skippedCount++;
       continue;
     }
-    
+
     const date = new Date(dateStr);
     if (isNaN(date.getTime())) {
       skippedCount++;
       console.log(`[BASELINE_CALC] groupSessionsByDate: Invalid date for session ${session.id || 'unknown'}: ${dateStr}`);
       continue;
     }
-    
+
     const dateKey = date.toISOString().split('T')[0]; // YYYY-MM-DD
-    
+
     if (!grouped.has(dateKey)) {
       grouped.set(dateKey, []);
     }
     grouped.get(dateKey)!.push(session);
   }
-  
+
   console.log(`[BASELINE_CALC] groupSessionsByDate: Grouped into ${grouped.size} unique dates, skipped ${skippedCount} sessions`);
   const dateCounts = Array.from(grouped.entries()).map(([date, sessions]) => `${date}: ${sessions.length}`);
   console.log(`[BASELINE_CALC] groupSessionsByDate: Date breakdown:`, dateCounts.slice(0, 10).join(', '));
-  
+
   return grouped;
 };
 
@@ -326,25 +362,25 @@ const groupSessionsByDate = (
  * @param sessions - Array of session summary records
  * @returns Validation result
  */
-export const canCreateBaseline = (
-  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
+export const canCreateBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
+  sessions: T[]
 ): { valid: boolean; uniqueDays: number } => {
   console.log(`[BASELINE_CALC] canCreateBaseline: Checking ${sessions.length} sessions`);
-  
+
   if (sessions.length === 0) {
     console.log(`[BASELINE_CALC] canCreateBaseline: No sessions provided - INVALID`);
     return { valid: false, uniqueDays: 0 };
   }
 
   const grouped = groupSessionsByDate(sessions);
-  
+
   // Get current date and calculate 14 days ago
   const now = new Date();
   const fourteenDaysAgo = new Date(now);
   fourteenDaysAgo.setDate(now.getDate() - 14);
-  
+
   console.log(`[BASELINE_CALC] canCreateBaseline: Checking last 14 days from ${fourteenDaysAgo.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`);
-  
+
   // Filter to sessions from last 14 days
   const allDates = Array.from(grouped.keys());
   const recentDates = allDates.filter(dateStr => {
@@ -355,16 +391,16 @@ export const canCreateBaseline = (
     }
     return isRecent;
   });
-  
+
   const uniqueDays = recentDates.length;
   const MIN_UNIQUE_DAYS = 5;
-  
+
   console.log(`[BASELINE_CALC] canCreateBaseline: Found ${uniqueDays} unique days in last 14 days (need ${MIN_UNIQUE_DAYS})`);
   console.log(`[BASELINE_CALC] canCreateBaseline: Recent dates:`, recentDates.sort().join(', '));
-  
+
   const isValid = uniqueDays >= MIN_UNIQUE_DAYS;
   console.log(`[BASELINE_CALC] canCreateBaseline: Result - ${isValid ? 'VALID' : 'INVALID'} (${uniqueDays} >= ${MIN_UNIQUE_DAYS})`);
-  
+
   return {
     valid: isValid,
     uniqueDays
@@ -378,58 +414,59 @@ export const canCreateBaseline = (
  * @param sessions - Array of session summary records
  * @returns Selected sessions for baseline calculation
  */
-export const selectSessionsForBaseline = (
-  sessions: Array<{ session_date?: string; createdAt?: string; created?: string; [key: string]: any }>
-): typeof sessions => {
+export const selectSessionsForBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
+  sessions: T[]
+): T[] => {
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selecting from ${sessions.length} sessions`);
-  
+
   if (sessions.length === 0) {
     console.log(`[BASELINE_CALC] selectSessionsForBaseline: No sessions to select - returning empty array`);
     return [];
   }
 
   const grouped = groupSessionsByDate(sessions);
-  
+
   // Sort dates descending (most recent first)
   const sortedDates = Array.from(grouped.keys()).sort((a, b) => {
     return new Date(b).getTime() - new Date(a).getTime();
   });
-  
+
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: All dates sorted:`, sortedDates.join(', '));
-  
+
   // Get latest 7 dates
   const latest7Dates = sortedDates.slice(0, 7);
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: Latest 7 dates:`, latest7Dates.join(', '));
-  
+
   // For each date, take up to 2 most recent sessions
-  const selected: typeof sessions = [];
+  const selected: T[] = [];
   const selectionLog: string[] = [];
-  
+
   for (const date of latest7Dates) {
     const dateSessions = grouped.get(date) || [];
     console.log(`[BASELINE_CALC] selectSessionsForBaseline: Date ${date} has ${dateSessions.length} sessions`);
-    
+
     // Sort sessions by date descending (most recent first)
+    // Note: Assuming these fields exist or we handle missing gracefully (as handled in groupSessionsByDate)
     const sortedSessions = dateSessions.sort((a, b) => {
       const dateA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
       const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
       return dateB - dateA;
     });
-    
+
     // Take up to 2 sessions from this date
     const taken = sortedSessions.slice(0, 2);
     selected.push(...taken);
     selectionLog.push(`${date}: ${taken.length} session(s) (${dateSessions.length} available)`);
     console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selected ${taken.length} from ${date} (${dateSessions.length} total)`);
   }
-  
+
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: After initial selection: ${selected.length} sessions`);
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selection breakdown:`, selectionLog.join('; '));
-  
+
   // Ensure we have at least 5 sessions (if available)
   if (selected.length < 5 && sessions.length >= 5) {
     console.log(`[BASELINE_CALC] selectSessionsForBaseline: Only ${selected.length} sessions selected, need at least 5. Fetching more...`);
-    
+
     // If we don't have enough, take more from the latest dates
     for (const date of latest7Dates) {
       const dateSessions = grouped.get(date) || [];
@@ -438,7 +475,7 @@ export const selectSessionsForBaseline = (
         const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
         return dateB - dateA;
       });
-      
+
       // Add sessions we haven't already added
       let addedFromDate = 0;
       for (const session of sortedSessions) {
@@ -454,14 +491,14 @@ export const selectSessionsForBaseline = (
       if (selected.length >= 14) break;
     }
   }
-  
+
   const finalSelection = selected.slice(0, 14); // Max 14 sessions
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: Final selection: ${finalSelection.length} sessions (min: 5, max: 14)`);
-  
+
   if (finalSelection.length < 5) {
     console.log(`[BASELINE_CALC] selectSessionsForBaseline: WARNING - Only ${finalSelection.length} sessions selected (need at least 5)`);
   }
-  
+
   return finalSelection;
 };
 

@@ -38,6 +38,14 @@ export interface InterpretationResult {
   relativeInterpretation: string;
   absoluteInterpretation?: string;
   combinedAdvice: string;
+  baselineDetails?: {
+    metric: string;
+    label: string;
+    current: number;
+    baseline: number;
+    percentChange: number;
+    direction: 'up' | 'down' | 'stable';
+  }[];
 }
 
 // Metric comparison result
@@ -78,7 +86,7 @@ function compareToBaseline(
   }
 
   const change = (current - baseline) / baseline;
-  
+
   if (change >= threshold) return '↑';
   if (change <= -threshold) return '↓';
   return '≈';
@@ -97,11 +105,11 @@ function compareLFHF(
   }
 
   const change = (current - baseline) / baseline;
-  
+
   // Extreme ratios
   if (current < 0.5 && baseline >= 1.0) return '<<';
   if (current > 3.0 && baseline <= 1.5) return '>>';
-  
+
   if (change >= threshold) return '↑';
   if (change <= -threshold) return '↓';
   return '≈';
@@ -120,7 +128,7 @@ function compareAMo50(
   }
 
   const change = Math.abs((current - baseline) / baseline);
-  
+
   if (change >= threshold * 2) {
     return current > baseline ? '↑↑' : '↓↓';
   }
@@ -143,15 +151,15 @@ function compareMetrics(
 
   const rmssd = compareToBaseline(summary.sessionRMSSD.value, baseline.rmssd_avg);
   const sdnn = compareToBaseline(summary.sdnn?.value ?? null, baseline.sdnn_avg);
-  
+
   // For LF/HF, we'll use the ratio directly from summary if available
   // Since baseline doesn't store LF/HF, we'll compare against population norm (1.0)
   // But we'll be more lenient - only mark as extreme if significantly different
-  const currentLFHF = summary.lfhfRatio ?? 
+  const currentLFHF = summary.lfhfRatio ??
     (summary.lfPower.value && summary.hfPower.value && summary.hfPower.value > 0
       ? summary.lfPower.value / summary.hfPower.value
       : null);
-  
+
   // Use a more lenient comparison - only mark extremes
   let lfhf: '↑' | '↓' | '≈' | '<<' | '>>' = '≈';
   if (currentLFHF !== null) {
@@ -165,11 +173,11 @@ function compareMetrics(
       lfhf = '↓';
     }
   }
-  
+
   // For LF and HF individually, infer from ratio since baseline doesn't store them
   let lf: '↑' | '↓' | '≈' = '≈';
   let hf: '↑' | '↓' | '≈' = '≈';
-  
+
   if (currentLFHF !== null) {
     if (currentLFHF > 1.5) {
       lf = '↑';
@@ -183,7 +191,7 @@ function compareMetrics(
       hf = '≈';
     }
   }
-  
+
   // AMo50 comparison - since baseline doesn't store AMo50, we'll use a heuristic
   // Lower AMo50 is generally better (less stress), so we'll compare to a threshold
   // Typical healthy AMo50 is < 30%, so we'll use that as reference
@@ -215,14 +223,14 @@ function scoreMetricMatch(
   points: number
 ): number {
   let bestScore = 0;
-  
+
   // Handle OR logic: check all pattern values and return the best match
   for (const patternValue of patternValues) {
     // Perfect match
     if (userValue === patternValue) {
       return points; // Perfect match - return immediately
     }
-    
+
     // Handle double arrows vs single arrows
     // User ↑↑ vs Pattern ↑ = 100% (specific matches general)
     // User ↑ vs Pattern ↑↑ = 50% (general matches specific)
@@ -235,7 +243,7 @@ function scoreMetricMatch(
     } else if (userValue === '↓' && patternValue === '↓↓') {
       bestScore = Math.max(bestScore, points * 0.5);
     }
-    
+
     // ≈ creates 50% partial match against any directional arrow
     if (userValue === '≈' && (patternValue === '↑' || patternValue === '↓' || patternValue === '↑↑' || patternValue === '↓↓')) {
       bestScore = Math.max(bestScore, points * 0.5);
@@ -243,7 +251,7 @@ function scoreMetricMatch(
       bestScore = Math.max(bestScore, points * 0.5);
     }
   }
-  
+
   return bestScore;
 }
 
@@ -256,19 +264,19 @@ function scorePattern(
   pattern: PatternDefinition
 ): number {
   let score = 0;
-  
+
   // Tier 1 (High Priority): 3 points each
   score += scoreMetricMatch(comparison.rmssd, pattern.rmssd, 3);
   score += scoreMetricMatch(comparison.sdnn, pattern.sdnn, 3);
-  
+
   // Tier 2 (Medium Priority): 2 points each
   score += scoreMetricMatch(comparison.lf, pattern.lf, 2);
   score += scoreMetricMatch(comparison.hf, pattern.hf, 2);
   score += scoreMetricMatch(comparison.lfhf, pattern.lfhf, 2);
-  
+
   // Tier 3 (Low Priority): 1 point
   score += scoreMetricMatch(comparison.amo50, pattern.amo50, 1);
-  
+
   return score;
 }
 
@@ -588,21 +596,23 @@ function generateTechnicalChanges(
     return changes;
   }
 
-  if (summary.sessionRMSSD.value !== null && baseline.rmssd_avg !== null) {
-    const change = ((summary.sessionRMSSD.value - baseline.rmssd_avg) / baseline.rmssd_avg) * 100;
+  if (summary.sessionRMSSD.value != null && baseline.rmssd_avg != null) {
+    const val = summary.sessionRMSSD.value;
+    const change = ((val - baseline.rmssd_avg) / baseline.rmssd_avg) * 100;
     if (Math.abs(change) >= 20) {
       changes.push(`RMSSD has ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change).toFixed(1)}%`);
     }
   }
 
-  if (summary.sdnn?.value !== null && baseline.sdnn_avg !== null) {
-    const change = ((summary.sdnn.value - baseline.sdnn_avg) / baseline.sdnn_avg) * 100;
+  if (summary.sdnn?.value != null && baseline.sdnn_avg != null) {
+    const val = summary.sdnn.value;
+    const change = ((val - baseline.sdnn_avg) / baseline.sdnn_avg) * 100;
     if (Math.abs(change) >= 20) {
       changes.push(`SDNN has ${change > 0 ? 'increased' : 'decreased'} by ${Math.abs(change).toFixed(1)}%`);
     }
   }
 
-  if (summary.lfPower.value !== null && summary.hfPower.value !== null && summary.hfPower.value > 0) {
+  if (summary.lfPower.value != null && summary.hfPower.value != null && summary.hfPower.value > 0) {
     const lfhf = summary.lfPower.value / summary.hfPower.value;
     changes.push(`LF/HF ratio is ${lfhf.toFixed(2)}`);
   }
@@ -694,33 +704,106 @@ export function interpretHRVSession(
     console.log('[AUTONOMIC_INTERP] No pattern matched for comparison:', comparison);
     return null;
   }
-  
+
   console.log('[AUTONOMIC_INTERP] Pattern matched:', interpretation.patternId);
 
   // Generate technical changes
   interpretation.technicalChanges = generateTechnicalChanges(summary, baseline);
 
-  // Generate relative interpretation
+  // Generate relative interpretation and detailed breakdown
   const relativeParts: string[] = [];
-  if (summary.sessionRMSSD.value !== null && baseline.rmssd_avg !== null) {
-    const change = ((summary.sessionRMSSD.value - baseline.rmssd_avg) / baseline.rmssd_avg) * 100;
-    if (Math.abs(change) >= 5) {
-      relativeParts.push(`Your recovery is ${change > 0 ? 'up' : 'down'} by ${Math.abs(change).toFixed(0)}%`);
+  const baselineDetails: NonNullable<InterpretationResult['baselineDetails']> = [];
+
+  // Helper to calculate and store diff
+  const addDiff = (
+    metricKey: string,
+    label: string,
+    currentVal: number | null | undefined,
+    baselineVal: number | null | undefined
+  ) => {
+    if (currentVal !== null && currentVal !== undefined && baselineVal !== null && baselineVal !== undefined && baselineVal !== 0) {
+      const change = ((currentVal - baselineVal) / baselineVal) * 100;
+      const absChange = Math.abs(change);
+      // Small semantic direction for the data object
+      const direction = change > 0 ? 'up' : (change < 0 ? 'down' : 'stable');
+
+      baselineDetails.push({
+        metric: metricKey,
+        label,
+        current: currentVal,
+        baseline: baselineVal,
+        percentChange: absChange,
+        direction
+      });
+
+      return { change, absChange, direction };
     }
+    return null;
+  };
+
+  // 1. RMSSD (Parasympathetic)
+  const rmssdDiff = addDiff('RMSSD', 'RMSSD', summary.sessionRMSSD.value, baseline.rmssd_avg);
+  if (rmssdDiff) {
+    const sign = rmssdDiff.change >= 0 ? '+' : '-';
+    relativeParts.push(`Parasympathetic activity is ${rmssdDiff.change >= 0 ? 'up' : 'down'} ${rmssdDiff.absChange.toFixed(1)}%`);
   }
-  interpretation.relativeInterpretation = relativeParts.length > 0
-    ? relativeParts.join('. ') + '.'
-    : 'Your metrics are close to your baseline.';
+
+  // 2. SDNN (Resilience)
+  addDiff('SDNN', 'SDNN', summary.sdnn?.value, baseline.sdnn_avg);
+
+  // 3. LF (Sympathetic/Baroreflex)
+  if (summary.lfPower.value && baseline.lf_power_avg) {
+    addDiff('LF', 'LF', summary.lfPower.value, baseline.lf_power_avg);
+  }
+
+  // 4. HF (Parasympathetic Power)
+  if (summary.hfPower.value && baseline.hf_power_avg) {
+    addDiff('HF', 'HF', summary.hfPower.value, baseline.hf_power_avg);
+  }
+
+  // 5. LF/HF (Balance)
+  if (summary.lfhfRatio && baseline.lf_hf_avg) {
+    addDiff('LF/HF', 'LF/HF', summary.lfhfRatio, baseline.lf_hf_avg);
+  }
+
+  // 6. AMo50 (Stress Index)
+  if (summary.amode50 && baseline.amo50_avg) {
+    addDiff('AMo50', 'AMo50', summary.amode50, baseline.amo50_avg);
+  }
+
+  interpretation.baselineDetails = baselineDetails;
+
+  // Construct the main text
+  // e.g. "Your recovery is stable. Parasympathetic activity is up 1.1%."
+  let mainText = "Your metrics are matching your baseline.";
+
+  if (rmssdDiff) {
+    // We can infer overall status from RMSSD change magnitude
+    let status = "stable";
+    if (rmssdDiff.change > 5) status = "improving";
+    else if (rmssdDiff.change < -5) status = "declining";
+
+    mainText = `Your recovery is ${status}. ${relativeParts.join(' ')}.`;
+  }
+
+  interpretation.relativeInterpretation = mainText;
 
   // Generate absolute interpretation
   interpretation.absoluteInterpretation = generateAbsoluteInterpretation(summary, popRef);
 
-  // Combine advice
-  const adviceParts: string[] = [interpretation.recommendedAction];
-  if (interpretation.absoluteInterpretation) {
+  // Combine advice - Ensure we don't duplicate recommendedAction which is displayed as a headline
+  const adviceParts: string[] = [];
+
+  // Only add population reference (absolute interpretation) if NO baseline is established
+  // If baseline exists, we rely purely on relative comparison
+  if (!baseline?.established && interpretation.absoluteInterpretation) {
     adviceParts.push(interpretation.absoluteInterpretation);
   }
+
+  // Add the pattern-specific detailed advice
   adviceParts.push(interpretation.combinedAdvice);
+
+  // Update combinedAdvice to be just the body text (Absolute + Pattern Advice)
   interpretation.combinedAdvice = adviceParts.join(' ');
 
   return interpretation;
