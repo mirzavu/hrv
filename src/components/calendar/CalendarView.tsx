@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react';
 import { sessionCache } from '@/lib/sessionCache';
 import { SessionSummary } from '@/types';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
+import WeeklyRecoveryReport from '@/components/reports/WeeklyRecoveryReport';
 
 // SVG Icons
 const ChevronLeft = (props: React.SVGProps<SVGSVGElement>) => (
@@ -57,6 +58,25 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
   const [selectedSessionSummary, setSelectedSessionSummary] = useState<SessionSummary | null>(null);
   const [sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
+  const [showWeeklyReport, setShowWeeklyReport] = useState(false);
+  const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
+
+  // Check baseline status
+  useEffect(() => {
+    if (!userId) return;
+    const checkBaseline = async () => {
+      try {
+        const res = await fetch(`/api/user/baseline?userId=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setBaselineEstablished(data.baseline?.established === true);
+        }
+      } catch (e) {
+        console.error('Error checking baseline:', e);
+      }
+    };
+    checkBaseline();
+  }, [userId]);
 
   // State for the currently viewed month
   const today = new Date();
@@ -74,9 +94,9 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       const month = viewMonth.getMonth();
       const startDate = new Date(year, month, 1).toISOString().slice(0, 10);
       const endDate = new Date(year, month + 1, 0).toISOString().slice(0, 10);
-      
+
       const cacheKey = `calendar-month-${userId}-${year}-${month}`;
-      
+
       // Check cache first
       const cached = sessionCache.get<MonthDateData[]>(cacheKey);
       if (cached) {
@@ -100,10 +120,10 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         const data = await response.json();
         const endTime = performance.now();
         console.log(`[CalendarView] Month data fetched in ${Math.round(endTime - startTime)}ms, ${data.dates?.length || 0} dates`);
-        
+
         // Cache the data
         sessionCache.set(cacheKey, data.dates, 300); // 5 minutes
-        
+
         // Convert to map
         const dataMap: Record<string, MonthDateData> = {};
         if (data.dates && Array.isArray(data.dates)) {
@@ -132,7 +152,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
 
     const fetchDaySessions = async () => {
       const cacheKey = `calendar-day-${userId}-${selectedDay}`;
-      
+
       // Check cache first
       const cached = sessionCache.get<CalendarSession[]>(cacheKey);
       if (cached) {
@@ -152,10 +172,10 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         const data = await response.json();
         const endTime = performance.now();
         console.log(`[CalendarView] Day sessions fetched in ${Math.round(endTime - startTime)}ms, ${data.sessions?.length || 0} sessions`);
-        
+
         // Cache the data
         sessionCache.set(cacheKey, data.sessions, 300); // 5 minutes
-        
+
         setDaySessions(data.sessions || []);
       } catch (error) {
         console.error('Error fetching day sessions:', error);
@@ -171,7 +191,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   // Clear cache function
   const clearCache = useCallback(() => {
     if (!userId) return;
-    
+
     // Clear all calendar-related cache entries
     const year = viewMonth.getFullYear();
     const month = viewMonth.getMonth();
@@ -179,9 +199,9 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       `calendar-month-${userId}-${year}-${month}`,
       `calendar-day-${userId}-${selectedDay}`
     ].filter(Boolean);
-    
+
     cacheKeys.forEach(key => sessionCache.delete(key));
-    
+
     // Reset state and trigger refetch
     setMonthData({});
     if (selectedDay) {
@@ -206,19 +226,19 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
     setSelectedDay(null);
     setDaySessions([]);
   };
-  
+
   const nextMonth = () => {
     setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1));
     setSelectedDay(null);
     setDaySessions([]);
   };
-  
+
   const goToday = () => {
     const todayDate = new Date();
     setViewMonth(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
     setSelectedDay(todayDate.toISOString().slice(0, 10));
   };
-  
+
   const selectDay = (key: string) => {
     setSelectedDay(key);
   };
@@ -242,7 +262,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       setSessionSummaryLoading(false);
     }
   };
-  
+
   const startDayOfWeek = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay();
   const paddingEndCount = Math.max(0, 42 - (startDayOfWeek + days.length));
 
@@ -274,16 +294,31 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
             <TrashIcon />
             Clear Cache
           </button>
-          <button
-            onClick={() => alert('Past Week Report - Last 7 days analysis')}
-            className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg shadow-sm hover:bg-blue-700 transition-colors duration-200 flex items-center gap-2"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M3 3v18h18"/>
-              <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
-            </svg>
-            Past Week Report
-          </button>
+          {/* Weekly Report Button with Tooltip Logic */}
+          <div className="relative group">
+            <button
+              onClick={() => baselineEstablished && setShowWeeklyReport(true)}
+              disabled={!baselineEstablished}
+              className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 ${baselineEstablished
+                  ? 'text-white bg-blue-600 hover:bg-blue-700'
+                  : 'text-slate-400 bg-slate-100 cursor-not-allowed'
+                }`}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 3v18h18" />
+                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
+              </svg>
+              Past Week Report
+            </button>
+
+            {!baselineEstablished && (
+              <div className="absolute top-full right-0 mt-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl z-50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                <p className="font-bold mb-1">Report Unavailable</p>
+                <p className="text-slate-300">You need to log at least 7 days of data to establish a baseline before viewing trends.</p>
+                <div className="absolute -top-1 right-8 w-2 h-2 bg-slate-800 rotate-45"></div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -324,13 +359,12 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                     const dateData = d.dateData;
                     const sessionCount = dateData?.count || 0;
                     const sessions = dateData?.sessions || [];
-                    
+
                     return (
                       <button
                         key={d.key}
-                        className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors ${
-                          selectedDay === d.key ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'
-                        }`}
+                        className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors ${selectedDay === d.key ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'
+                          }`}
                         onClick={() => selectDay(d.key)}
                       >
                         <div className={`text-xs sm:text-sm font-medium ${selectedDay === d.key ? 'text-blue-700' : 'text-gray-700'}`}>{d.dateObj.getDate()}</div>
@@ -359,8 +393,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                 className="w-full mb-4 px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 hover:border-gray-400 transition-colors duration-200 flex items-center justify-center gap-2"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="sm:w-4 sm:h-4">
-                  <path d="M3 3v18h18"/>
-                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"/>
+                  <path d="M3 3v18h18" />
+                  <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
                 </svg>
                 Month Analysis
               </button>
@@ -373,8 +407,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                   <div key={selectedDay} className="animate-fade-in space-y-3">
                     {daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
                       return (
-                        <div 
-                          className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition-colors" 
+                        <div
+                          className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition-colors"
                           key={s.id}
                           onClick={() => handleSessionClick(s.id)}
                         >
@@ -414,13 +448,19 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         <SessionSummaryModal
           summary={selectedSessionSummary}
           darkMode={darkMode}
-          onReset={() => {}}
+          onReset={() => { }}
           isGuest={userId === 'guest' || !userId}
-          onGuestLogin={() => {}}
+          onGuestLogin={() => { }}
           onClose={() => setSelectedSessionSummary(null)}
           userId={userId}
         />
       )}
+      {/* Weekly Recovery Report Modal */}
+      <WeeklyRecoveryReport
+        isOpen={showWeeklyReport}
+        onClose={() => setShowWeeklyReport(false)}
+        userId={userId}
+      />
     </div>
   );
 }
