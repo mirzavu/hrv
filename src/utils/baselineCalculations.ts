@@ -47,6 +47,16 @@ export const calculateBaselineMetrics = (
   hf_power_avg: number | null;
   lf_hf_avg: number | null;
   amo50_avg: number | null;
+  energy_score_avg: number | null;
+  energy_score_stdev: number | null;
+  stress_score_avg: number | null;
+  stress_score_stdev: number | null;
+  health_score_avg: number | null;
+  health_score_stdev: number | null;
+  focus_score_avg: number | null;
+  focus_score_stdev: number | null;
+  hrv_score_avg: number | null;
+  hrv_score_stdev: number | null;
 } => {
   // Filter out sessions with missing critical metrics
   const validSessions = sessions.filter(s =>
@@ -70,55 +80,47 @@ export const calculateBaselineMetrics = (
       hf_power_avg: null,
       lf_hf_avg: null,
       amo50_avg: null,
+      energy_score_avg: null,
+      energy_score_stdev: null,
+      stress_score_avg: null,
+      stress_score_stdev: null,
+      health_score_avg: null,
+      health_score_stdev: null,
+      focus_score_avg: null,
+      focus_score_stdev: null,
+      hrv_score_avg: null,
+      hrv_score_stdev: null,
     };
   }
 
-  // Extract RMSSD values
-  const rmssdValues = validSessions
-    .map(s => s.rmssd_session_ms)
-    .filter((v): v is number => v != null);
-  const rmssd_avg = calculateMean(rmssdValues);
-  const rmssd_stdev = calculateStdev(rmssdValues, rmssd_avg);
+  // Helper to extract, calculate mean and stdev for a metric
+  const calculateMetricStats = (
+    extractor: (s: SessionSummaryRecord) => number | null | undefined,
+    minCount: number = 5
+  ): { avg: number | null; stdev: number | null } => {
+    const values = validSessions
+      .map(extractor)
+      .filter((v): v is number => v != null);
 
-  // Extract SDNN values
-  const sdnnValues = validSessions
-    .map(s => s.sdnn_session_ms)
-    .filter((v): v is number => v != null);
-  const sdnn_avg = calculateMean(sdnnValues);
-  const sdnn_stdev = calculateStdev(sdnnValues, sdnn_avg);
+    if (values.length < minCount) return { avg: null, stdev: null };
 
-  // Extract HR values
-  const hrValues = validSessions
-    .map(s => s.session_mean_hr)
-    .filter((v): v is number => v != null);
-  const hr_avg = calculateMean(hrValues);
-  const hr_stdev = calculateStdev(hrValues, hr_avg);
+    const avg = calculateMean(values);
+    const stdev = calculateStdev(values, avg);
+    return { avg, stdev };
+  };
 
-  // Extract LF Power values
-  const lfValues = validSessions
-    .map(s => s.lf_power_ms2)
-    .filter((v): v is number => v != null && v > 0);
-  const lf_power_avg = lfValues.length >= 5 ? calculateMean(lfValues) : null;
+  // --- Core Metrics ---
+  const rmssdParams = calculateMetricStats(s => s.rmssd_session_ms, 5);
+  const sdnnParams = calculateMetricStats(s => s.sdnn_session_ms, 5);
+  const hrParams = calculateMetricStats(s => s.session_mean_hr, 5);
 
-  // Extract HF Power values
-  const hfValues = validSessions
-    .map(s => s.hf_power_ms2)
-    .filter((v): v is number => v != null && v > 0);
-  const hf_power_avg = hfValues.length >= 5 ? calculateMean(hfValues) : null;
+  // Frequency Domain
+  const lfParams = calculateMetricStats(s => s.lf_power_ms2, 5);
+  const hfParams = calculateMetricStats(s => s.hf_power_ms2, 5);
+  const lfhfParams = calculateMetricStats(s => s.lfhf_ratio, 5);
+  const amoParams = calculateMetricStats(s => s.amode_50, 5);
 
-  // Extract LF/HF Ratio values (calculate from avg LF/HF? Or avg of ratios? Avg of ratios is better for baseline)
-  const lfhfValues = validSessions
-    .map(s => s.lfhf_ratio)
-    .filter((v): v is number => v != null && v > 0);
-  const lf_hf_avg = lfhfValues.length >= 5 ? calculateMean(lfhfValues) : null;
-
-  // Extract AMo50 values
-  const amo50Values = validSessions
-    .map(s => s.amode_50)
-    .filter((v): v is number => v != null);
-  const amo50_avg = amo50Values.length >= 5 ? calculateMean(amo50Values) : null;
-
-  // Extract SD1/SD2 ratio values (optional)
+  // SD1/SD2 Ratio
   const sd1Sd2Values = validSessions
     .filter(s => s.sd1_ms !== null && s.sd2_ms !== null && s.sd1_ms! > 0 && s.sd2_ms! > 0)
     .map(s => s.sd1_ms! / s.sd2_ms!);
@@ -130,19 +132,46 @@ export const calculateBaselineMetrics = (
     ? calculateStdev(sd1Sd2Values, sd1_sd2_ratio_avg!)
     : null;
 
+  // --- NEW 5 Scores ---
+  const energyParams = calculateMetricStats(s => s.energy_score, 5);
+  const stressParams = calculateMetricStats(s => s.stress_score, 5);
+  const healthParams = calculateMetricStats(s => s.health_score, 5);
+  const focusParams = calculateMetricStats(s => s.focus_score, 5);
+  const hrvScoreParams = calculateMetricStats(s => s.hrv_score, 5);
+
   return {
-    rmssd_avg: Number(rmssd_avg.toFixed(2)),
-    rmssd_stdev: Number(rmssd_stdev.toFixed(2)),
-    sdnn_avg: Number(sdnn_avg.toFixed(2)),
-    sdnn_stdev: Number(sdnn_stdev.toFixed(2)),
-    hr_avg: Number(hr_avg.toFixed(2)),
-    hr_stdev: Number(hr_stdev.toFixed(2)),
-    lf_power_avg: lf_power_avg ? Number(lf_power_avg.toFixed(2)) : null,
-    hf_power_avg: hf_power_avg ? Number(hf_power_avg.toFixed(2)) : null,
-    lf_hf_avg: lf_hf_avg ? Number(lf_hf_avg.toFixed(2)) : null,
-    amo50_avg: amo50_avg ? Number(amo50_avg.toFixed(1)) : null,
+    rmssd_avg: rmssdParams.avg !== null ? Number(rmssdParams.avg.toFixed(2)) : null,
+    rmssd_stdev: rmssdParams.stdev !== null ? Number(rmssdParams.stdev.toFixed(2)) : null,
+
+    sdnn_avg: sdnnParams.avg !== null ? Number(sdnnParams.avg.toFixed(2)) : null,
+    sdnn_stdev: sdnnParams.stdev !== null ? Number(sdnnParams.stdev.toFixed(2)) : null,
+
+    hr_avg: hrParams.avg !== null ? Number(hrParams.avg.toFixed(2)) : null,
+    hr_stdev: hrParams.stdev !== null ? Number(hrParams.stdev.toFixed(2)) : null,
+
+    lf_power_avg: lfParams.avg !== null ? Number(lfParams.avg.toFixed(2)) : null,
+    hf_power_avg: hfParams.avg !== null ? Number(hfParams.avg.toFixed(2)) : null,
+    lf_hf_avg: lfhfParams.avg !== null ? Number(lfhfParams.avg.toFixed(2)) : null,
+    amo50_avg: amoParams.avg !== null ? Number(amoParams.avg.toFixed(1)) : null,
+
     sd1_sd2_ratio_avg: sd1_sd2_ratio_avg !== null ? Number(sd1_sd2_ratio_avg.toFixed(4)) : null,
     sd1_sd2_ratio_stdev: sd1_sd2_ratio_stdev !== null ? Number(sd1_sd2_ratio_stdev.toFixed(4)) : null,
+
+    // New Scores
+    energy_score_avg: energyParams.avg !== null ? Number(energyParams.avg.toFixed(1)) : null,
+    energy_score_stdev: energyParams.stdev !== null ? Number(energyParams.stdev.toFixed(1)) : null,
+
+    stress_score_avg: stressParams.avg !== null ? Number(stressParams.avg.toFixed(1)) : null,
+    stress_score_stdev: stressParams.stdev !== null ? Number(stressParams.stdev.toFixed(1)) : null,
+
+    health_score_avg: healthParams.avg !== null ? Number(healthParams.avg.toFixed(1)) : null,
+    health_score_stdev: healthParams.stdev !== null ? Number(healthParams.stdev.toFixed(1)) : null,
+
+    focus_score_avg: focusParams.avg !== null ? Number(focusParams.avg.toFixed(1)) : null,
+    focus_score_stdev: focusParams.stdev !== null ? Number(focusParams.stdev.toFixed(1)) : null,
+
+    hrv_score_avg: hrvScoreParams.avg !== null ? Number(hrvScoreParams.avg.toFixed(1)) : null,
+    hrv_score_stdev: hrvScoreParams.stdev !== null ? Number(hrvScoreParams.stdev.toFixed(1)) : null,
   };
 };
 

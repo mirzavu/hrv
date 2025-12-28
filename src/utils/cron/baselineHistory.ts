@@ -94,6 +94,16 @@ export const createWeeklyBaselineSnapshots = async (): Promise<{
           amo50_avg: baseline.amo50_avg,
           sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
           sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
+          energy_score_avg: baseline.energy_score_avg,
+          energy_score_stdev: baseline.energy_score_stdev,
+          stress_score_avg: baseline.stress_score_avg,
+          stress_score_stdev: baseline.stress_score_stdev,
+          health_score_avg: baseline.health_score_avg,
+          health_score_stdev: baseline.health_score_stdev,
+          focus_score_avg: baseline.focus_score_avg,
+          focus_score_stdev: baseline.focus_score_stdev,
+          hrv_score_avg: baseline.hrv_score_avg,
+          hrv_score_stdev: baseline.hrv_score_stdev,
           sessions_count: baseline.sessions_count,
           established: baseline.established
         };
