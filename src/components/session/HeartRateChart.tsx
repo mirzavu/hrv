@@ -260,4 +260,4 @@ const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime
   );
 };
 
-export default HeartRateChart;
+export default React.memo(HeartRateChart);

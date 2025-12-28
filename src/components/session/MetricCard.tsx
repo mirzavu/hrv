@@ -33,22 +33,7 @@ const MetricCard: React.FC<MetricCardProps> = ({ icon, title, value, unit }) => 
       className="p-0.5 rounded-2xl bg-slate-200"
     >
       <div className="bg-white rounded-[15px] p-5 h-full relative group">
-        {actualSignal && (
-          <div className="absolute bottom-full left-1/2 -translate-x-1/2 min-w-[220px] max-w-[280px] px-4 py-3 bg-[#0f172a] text-white text-sm rounded-xl border border-white/10 shadow-2xl backdrop-blur-md opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 z-20 mb-3">
-            <div className="flex items-start gap-2.5">
-              {getSignalIcon(actualSignal.type)}
-              <div>
-                <span className="font-semibold text-sm capitalize tracking-wide text-white/90">
-                  {actualSignal.type}
-                </span>
-                <p className="mt-1 text-xs leading-relaxed text-slate-200">
-                  {actualSignal.message}
-                </p>
-              </div>
-            </div>
-            <div className="absolute top-full left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0f172a] border border-white/10 border-t-transparent border-l-transparent rotate-45 -mt-1.5"></div>
-          </div>
-        )}
+
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {icon}

@@ -210,4 +210,4 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
   );
 };
 
-export default TachogramChart;
+export default React.memo(TachogramChart);

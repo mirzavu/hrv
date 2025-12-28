@@ -1,17 +1,19 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline } from '@/types';
-import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge, ChevronDown, ChevronUp } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
 import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
 import HRVScoreGauge from './HRVScoreGauge';
-import BreathingCoherenceChart from './BreathingCoherenceChart'; // Import the new component
+import WellnessScoreGrid from './WellnessScoreGrid';
+import BreathingCoherenceChart from './BreathingCoherenceChart';
 import TachogramChart from './TachogramChart';
 import AutonomicBalanceChart from './AutonomicBalanceChart';
 import AutonomicInterpretation from './AutonomicInterpretation';
 import { interpretHRVSession } from '@/utils/autonomicInterpretation';
+import AdvancedMetricsToggle from './AdvancedMetricsToggle';
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -33,6 +35,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   rrQuality,
   userId,
 }) => {
+  const [showAdvancedMetrics, setShowAdvancedMetrics] = useState(false);
+  const [chartsReady, setChartsReady] = useState(false);
   const [baseline, setBaseline] = useState<UserBaseline | null>(null);
   const [baselineLoading, setBaselineLoading] = useState(true);
   const [interpretation, setInterpretation] = useState<ReturnType<typeof interpretHRVSession>>(null);
@@ -91,6 +95,20 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
       console.log('[SessionSummaryModal] baseline loading...', { baseline, baselineLoading });
     }
   }, [summary, baseline, baselineLoading]);
+
+  // Defer chart rendering to prevent UI freeze
+  useEffect(() => {
+    if (showAdvancedMetrics) {
+      // Small timeout to allow the slide animation to start/UI to update before heavy lifting
+      const timer = setTimeout(() => {
+        setChartsReady(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setChartsReady(false);
+    }
+  }, [showAdvancedMetrics]);
+
   const heartRateData = useMemo(() => {
     const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
@@ -221,34 +239,10 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Sparkles className="w-6 h-6 text-purple-600" />
               Wellness Scores
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-              <MetricCard
-                icon={<Zap className="w-5 h-5 text-yellow-500" />}
-                title="Energy Score"
-                value={summary.energyScore.value}
-                unit={summary.energyScore.unit}
-              />
-              <MetricCard
-                icon={<Gauge className="w-5 h-5 text-red-500" />}
-                title="Stress Score"
-                value={summary.stressScore.value}
-                unit={summary.stressScore.unit}
-              />
-              <MetricCard
-                icon={<Shield className="w-5 h-5 text-green-500" />}
-                title="Health Score"
-                value={summary.healthScore.value}
-                unit={summary.healthScore.unit}
-              />
-              <MetricCard
-                icon={<Brain className="w-5 h-5 text-blue-500" />}
-                title="Focus Score"
-                value={summary.focusScore.value}
-                unit={summary.focusScore.unit}
-              />
-            </div>
+            <WellnessScoreGrid summary={summary} baseline={baseline} />
           </section>
 
+          {/* Key Metrics Section - Always Visible */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-blue-600" />
@@ -296,71 +290,89 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             </div>
           </section>
 
-          <div className="flex flex-col gap-8">
-            <section className="space-y-8">
-              <section>
-                <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
-                  <Waves className="w-6 h-6 text-blue-600" />
-                  HRV Analysis
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                  <MetricCard
-                    title="Session RMSSD"
-                    value={summary.sessionRMSSD.value}
-                    unit={summary.sessionRMSSD.unit}
-                  />
-                  <MetricCard
-                    title="HRV Stability"
-                    value={summary.hrvStability.value}
-                    unit={summary.hrvStability.unit}
-                  />
-                  <MetricCard
-                    title="Respiratory Coherence"
-                    value={summary.respCoherence.value}
-                    unit={summary.respCoherence.unit}
-                  />
-                </div>
+          {/* Advanced Metrics Toggle Bar */}
+          <AdvancedMetricsToggle
+            isOpen={showAdvancedMetrics}
+            onClick={() => setShowAdvancedMetrics(!showAdvancedMetrics)}
+          />
 
-                {/* HRV Score and Nervous System Balance */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
-                  <HRVScoreGauge
-                    score={summary.hrvScore.value}
-                    baselineEstablished={baseline?.established ?? false}
-                  />
-                  <NervousSystemBalanceGauge
-                    parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
-                    sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
-                    sd2_sd1_ratio={summary.sd2_sd1_ratio}
-                  />
-                </div>
+          {/* Collapsible Advanced Metrics Section */}
+          <div className={`space-y-8 pt-6 transition-all duration-300 overflow-hidden ${
+            showAdvancedMetrics 
+              ? 'max-h-[99999px] opacity-100 pointer-events-auto' 
+              : 'max-h-0 opacity-0 pointer-events-none'
+          }`}>
+            <div className="flex flex-col gap-8">
+              <section className="space-y-8">
+                <section>
+                  <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                    <Waves className="w-6 h-6 text-blue-600" />
+                    HRV Analysis
+                  </h2>
 
-                {/* Restoration Index */}
-                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-                  <RestorationIndexGauge score={summary.restorationIndex.value} />
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <MetricCard
+                      title="Session RMSSD"
+                      value={summary.sessionRMSSD.value}
+                      unit={summary.sessionRMSSD.unit}
+                    />
+                    <MetricCard
+                      title="HRV Stability"
+                      value={summary.hrvStability.value}
+                      unit={summary.hrvStability.unit}
+                    />
+                    <MetricCard
+                      title="Respiratory Coherence"
+                      value={summary.respCoherence.value}
+                      unit={summary.respCoherence.unit}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
+                    <HRVScoreGauge
+                      score={summary.hrvScore.value}
+                      baselineEstablished={baseline?.established ?? false}
+                    />
+                    <NervousSystemBalanceGauge
+                      parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
+                      sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
+                      sd2_sd1_ratio={summary.sd2_sd1_ratio}
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                    <RestorationIndexGauge score={summary.restorationIndex.value} />
+                  </div>
+                </section>
+
+                <section>
+                  <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                    <TrendingUp className="w-6 h-6 text-blue-600" />
+                    Detailed Metrics
+                  </h2>
+
+                  {/* Charts with Deferred Rendering */}
+                  <div className="space-y-6 min-h-[400px]">
+                    {!chartsReady ? (
+                      <div className="flex flex-col items-center justify-center py-20 space-y-4">
+                        <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="text-sm text-slate-500 font-medium">Loading diagnostics...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <TachogramChart data={tachogramData} />
+                        <PoincarePlot data={poincareData} />
+                        <BreathingCoherenceChart data={heartRateData} />
+                        <AutonomicBalanceChart
+                          currentRatio={summary.sd2_sd1_ratio ?? null}
+                          currentTotalPower={summary.totalPower ?? null}
+                        />
+                      </>
+                    )}
+                  </div>
+                </section>
               </section>
-
-              <section>
-                <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
-                  <TrendingUp className="w-6 h-6 text-blue-600" />
-                  Detailed Metrics
-                </h2>
-                <div className="space-y-6">
-                  <TachogramChart data={tachogramData} />
-                  <PoincarePlot data={poincareData} />
-
-                  {/* New Breathing Coherence Chart */}
-                  <BreathingCoherenceChart data={heartRateData} />
-
-                  {/* Autonomic Balance Chart */}
-                  <AutonomicBalanceChart
-                    currentRatio={summary.sd2_sd1_ratio ?? null}
-                    currentTotalPower={summary.totalPower ?? null}
-                  />
-
-                </div>
-              </section>
-            </section>
+            </div>
           </div>
 
           {/* Autonomic Interpretation Section */}

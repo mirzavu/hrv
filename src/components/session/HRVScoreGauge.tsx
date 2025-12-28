@@ -64,38 +64,7 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
         <div className="mb-4">
           <div className="flex items-center justify-center gap-2">
             <h3 className="text-lg font-semibold text-slate-700">HRV Score</h3>
-            {waitingForBaseline && (
-              <div className="relative">
-                <button
-                  onMouseEnter={() => setShowPopover(true)}
-                  onMouseLeave={() => setShowPopover(false)}
-                  onClick={() => setShowPopover(!showPopover)}
-                  className="text-blue-400 hover:text-blue-500 transition-colors"
-                  aria-label="Baseline information"
-                >
-                  <Info size={18} />
-                </button>
-                {showPopover && (
-                  <div className="absolute z-50 w-72 p-4 bg-white border border-slate-200 rounded-lg shadow-xl -left-32 top-8">
-                    <div className="text-left space-y-2">
-                      <p className="text-sm font-semibold text-blue-600">Building Your Personal Baseline</p>
-                      <p className="text-xs text-slate-600">
-                        You're currently using a generic HRV scoring method. To get personalized scores based on <strong>your</strong> unique physiology:
-                      </p>
-                      <ul className="text-xs text-slate-600 list-disc list-inside space-y-1">
-                        <li>Record <strong>7+ sessions</strong></li>
-                        <li>Spread across <strong>5+ different days</strong></li>
-                        <li>Use consistent conditions (e.g., same time daily)</li>
-                      </ul>
-                      <p className="text-xs text-slate-600 pt-2">
-                        Once established, your scores will reflect deviations from <em>your</em> personal average, providing more meaningful insights.
-                      </p>
-                    </div>
-                    <div className="absolute -top-2 left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-b-8 border-transparent border-b-slate-200"></div>
-                  </div>
-                )}
-              </div>
-            )}
+
           </div>
         </div>
 
