@@ -179,6 +179,7 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
                   strokeWidth={2}
                   dot={false}
                   activeDot={{ r: 4, fill: latestRRColor }}
+                  isAnimationActive={false}
                 />
               </LineChart>
             </ResponsiveContainer>

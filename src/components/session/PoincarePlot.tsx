@@ -126,6 +126,7 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data }) => {
                     fillOpacity={0.6}
                     stroke="#2563eb"
                     strokeWidth={1}
+                    isAnimationActive={false}
                   />
                   <ReferenceLine
                     segment={[{ x: minRR, y: minRR }, { x: maxRR, y: maxRR }]}
@@ -164,4 +165,4 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data }) => {
   );
 };
 
-export default PoincarePlot;
+export default React.memo(PoincarePlot);

@@ -178,4 +178,4 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
   );
 };
 
-export default BreathingCoherenceChart;
+export default React.memo(BreathingCoherenceChart);

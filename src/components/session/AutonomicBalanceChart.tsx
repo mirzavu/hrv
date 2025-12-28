@@ -502,4 +502,4 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
   );
 };
 
-export default AutonomicBalanceChart;
+export default React.memo(AutonomicBalanceChart);
