@@ -233,7 +233,18 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
       <div className="text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl" style={{ backgroundColor: '#f9fafb' }}>
         <header className="sticky top-0 bg-white/70 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-10">
           <div>
-            <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
+            <div className="flex items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
+              {summary.usage_phase && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${summary.usage_phase === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                    summary.usage_phase === 'early' ? 'bg-sky-100 text-sky-700 border-sky-200' :
+                      'bg-purple-100 text-purple-700 border-purple-200'
+                  }`}>
+                  {summary.usage_phase === 'calibration' ? 'Calibration Phase' :
+                    summary.usage_phase === 'early' ? 'Early Phase' : 'Pro Phase'}
+                </span>
+              )}
+            </div>
             <p className="text-slate-500 mt-1">
               A complete analysis of your session.
             </p>
@@ -247,6 +258,21 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         </header>
 
         <main className="p-8 space-y-8">
+          {/* Crash Alert */}
+          {summary.is_crash && (
+            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
+              <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+              <div>
+                <h3 className="font-semibold text-red-800">Significant Recovery Drop Detected</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  Your HRV is significantly below your normal range (Crash).
+                  This session will be excluded from your future baseline calculations to prevent skewing your data.
+                  Prioritize rest and recovery today.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Wellness Scores Section - Above Key Metrics */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">

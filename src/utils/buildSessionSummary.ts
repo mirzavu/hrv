@@ -7,15 +7,15 @@ export const buildSessionSummary = (
   payload: SessionSummaryPayload,
   durationSeconds: number,
   dataPointsCount: number,
-  rawData: Array<{timestamp: number; rrInterval?: number; allRrIntervals?: number[]}> = []
+  rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = []
 ): SessionSummary => {
   console.log('🔍 [BUILD_SUMMARY_DEBUG] Building session summary');
   console.log('🔍 [BUILD_SUMMARY_DEBUG] payload.rmssd_cv_percent:', payload.rmssd_cv_percent);
   console.log('🔍 [BUILD_SUMMARY_DEBUG] Full payload:', payload);
-  
+
   // Compute RMSSD Delta dynamically
-  const rmssdDelta = (payload.rmssd_end_ms !== null && payload.rmssd_start_ms !== null) 
-    ? payload.rmssd_end_ms - payload.rmssd_start_ms 
+  const rmssdDelta = (payload.rmssd_end_ms !== null && payload.rmssd_start_ms !== null)
+    ? payload.rmssd_end_ms - payload.rmssd_start_ms
     : null;
 
   // Extract RR intervals for visualization
@@ -116,7 +116,7 @@ export const buildSessionSummary = (
       value: payload.focus_score,
       unit: '/100'
     },
-    
+
     // HRV Score (0-100)
     hrvScore: {
       label: 'HRV Score',
@@ -138,7 +138,7 @@ export const buildSessionSummary = (
     totalPower: payload.total_power_ms2,
     sd2_sd1_ratio: payload.sd2_sd1_ratio,
     lfhfRatio: payload.lfhf_ratio ?? null,
-    
+
     // Additional HRV metrics
     sdnn: {
       label: 'SDNN',
@@ -159,6 +159,10 @@ export const buildSessionSummary = (
       value: dataPointsCount,
       unit: ''
     },
+
+    // Crash & Phase from Server
+    is_crash: payload.is_crash,
+    usage_phase: payload.usage_phase,
 
     // Raw data for visualization
     rrIntervals: rrIntervals

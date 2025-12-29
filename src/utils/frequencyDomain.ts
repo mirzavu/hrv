@@ -167,8 +167,9 @@ export const calculateFrequencyDomain = (rrIntervals: number[]): {
 
         let lfhfRatio: number | null = null;
         if (hfPower > 0) {
-            const ratio = lfPower / hfPower;
-            lfhfRatio = Math.log(ratio);
+            // LF/HF ratio should be the direct ratio (LF/HF), not log-transformed
+            // Log transformation can be applied later if needed (e.g., in normalizeLFHF)
+            lfhfRatio = lfPower / hfPower;
         }
 
         return {

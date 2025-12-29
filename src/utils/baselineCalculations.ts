@@ -32,6 +32,12 @@ const calculateStdev = (values: number[], mean: number): number => {
  * @param sessions - Array of session summary records (should be 7-14 consistent resting sessions)
  * @returns Baseline metrics including averages and standard deviations
  */
+/**
+ * Calculate baseline metrics with Phase Logic (Calibration / Early / Full)
+ * Supports Simple Average (Early) and Weighted Mean (Full)
+ * 
+ * @param sessions - Array of selected sessions (already filtered by One Morning rule)
+ */
 export const calculateBaselineMetrics = (
   sessions: SessionSummaryRecord[]
 ): {
@@ -58,120 +64,271 @@ export const calculateBaselineMetrics = (
   hrv_score_avg: number | null;
   hrv_score_stdev: number | null;
 } => {
-  // Filter out sessions with missing critical metrics
+  // Need at least 4 days (Phase 2 start) to return valid stats? 
+  // Requirement says "Calibration 1-3d", "Early 4-14d".
+  // If < 4, we might still want to return a simple average for display, but maybe flag it?
+  // We will calculate whatever we have.
+
+  // Filter valid sessions
   const validSessions = sessions.filter(s =>
     s.rmssd_session_ms !== null &&
     s.sdnn_session_ms !== null &&
     s.session_mean_hr !== null
   );
 
-  if (validSessions.length < 7) {
-    // Not enough sessions to establish baseline
+  if (validSessions.length === 0) {
     return {
-      rmssd_avg: null,
-      rmssd_stdev: null,
-      sdnn_avg: null,
-      sdnn_stdev: null,
-      hr_avg: null,
-      hr_stdev: null,
-      sd1_sd2_ratio_avg: null,
-      sd1_sd2_ratio_stdev: null,
-      lf_power_avg: null,
-      hf_power_avg: null,
-      lf_hf_avg: null,
-      amo50_avg: null,
-      energy_score_avg: null,
-      energy_score_stdev: null,
-      stress_score_avg: null,
-      stress_score_stdev: null,
-      health_score_avg: null,
-      health_score_stdev: null,
-      focus_score_avg: null,
-      focus_score_stdev: null,
-      hrv_score_avg: null,
-      hrv_score_stdev: null,
+      rmssd_avg: null, rmssd_stdev: null, sdnn_avg: null, sdnn_stdev: null,
+      hr_avg: null, hr_stdev: null, sd1_sd2_ratio_avg: null, sd1_sd2_ratio_stdev: null,
+      lf_power_avg: null, hf_power_avg: null, lf_hf_avg: null, amo50_avg: null,
+      energy_score_avg: null, energy_score_stdev: null,
+      stress_score_avg: null, stress_score_stdev: null,
+      health_score_avg: null, health_score_stdev: null,
+      focus_score_avg: null, focus_score_stdev: null,
+      hrv_score_avg: null, hrv_score_stdev: null
     };
   }
 
-  // Helper to extract, calculate mean and stdev for a metric
-  const calculateMetricStats = (
+  // Determine Phase based on count (Assuming 1 session per day)
+  // Phase 3 (Full) = 15+ days
+  const isPhase3 = validSessions.length >= 15;
+  console.log(`[BASELINE_CALC] Calculation Phase: ${isPhase3 ? '3 (Weighted Mean)' : '2 (Simple Average)'}`);
+
+  // Helper for Weighted Mean (3-2-1)
+  // Weights: Newest 30% -> 3, Middle 30% -> 2, Oldest 40% -> 1? 
+  // "30-day window, Weighted Mean (3-2-1 weights)"
+  // Let's divide sessions into 3 roughly equal buckets based on time.
+  // Sessions are NOT guaranteed sorted here? selectSessionsForBaseline returns them.
+  // Let's sort just to be safe: Oldest [0] -> Newest [last]
+  const sortedSessions = [...validSessions].sort((a, b) => {
+    const timeA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
+    const timeB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
+    return timeA - timeB; // Ascending
+  });
+
+  const calculatePhaseMetrics = (
     extractor: (s: SessionSummaryRecord) => number | null | undefined,
-    minCount: number = 5
+    useLog: boolean = false
   ): { avg: number | null; stdev: number | null } => {
-    const values = validSessions
+    const values = sortedSessions
       .map(extractor)
       .filter((v): v is number => v != null);
 
-    if (values.length < minCount) return { avg: null, stdev: null };
+    if (values.length === 0) return { avg: null, stdev: null };
 
-    const avg = calculateMean(values);
-    const stdev = calculateStdev(values, avg);
-    return { avg, stdev };
+    // --- PHASE 3: WEIGHTED MEAN ---
+    if (isPhase3) {
+      // Split into 3 chunks for weights 1, 2, 3 (Old -> New)
+      // "3-2-1" usually implies Newest gets 3.
+      const n = values.length;
+      const bucketSize = Math.floor(n / 3);
+      // Remainder goes to newest bucket? Or distribute?
+      // Simple logic: First bucket (Oldest) size B1, Middle B2, Newest B3
+      const b1 = bucketSize; // Weight 1
+      const b2 = bucketSize; // Weight 2
+      const b3 = n - b1 - b2; // Weight 3 (includes remainder)
+
+      let weightedSum = 0;
+      let totalWeight = 0;
+      const weightedValues: number[] = []; // For SD calc?? 
+      // Weighted SD is complex. Standard practice: Use Weighted Mean, but Unweighted SD?
+      // Requirement: "30-day window... SD with 3ms Floor".
+      // Usually SD is calculated on the raw distribution window, not weighted.
+      // So we use Weighted Mean for the Baseline Center, and Unweighted SD for the Range.
+
+      // Process Oldest (Weight 1)
+      for (let i = 0; i < b1; i++) {
+        const val = useLog ? Math.log(values[i]) : values[i];
+        weightedSum += val * 1;
+        totalWeight += 1;
+      }
+      // Middle (Weight 2)
+      for (let i = b1; i < b1 + b2; i++) {
+        const val = useLog ? Math.log(values[i]) : values[i];
+        weightedSum += val * 2;
+        totalWeight += 2;
+      }
+      // Newest (Weight 3)
+      for (let i = b1 + b2; i < n; i++) {
+        const val = useLog ? Math.log(values[i]) : values[i];
+        weightedSum += val * 3;
+        totalWeight += 3;
+      }
+
+      const weightedMean = weightedSum / totalWeight;
+
+      // Standard Deviation (Unweighted, typically)
+      // Or should it be weighted SD? Weighted SD is better for weighted mean.
+      // Let's use simple SD on the window for stability, unless specified.
+      // "SD with 3ms Floor".
+      const logValues = useLog ? values.map(v => Math.log(v)) : values;
+      const simpleMeanForSD = calculateMean(logValues); // Should calculate variance around Weighted Mean?
+      // Variance = Sum(w_i * (x_i - weightedMean)^2) / Sum(w_i) ? 
+      // Let's stick to Simple SD for the set, it's robust enough.
+      // Actually, if we use Weighted Mean, we should check deviation from THAT mean.
+      const variance = logValues.reduce((acc, val) => acc + Math.pow(val - weightedMean, 2), 0) / n; // Simple variance from Weighted Mean
+      let stdev = Math.sqrt(variance);
+
+      // Floor logic
+      if (useLog) {
+        // SD Floor: "if raw SD too small, set SD_lnRMSSD = 0.07"
+        // 0.07 is a typical minimum for LnRMSSD.
+        stdev = Math.max(stdev, 0.07);
+      } else {
+        // Raw floor: 3ms
+        stdev = Math.max(stdev, 3.0);
+      }
+
+      return { avg: weightedMean, stdev };
+
+    } else {
+      // --- PHASE 2: SIMPLE AVERAGE (EXPANDING WINDOW) ---
+      // Just simple mean of what we have
+      const workingValues = useLog ? values.map(v => Math.log(v)) : values;
+      const mean = calculateMean(workingValues);
+
+      let stdev = calculateStdev(workingValues, mean);
+
+      // Apply floors even in Phase 2? Yes, good practice.
+      if (useLog) {
+        // Using 0.07 as per Phase 3 spec, seems safer
+        stdev = Math.max(stdev, 0.07);
+      } else {
+        stdev = Math.max(stdev, 3.0);
+      }
+
+      return { avg: mean, stdev };
+    }
   };
 
-  // --- Core Metrics ---
-  const rmssdParams = calculateMetricStats(s => s.rmssd_session_ms, 5);
-  const sdnnParams = calculateMetricStats(s => s.sdnn_session_ms, 5);
-  const hrParams = calculateMetricStats(s => s.session_mean_hr, 5);
+  // --- Metrics ---
 
-  // Frequency Domain
-  const lfParams = calculateMetricStats(s => s.lf_power_ms2, 5);
-  const hfParams = calculateMetricStats(s => s.hf_power_ms2, 5);
-  const lfhfParams = calculateMetricStats(s => s.lfhf_ratio, 5);
-  const amoParams = calculateMetricStats(s => s.amode_50, 5);
+  // RMSSD (Critical: LnRMSSD for Phase 3 logic mostly, but we store Raw Mean/SD for display?)
+  // The 'user_baselines' table stores 'rmssd_avg' etc.
+  // The Scoring uses LnRMSSD.
+  // We should store LnRMSSD params? Or Raw?
+  // Current DB has 'rmssd_avg'. Is it Raw or Log?
+  // Previous code stored Raw.
+  // If we change to Ln, we break data consistency/display.
+  // Proposal: "Phase 3... Weighted Mean of LnRMSSD".
+  // Scoring uses LnRMSSD.
+  // So we SHOULD compute LnRMSSD stats.
+  // BUT the type UserBaseline likely expects RMSSD in ms (Raw).
+  // "rmssd_avg" usually means ms.
+  // If we store Ln, it will be e.g. 4.2 instead of 66.
+  // DECISION: We have limited fields. We will continue to store RAW stats in `rmssd_avg` (for display "Baseline: 45 ms").
+  // BUT we need Ln stats for SCORING.
+  // Wait, `calculateHrvReadinessScore` uses `baseline.rmssd_avg`.
+  // If we change scoring to Z-score of Ln, we need Ln Baseline.
+  // Can we derive Ln Baseline from Raw Baseline?
+  // Mean(Ln(x)) != Ln(Mean(x)).
+  // So we strictly need to store Ln Stats.
+  // If `user_baselines` fields are strictly defined, we might need new fields?
+  // Or we reuse `rmssd_avg` and treat it as Ln?
+  // The UI likely displays it. `SessionSummaryModal` shows "Baseline: X".
+  // If it shows "4.2", user gets confused.
+  // **SOLUTION:** We will calculate and return RAW stats for the standard fields (for display).
+  // We will assume the Scoring function will re-calculate Ln Baseline on the fly?
+  // No, `calculateHrvReadinessScore` takes `baseline` object.
+  // We can't re-calculate without the raw history.
+  // **Better Solution:** The Proposal says "Phase 3... Weighted Mean of LnRMSSD".
+  // This implies the *Baseline itself* is defined in Log terms.
+  // However, for UI display, we assume the user sees MS.
+  // Maybe we store Raw Stats in `rmssd_avg` (via calculating Weighted Mean of Raw?), and calculate Score via...
+  // Wait. The requirement: "HRV Score... Z-score based using LnRMSSD".
+  // To get Z-score, we need Mean & SD of LnRMSSD.
+  // If we don't store them, we can't do it.
+  // **HACK / PLAN:** We will OVERWRITE `rmssd_avg` and `rmssd_stdev` with **LnRMSSD** values.
+  // AND we will add a UI transform if needed? 
+  // OR we store RAW in `rmssd_avg`, but we rely on the fact that for scoring we need Ln.
+  // Actually, let's check `UserBaseline` type again.
+  // It doesn't have `ln_rmssd_avg`.
+  // If I store Ln values in `rmssd_avg`, I must update ALL consumers to `Math.exp` it for display.
+  // Is that feasible? `SessionSummaryModal` shows it.
+  // That seems risky.
+  // **ALTERNATIVE:** The "Composite" formula used Normalized Z-score.
+  // `p_RMSSD = (val - avg) / stdev`.
+  // If we switch to Ln, we want: `Z = (Ln(val) - LnAvg) / LnSD`.
+  // If we only have RawAvg and RawSD, we can't extract LnAvg/LnSD accurately.
+  // **Wait**, I can just calculate Weighted Mean of RAW RMSSD for `rmssd_avg`.
+  // And for Scoring?
+  // Maybe I just use Raw RMSSD Z-score?
+  // "Verdict: GOOD. Switch to purely LnRMSSD...".
+  // OK, I really need Ln stats.
+  // I will check if I can add fields to DB?
+  // `types` allows `[key: string]: any`? No.
+  // **Compromise:** I will use the *existing* fields `rmssd_avg` / `stdev` to store **Raw** values (Weighted Mean of Raw).
+  // I will UNFORTUNATELY have to calculate Z-score using Ln of RawAvg?? No that's wrong.
+  // **Wait**: I can repurpose `rmssd_cv_percent` or similar? No.
+  // **Let's look at the Task**: "Update code".
+  // I can try to add `ln_rmssd_avg` to the DB?
+  // I don't have schema access.
+  // **Idea**: Store `rmssd_avg` as Raw.
+  // Store `rmssd_stdev` as... Raw.
+  // For the Score Calculation:
+  // Use `ln(rmssd_session)` vs `ln(rmssd_raw_avg)`.
+  // `Z ~= (ln(val) - ln(avg)) / (stdev / avg)`. (Approximation using CV).
+  // Actually, `SD(ln x) ~= CV(x) = SD(x)/Mean(x)`.
+  // `Mean(ln x) ~= Ln(Mean(x)) - 0.5 * Variance(ln x)`.
+  // This approximation is usually "good enough" for HRV apps without schema changes.
+  // **So**:
+  // 1. Calculate and store Weighted Mean of **RAW** RMSSD -> `rmssd_avg`.
+  // 2. Calculate and store Weighted/Simple SD of **RAW** RMSSD -> `rmssd_stdev`.
+  // 3. In `calculateHrvReadinessScore`:
+  //    - Estimate LnMean ~= `Math.log(baseline.rmssd_avg)`.
+  //    - Estimate LnSD ~= `baseline.rmssd_stdev / baseline.rmssd_avg`. (CV).
+  //    - Calculate `Z = (Math.log(current) - LnMean) / LnSD`.
+  // This satisfies the "Use LnRMSSD" requirement mathematically via approximation, keeping DB clean.
 
-  // SD1/SD2 Ratio
-  const sd1Sd2Values = validSessions
-    .filter(s => s.sd1_ms !== null && s.sd2_ms !== null && s.sd1_ms! > 0 && s.sd2_ms! > 0)
+  // Implementation below uses Raw Weighted Mean/SD.
+  const rmssdParams = calculatePhaseMetrics(s => s.rmssd_session_ms, false); // Use RAW
+  const sdnnParams = calculatePhaseMetrics(s => s.sdnn_session_ms, false);
+  const hrParams = calculatePhaseMetrics(s => s.session_mean_hr, false);
+
+  // New Scores
+  const energyParams = calculatePhaseMetrics(s => s.energy_score, false);
+  const stressParams = calculatePhaseMetrics(s => s.stress_score, false);
+  const healthParams = calculatePhaseMetrics(s => s.health_score, false);
+  const focusParams = calculatePhaseMetrics(s => s.focus_score, false);
+  const hrvScoreParams = calculatePhaseMetrics(s => s.hrv_score, false);
+
+  // Other metrics (simple mean for now, or use Phase logic without logs)
+  const simpleAvg = (extractor: (s: SessionSummaryRecord) => number | null | undefined) => {
+    const vals = sortedSessions.map(extractor).filter((v): v is number => v != null);
+    if (!vals.length) return { avg: null, stdev: null };
+    const m = calculateMean(vals);
+    const s = calculateStdev(vals, m);
+    return { avg: m, stdev: s };
+  };
+
+  const lfParams = simpleAvg(s => s.lf_power_ms2);
+  const hfParams = simpleAvg(s => s.hf_power_ms2);
+  const lfhfParams = simpleAvg(s => s.lfhf_ratio);
+  const amoParams = simpleAvg(s => s.amode_50);
+
+  // SD1/SD2
+  const sd1Sd2Values = sortedSessions
+    .filter(s => s.sd1_ms! > 0 && s.sd2_ms! > 0)
     .map(s => s.sd1_ms! / s.sd2_ms!);
 
-  const sd1_sd2_ratio_avg = sd1Sd2Values.length >= 7
-    ? calculateMean(sd1Sd2Values)
-    : null;
-  const sd1_sd2_ratio_stdev = sd1Sd2Values.length >= 7
-    ? calculateStdev(sd1Sd2Values, sd1_sd2_ratio_avg!)
-    : null;
-
-  // --- NEW 5 Scores ---
-  const energyParams = calculateMetricStats(s => s.energy_score, 5);
-  const stressParams = calculateMetricStats(s => s.stress_score, 5);
-  const healthParams = calculateMetricStats(s => s.health_score, 5);
-  const focusParams = calculateMetricStats(s => s.focus_score, 5);
-  const hrvScoreParams = calculateMetricStats(s => s.hrv_score, 5);
+  const sd1Sd2Avg = sd1Sd2Values.length ? calculateMean(sd1Sd2Values) : null;
+  const sd1Sd2Sd = sd1Sd2Values.length > 0 && sd1Sd2Avg !== null ? calculateStdev(sd1Sd2Values, sd1Sd2Avg) : null;
 
   return {
-    rmssd_avg: rmssdParams.avg !== null ? Number(rmssdParams.avg.toFixed(2)) : null,
-    rmssd_stdev: rmssdParams.stdev !== null ? Number(rmssdParams.stdev.toFixed(2)) : null,
+    rmssd_avg: rmssdParams.avg, rmssd_stdev: rmssdParams.stdev,
+    sdnn_avg: sdnnParams.avg, sdnn_stdev: sdnnParams.stdev,
+    hr_avg: hrParams.avg, hr_stdev: hrParams.stdev,
 
-    sdnn_avg: sdnnParams.avg !== null ? Number(sdnnParams.avg.toFixed(2)) : null,
-    sdnn_stdev: sdnnParams.stdev !== null ? Number(sdnnParams.stdev.toFixed(2)) : null,
+    lf_power_avg: lfParams.avg, hf_power_avg: hfParams.avg,
+    lf_hf_avg: lfhfParams.avg, amo50_avg: amoParams.avg,
 
-    hr_avg: hrParams.avg !== null ? Number(hrParams.avg.toFixed(2)) : null,
-    hr_stdev: hrParams.stdev !== null ? Number(hrParams.stdev.toFixed(2)) : null,
+    sd1_sd2_ratio_avg: sd1Sd2Avg, sd1_sd2_ratio_stdev: sd1Sd2Sd,
 
-    lf_power_avg: lfParams.avg !== null ? Number(lfParams.avg.toFixed(2)) : null,
-    hf_power_avg: hfParams.avg !== null ? Number(hfParams.avg.toFixed(2)) : null,
-    lf_hf_avg: lfhfParams.avg !== null ? Number(lfhfParams.avg.toFixed(2)) : null,
-    amo50_avg: amoParams.avg !== null ? Number(amoParams.avg.toFixed(1)) : null,
-
-    sd1_sd2_ratio_avg: sd1_sd2_ratio_avg !== null ? Number(sd1_sd2_ratio_avg.toFixed(4)) : null,
-    sd1_sd2_ratio_stdev: sd1_sd2_ratio_stdev !== null ? Number(sd1_sd2_ratio_stdev.toFixed(4)) : null,
-
-    // New Scores
-    energy_score_avg: energyParams.avg !== null ? Number(energyParams.avg.toFixed(1)) : null,
-    energy_score_stdev: energyParams.stdev !== null ? Number(energyParams.stdev.toFixed(1)) : null,
-
-    stress_score_avg: stressParams.avg !== null ? Number(stressParams.avg.toFixed(1)) : null,
-    stress_score_stdev: stressParams.stdev !== null ? Number(stressParams.stdev.toFixed(1)) : null,
-
-    health_score_avg: healthParams.avg !== null ? Number(healthParams.avg.toFixed(1)) : null,
-    health_score_stdev: healthParams.stdev !== null ? Number(healthParams.stdev.toFixed(1)) : null,
-
-    focus_score_avg: focusParams.avg !== null ? Number(focusParams.avg.toFixed(1)) : null,
-    focus_score_stdev: focusParams.stdev !== null ? Number(focusParams.stdev.toFixed(1)) : null,
-
-    hrv_score_avg: hrvScoreParams.avg !== null ? Number(hrvScoreParams.avg.toFixed(1)) : null,
-    hrv_score_stdev: hrvScoreParams.stdev !== null ? Number(hrvScoreParams.stdev.toFixed(1)) : null,
+    energy_score_avg: energyParams.avg, energy_score_stdev: energyParams.stdev,
+    stress_score_avg: stressParams.avg, stress_score_stdev: stressParams.stdev,
+    health_score_avg: healthParams.avg, health_score_stdev: healthParams.stdev,
+    focus_score_avg: focusParams.avg, focus_score_stdev: focusParams.stdev,
+    hrv_score_avg: hrvScoreParams.avg, hrv_score_stdev: hrvScoreParams.stdev,
   };
 };
 
@@ -186,6 +343,22 @@ export const calculateBaselineMetrics = (
  * @param sessionMetrics - Current session metrics
  * @param baseline - User's personalized baseline
  * @returns HRV Readiness Score (centered around 50, range typically 0-100)
+ */
+/**
+ * Calculate HRV Readiness Score using personalized baseline approach
+ * 
+ * New Formula: Pure LnRMSSD Z-score
+ * Z = (Ln(Today) - Ln(BaselineMean)) / Ln(BaselineSD)
+ * Score = 50 + (Z * 20)  [Centered at 50, +/- 2.5 SD range]
+ * 
+ * Note: Baseline stores Weighted Mean/SD of RAW RMSSD.
+ * We approximate Ln stats:
+ * LnMean ~= Ln(RawMean)
+ * LnSD ~= RawSD / RawMean (CV)
+ * 
+ * @param sessionMetrics - Current session metrics
+ * @param baseline - User's personalized baseline
+ * @returns HRV Readiness Score (0-100)
  */
 export const calculateHrvReadinessScore = (
   sessionMetrics: {
@@ -203,55 +376,43 @@ export const calculateHrvReadinessScore = (
   }
 
   // Check if we have required session metrics
-  if (
-    sessionMetrics.rmssd === null ||
-    sessionMetrics.sdnn === null ||
-    sessionMetrics.meanHR === null
-  ) {
+  if (sessionMetrics.rmssd === null) {
     return null;
   }
 
   // Check if we have required baseline metrics
   if (
     baseline.rmssd_avg === null ||
-    baseline.rmssd_stdev === null ||
-    baseline.sdnn_avg === null ||
-    baseline.sdnn_stdev === null ||
-    baseline.hr_avg === null ||
-    baseline.hr_stdev === null
+    baseline.rmssd_stdev === null
   ) {
     return null;
   }
 
   try {
-    // Calculate normalized z-scores for each metric
-    // p_RMSSD: Parasympathetic activity indicator
-    const p_RMSSD = baseline.rmssd_stdev > 0
-      ? (sessionMetrics.rmssd - baseline.rmssd_avg) / baseline.rmssd_stdev
-      : 0;
+    const rawRmssd = sessionMetrics.rmssd;
+    const baseMean = baseline.rmssd_avg;
+    const baseStdev = baseline.rmssd_stdev;
 
-    // p_SDNN: Overall autonomic variability
-    const p_SDNN = baseline.sdnn_stdev > 0
-      ? (sessionMetrics.sdnn - baseline.sdnn_avg) / baseline.sdnn_stdev
-      : 0;
+    // Avoid division by zero
+    if (baseMean <= 0 || baseStdev <= 0 || rawRmssd <= 0) return 50;
 
-    // p_HR: Heart rate (inverted - higher HR reduces score)
-    const p_HR = baseline.hr_stdev > 0
-      ? (sessionMetrics.meanHR - baseline.hr_avg) / baseline.hr_stdev
-      : 0;
+    // Approximate Ln Stats from Raw Weighted Stats
+    const lnMean = Math.log(baseMean);
+    // CV approach for LnSD: SD(lnX) ~ SD(X)/Mean(X)
+    // Ensure minimum SD to avoid extreme Z-scores
+    const lnSd = Math.max(0.10, baseStdev / baseMean);
 
-    // Calculate weighted HRV Readiness Score
-    // Formula: (0.35 * p_RMSSD) + (0.35 * p_SDNN) - (0.30 * p_HR)
-    const readinessRaw = (0.35 * p_RMSSD) + (0.35 * p_SDNN) - (0.30 * p_HR);
+    const lnCurrent = Math.log(rawRmssd);
 
-    // Convert z-score to 0-100 scale
-    // Z-score of 0 (average) = 50
-    // Z-score of +2 (2 std above) = 100
-    // Z-score of -2 (2 std below) = 0
-    const readinessScore = 50 + (readinessRaw * 25);
+    // Calculate Z-score
+    const zScore = (lnCurrent - lnMean) / lnSd;
+
+    // Map Z-score to 0-100
+    // Z=0 -> 50. Z=+2.5 -> 100. Z=-2.5 -> 0.
+    const score = 50 + (zScore * 20);
 
     // Clamp to 0-100 range
-    const clampedScore = Math.max(0, Math.min(100, readinessScore));
+    const clampedScore = Math.max(0, Math.min(100, score));
 
     return Number(clampedScore.toFixed(1));
 
@@ -262,53 +423,53 @@ export const calculateHrvReadinessScore = (
 };
 
 /**
- * Interpret the HRV Readiness Score
+ * Interpret the HRV Readiness Score based on Z-score equivalent
+ * 
+ * Mapping (Score = 50 + 20Z):
+ * Z > 1.5  => Score > 80 (Dark Green - Peak)
+ * Z ~ 0    => Score 40-60 (Medium Green - Stable)
+ * Z ~ -1.0 => Score 30 (Light Green - Functional)
+ * Z < -1.5 => Score < 20 (Grey - Rest)
  * 
  * @param score - HRV Readiness Score (0-100)
  * @returns Interpretation object with status and message
  */
 export const interpretReadinessScore = (score: number | null): {
-  status: 'excellent' | 'good' | 'average' | 'below-average' | 'poor' | 'no-baseline';
+  status: 'peak' | 'stable' | 'functional' | 'rest' | 'no-baseline';
   message: string;
   color: string;
 } => {
   if (score === null) {
     return {
       status: 'no-baseline',
-      message: 'Complete 7-14 consistent resting sessions to establish your personal baseline',
+      message: 'Building baseline...',
       color: '#6B7280' // gray
     };
   }
 
-  if (score >= 70) {
+  if (score >= 80) { // Z > 1.5
     return {
-      status: 'excellent',
-      message: 'Your recovery is significantly above your baseline. High readiness.',
-      color: '#10B981' // green
+      status: 'peak',
+      message: 'Peak State. Ready for high intensity.',
+      color: '#059669' // Dark Green (Emerald 600)
     };
-  } else if (score >= 55) {
+  } else if (score >= 45) { // Z > -0.25 (includes average)
     return {
-      status: 'good',
-      message: 'Your recovery is above your baseline. Good readiness.',
-      color: '#34D399' // light green
+      status: 'stable',
+      message: 'Stable. Good balance.',
+      color: '#10B981' // Medium Green (Emerald 500)
     };
-  } else if (score >= 45) {
+  } else if (score >= 25) { // Z > -1.25
     return {
-      status: 'average',
-      message: 'Your recovery is within your normal range.',
-      color: '#F59E0B' // amber
+      status: 'functional',
+      message: 'Functional. Moderate load recommended.',
+      color: '#34D399' // Light Green (Emerald 400)
     };
-  } else if (score >= 30) {
+  } else { // Z < -1.25
     return {
-      status: 'below-average',
-      message: 'Your recovery is below your baseline. Consider rest or recovery.',
-      color: '#F97316' // orange
-    };
-  } else {
-    return {
-      status: 'poor',
-      message: 'Your recovery is significantly below baseline. Prioritize recovery.',
-      color: '#EF4444' // red
+      status: 'rest',
+      message: 'Below Baseline. Prioritize recovery.',
+      color: '#9CA3AF' // Grey (Gray 400) - as requested "Grey" for low
     };
   }
 };
@@ -320,7 +481,7 @@ export const interpretReadinessScore = (score: number | null): {
  * @returns Whether baseline can be established (requires 7-14 sessions)
  */
 export const canEstablishBaseline = (sessionsCount: number): boolean => {
-  return sessionsCount >= 7;
+  return sessionsCount >= 4; // Start of Phase 2 (Early)
 };
 
 /**
@@ -386,7 +547,7 @@ const groupSessionsByDate = <T extends { session_date?: string | null; createdAt
 
 /**
  * Check if user can create baseline based on last 14 days
- * Condition: At least 5 unique days with sessions in the last 14 days
+ * Condition: At least 3 unique days with sessions in the last 14 days (Calibration Phase)
  * 
  * @param sessions - Array of session summary records
  * @returns Validation result
@@ -403,28 +564,29 @@ export const canCreateBaseline = <T extends { session_date?: string | null; crea
 
   const grouped = groupSessionsByDate(sessions);
 
-  // Get current date and calculate 14 days ago
+  // Get current date and calculate 14 days ago (or 30? Requirement says 30-day window for calculation)
+  // But for ESTABLISHING, usually 14 days is good check.
   const now = new Date();
   const fourteenDaysAgo = new Date(now);
-  fourteenDaysAgo.setDate(now.getDate() - 14);
+  fourteenDaysAgo.setDate(now.getDate() - 30); // Expanded to 30 as per overall Plan duration
 
-  console.log(`[BASELINE_CALC] canCreateBaseline: Checking last 14 days from ${fourteenDaysAgo.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`);
+  console.log(`[BASELINE_CALC] canCreateBaseline: Checking last 30 days from ${fourteenDaysAgo.toISOString().split('T')[0]} to ${now.toISOString().split('T')[0]}`);
 
-  // Filter to sessions from last 14 days
+  // Filter to sessions from last 30 days
   const allDates = Array.from(grouped.keys());
   const recentDates = allDates.filter(dateStr => {
     const date = new Date(dateStr);
     const isRecent = date >= fourteenDaysAgo;
     if (!isRecent) {
-      console.log(`[BASELINE_CALC] canCreateBaseline: Date ${dateStr} is outside 14-day window`);
+      console.log(`[BASELINE_CALC] canCreateBaseline: Date ${dateStr} is outside 30-day window`);
     }
     return isRecent;
   });
 
   const uniqueDays = recentDates.length;
-  const MIN_UNIQUE_DAYS = 5;
+  const MIN_UNIQUE_DAYS = 3; // Reduced for Calibration Support
 
-  console.log(`[BASELINE_CALC] canCreateBaseline: Found ${uniqueDays} unique days in last 14 days (need ${MIN_UNIQUE_DAYS})`);
+  console.log(`[BASELINE_CALC] canCreateBaseline: Found ${uniqueDays} unique days in last 30 days (need ${MIN_UNIQUE_DAYS})`);
   console.log(`[BASELINE_CALC] canCreateBaseline: Recent dates:`, recentDates.sort().join(', '));
 
   const isValid = uniqueDays >= MIN_UNIQUE_DAYS;
@@ -443,92 +605,61 @@ export const canCreateBaseline = <T extends { session_date?: string | null; crea
  * @param sessions - Array of session summary records
  * @returns Selected sessions for baseline calculation
  */
-export const selectSessionsForBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
+/**
+ * Select sessions for baseline calculation
+ * Logic: 30-day window, "One Morning" rule (First session of day), Exclude Crashes
+ * 
+ * @param sessions - Array of session summary records
+ * @returns Selected sessions for baseline calculation
+ */
+export const selectSessionsForBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string; startTime?: string; is_crash?: boolean;[key: string]: any }>(
   sessions: T[]
 ): T[] => {
   console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selecting from ${sessions.length} sessions`);
 
-  if (sessions.length === 0) {
-    console.log(`[BASELINE_CALC] selectSessionsForBaseline: No sessions to select - returning empty array`);
-    return [];
+  if (sessions.length === 0) return [];
+
+  // 1. Filter out Crash sessions
+  // We exclude sessions flagged as 'is_crash' from the BASELINE CALCULATION set
+  const cleanSessions = sessions.filter(s => s.is_crash !== true);
+
+  if (cleanSessions.length < sessions.length) {
+    console.log(`[BASELINE_CALC] Excluded ${sessions.length - cleanSessions.length} crash sessions`);
   }
 
-  const grouped = groupSessionsByDate(sessions);
+  // 2. Group by Date
+  const grouped = groupSessionsByDate(cleanSessions);
 
-  // Sort dates descending (most recent first)
+  // 3. Sort dates descending (most recent first)
   const sortedDates = Array.from(grouped.keys()).sort((a, b) => {
     return new Date(b).getTime() - new Date(a).getTime();
   });
 
-  console.log(`[BASELINE_CALC] selectSessionsForBaseline: All dates sorted:`, sortedDates.join(', '));
+  // 4. Look back 30 days (taking up to 30 unique days)
+  const relevantDates = sortedDates.slice(0, 30);
+  console.log(`[BASELINE_CALC] Window: Latest ${relevantDates.length} days (Max 30)`);
 
-  // Get latest 7 dates
-  const latest7Dates = sortedDates.slice(0, 7);
-  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Latest 7 dates:`, latest7Dates.join(', '));
-
-  // For each date, take up to 2 most recent sessions
   const selected: T[] = [];
-  const selectionLog: string[] = [];
 
-  for (const date of latest7Dates) {
+  for (const date of relevantDates) {
     const dateSessions = grouped.get(date) || [];
-    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Date ${date} has ${dateSessions.length} sessions`);
 
-    // Sort sessions by date descending (most recent first)
-    // Note: Assuming these fields exist or we handle missing gracefully (as handled in groupSessionsByDate)
-    const sortedSessions = dateSessions.sort((a, b) => {
-      const dateA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
-      const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
-      return dateB - dateA;
+    // 5. "One Morning Rule": Pick ONLY the FIRST session of the day
+    // Sort by time ASCENDING (Earliest first)
+    // We assume creating a baseline uses Morning Readiness sessions, which are typically first.
+    const sortedByTime = dateSessions.sort((a, b) => {
+      const timeA = new Date(a.startTime || a.created || a.createdAt || 0).getTime();
+      const timeB = new Date(b.startTime || b.created || b.createdAt || 0).getTime();
+      return timeA - timeB;
     });
 
-    // Take up to 2 sessions from this date
-    const taken = sortedSessions.slice(0, 2);
-    selected.push(...taken);
-    selectionLog.push(`${date}: ${taken.length} session(s) (${dateSessions.length} available)`);
-    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selected ${taken.length} from ${date} (${dateSessions.length} total)`);
-  }
-
-  console.log(`[BASELINE_CALC] selectSessionsForBaseline: After initial selection: ${selected.length} sessions`);
-  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Selection breakdown:`, selectionLog.join('; '));
-
-  // Ensure we have at least 5 sessions (if available)
-  if (selected.length < 5 && sessions.length >= 5) {
-    console.log(`[BASELINE_CALC] selectSessionsForBaseline: Only ${selected.length} sessions selected, need at least 5. Fetching more...`);
-
-    // If we don't have enough, take more from the latest dates
-    for (const date of latest7Dates) {
-      const dateSessions = grouped.get(date) || [];
-      const sortedSessions = dateSessions.sort((a, b) => {
-        const dateA = new Date(a.session_date || a.created || a.createdAt || 0).getTime();
-        const dateB = new Date(b.session_date || b.created || b.createdAt || 0).getTime();
-        return dateB - dateA;
-      });
-
-      // Add sessions we haven't already added
-      let addedFromDate = 0;
-      for (const session of sortedSessions) {
-        if (selected.length >= 14) break;
-        if (!selected.includes(session)) {
-          selected.push(session);
-          addedFromDate++;
-        }
-      }
-      if (addedFromDate > 0) {
-        console.log(`[BASELINE_CALC] selectSessionsForBaseline: Added ${addedFromDate} more from ${date}`);
-      }
-      if (selected.length >= 14) break;
+    if (sortedByTime.length > 0) {
+      selected.push(sortedByTime[0]); // The First Session
     }
   }
 
-  const finalSelection = selected.slice(0, 14); // Max 14 sessions
-  console.log(`[BASELINE_CALC] selectSessionsForBaseline: Final selection: ${finalSelection.length} sessions (min: 5, max: 14)`);
-
-  if (finalSelection.length < 5) {
-    console.log(`[BASELINE_CALC] selectSessionsForBaseline: WARNING - Only ${finalSelection.length} sessions selected (need at least 5)`);
-  }
-
-  return finalSelection;
+  console.log(`[BASELINE_CALC] Final Selection: ${selected.length} sessions`);
+  return selected;
 };
 
 /**

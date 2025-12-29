@@ -15,15 +15,22 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
   // Check if we're in "Waiting For Baseline" state
   const waitingForBaseline = !baselineEstablished && score !== null;
 
-  // Determine color based on score ranges: 0-40 yellow, 40-50 light blue, 50-100 green
-  let scoreColorDetails = { text: 'text-gray-400', border: 'border-gray-400', bg: 'bg-gray-50' };
+  // Determine color based on score ranges (Z-score based mapping)
+  // Z > 1.5 (Score > 80) => Dark Green
+  // Z > -0.25 (Score > 45) => Medium Green
+  // Z > -1.25 (Score > 25) => Light Green
+  // Z < -1.25 (Score < 25) => Grey
 
-  if (normalizedScore < 40) {
-    scoreColorDetails = { text: 'text-yellow-600', border: 'border-yellow-500', bg: 'bg-yellow-50' };
-  } else if (normalizedScore < 50) {
-    scoreColorDetails = { text: 'text-sky-600', border: 'border-sky-500', bg: 'bg-sky-50' };
+  let scoreColorDetails = { text: 'text-slate-500', border: 'border-slate-400', bg: 'bg-slate-50' };
+
+  if (normalizedScore >= 80) {
+    scoreColorDetails = { text: 'text-emerald-700', border: 'border-emerald-600', bg: 'bg-emerald-50' };
+  } else if (normalizedScore >= 45) {
+    scoreColorDetails = { text: 'text-emerald-500', border: 'border-emerald-400', bg: 'bg-emerald-50' };
+  } else if (normalizedScore >= 25) {
+    scoreColorDetails = { text: 'text-emerald-400', border: 'border-emerald-300', bg: 'bg-emerald-50' };
   } else {
-    scoreColorDetails = { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' };
+    scoreColorDetails = { text: 'text-gray-400', border: 'border-gray-300', bg: 'bg-gray-50' };
   }
 
   // Get interpretation - use personalized if baseline established, otherwise use generic

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { SessionSummaryPayload, RawHeartData, UserBaseline } from '@/types';
 import {
-  calculateRMSSD,
-  calculateSDNN,
-  calculatePNN50,
-  calculateMeanHR,
-  calculateMxDMn,
-  calculateAMoMetrics,
-  calculateHTI
+    calculateRMSSD,
+    calculateSDNN,
+    calculatePNN50,
+    calculateMeanHR,
+    calculateMxDMn,
+    calculateAMoMetrics,
+    calculateHTI
 } from '@/utils/hrvCalculations';
 import { calculateFrequencyDomain } from '@/utils/frequencyDomain';
 import { calculatePoincareMetrics } from '@/utils/poincare';
@@ -17,21 +17,21 @@ import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
 import { autoCheckAndUpdateBaseline } from '@/utils/autoBaselineCheck';
 import { getAdminPb } from '@/lib/pbAdmin';
 import {
-  START_END_WINDOW_SECONDS,
-  flattenRrSeries,
-  computeTimeToStabilize,
-  computeRespCoherenceScore,
-  computeRestorationIndex,
-  computeHrvStability,
-  type TimestampedRR
+    START_END_WINDOW_SECONDS,
+    flattenRrSeries,
+    computeTimeToStabilize,
+    computeRespCoherenceScore,
+    computeRestorationIndex,
+    computeHrvStability,
+    type TimestampedRR
 } from '@/utils/sessionProcessing';
 
 interface SummaryMetricOptions {
-  rawData: RawHeartData[];
-  sessionStartTime: string | null;
-  durationSeconds: number;
-  userId: string;
-  sessionId: string;
+    rawData: RawHeartData[];
+    sessionStartTime: string | null;
+    durationSeconds: number;
+    userId: string;
+    sessionId: string;
 }
 
 // Helper function to calculate SD2/SD1 balance metrics
@@ -45,10 +45,10 @@ const calculateBalanceMetrics = (sd1: number | null, sd2: number | null): {
     const BALANCE_DOMAIN: readonly [number, number] = [0, 200] as const;
     const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
 
-    const sd2_sd1_ratio = (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6) 
-        ? Number((sd2 / sd1).toFixed(4)) 
+    const sd2_sd1_ratio = (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6)
+        ? Number((sd2 / sd1).toFixed(4))
         : null;
-    
+
     let balanceIndexX: number | null = null;
     if (sd2_sd1_ratio !== null && sd2_sd1_ratio > 0) {
         // Formula: 100 + (log10(ratio) / log10(10)) * 35
@@ -63,14 +63,14 @@ const calculateBalanceMetrics = (sd1: number | null, sd2: number | null): {
     if (balanceIndexX !== null) {
         // NBS = X / 2 (Normalizes 0-200 scale to 0-100)
         normalizedBalanceScore = Number((balanceIndexX / 2).toFixed(1));
-        
+
         // Direct mapping: 
         // X=128 -> NBS=64 -> 64% Parasympathetic
         // X=72  -> NBS=36 -> 36% Parasympathetic
         parasympatheticPercent = normalizedBalanceScore;
         sympatheticPercent = Number((100 - normalizedBalanceScore).toFixed(1));
     }
-    
+
     return {
         sd2_sd1_ratio,
         balanceIndexX,
@@ -102,17 +102,17 @@ const computeSessionSummaryPayload = async ({
     const rrMax = rrValues.length ? Math.max(...rrValues) : null;
     const rrMin = rrValues.length ? Math.min(...rrValues) : null;
     const meanRR = rrValues.length ? rrValues.reduce((sum, rr) => sum + rr, 0) / rrValues.length : null;
-    
+
     // Calculate frequency domain metrics
     const frequencyMetrics = calculateFrequencyDomain(rrValues);
-    
+
     // Calculate Poincaré plot metrics
     const poincareMetrics = calculatePoincareMetrics(rrValues);
     const balanceMetrics = calculateBalanceMetrics(poincareMetrics.sd1, poincareMetrics.sd2);
-    
+
     // Calculate Baevsky metrics
     const baevskyMetrics = calculateBaevskyMetrics(rrValues);
-    
+
     // Calculate HTI (HRV Triangular Index)
     const hti = calculateHTI(rrValues);
 
@@ -128,15 +128,15 @@ const computeSessionSummaryPayload = async ({
     // Calculate complex metrics
     const timeToStabilize = computeTimeToStabilize(rawData, sessionStartTimestamp, meanHr);
     const respCoherence = computeRespCoherenceScore(rmssdSession, sdnnSession, pnn50);
-    
+
     console.log('🔍 [API_DEBUG] Before computeHrvStability:', {
         rrSeriesLength: rrSeries.length,
         sessionStartTimestamp,
         durationSeconds
     });
-    
+
     const hrvStability = computeHrvStability(rrSeries, sessionStartTimestamp, calculateRMSSD, calculateSDNN, calculateMeanHR);
-    
+
     console.log('🔍 [API_DEBUG] HRV Stability result:', hrvStability);
 
     let sessionStressIndex: number | null = null;
@@ -200,11 +200,13 @@ const computeSessionSummaryPayload = async ({
         coherence: respCoherence,
         restoration: restorationIndex
     });
-    
+
     // Try to calculate personalized HRV Readiness Score if baseline exists
     let hrvScore: number | null = fallbackHrvScore; // Start with fallback
     let baselineUsed = false;
-    
+    let isCrash = false;
+    let usagePhase: 'calibration' | 'early' | 'pro' | null = null;
+
     if (userBaseline && userBaseline.established) {
         // Use personalized baseline approach
         const personalizedScore = calculateHrvReadinessScore({
@@ -214,11 +216,28 @@ const computeSessionSummaryPayload = async ({
             sd1: poincareMetrics.sd1,
             sd2: poincareMetrics.sd2
         }, userBaseline);
-        
+
         if (personalizedScore !== null) {
             hrvScore = personalizedScore;
             baselineUsed = true;
+
+            // Determine Phase
+            const count = userBaseline.sessions_count || 0;
+            if (count < 4) usagePhase = 'calibration';
+            else if (count < 15) usagePhase = 'early';
+            else usagePhase = 'pro';
+
+            // Check for Crash (Z < -2.0)
+            // Score = 50 + (Z * 20) => Z = (Score - 50) / 20
+            // Threshold Z < -2.0 => Score < 10
+            if (personalizedScore < 10) {
+                isCrash = true;
+                console.log(`[API_ANALYZE] CRASH DETECTED: Score ${personalizedScore} (Z < -2.0)`);
+            }
         }
+    } else {
+        // No baseline established yet - Calibration Phase
+        usagePhase = 'calibration';
     }
 
     return {
@@ -260,6 +279,8 @@ const computeSessionSummaryPayload = async ({
         health_score: fourScores.healthScore,
         focus_score: fourScores.focusScore,
         hrv_score: hrvScore,
+        is_crash: isCrash,
+        usage_phase: usagePhase,
     };
 };
 

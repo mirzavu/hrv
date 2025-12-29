@@ -142,6 +142,10 @@ export interface SessionSummary {
   // Data quality
   dataPoints: HRVMetric;
 
+  // Crash & Phase
+  is_crash?: boolean;
+  usage_phase?: 'calibration' | 'early' | 'pro' | null;
+
   // Raw data for visualization
   rrIntervals: Array<{ timestamp: number; value: number }>;
 }
@@ -206,6 +210,10 @@ export interface SessionSummaryRecord {
 
   // Session date (stores session startTime for temporal distribution checks)
   session_date?: string | null;
+
+  // Crash Protection & Onboarding Phase
+  is_crash?: boolean;
+  usage_phase?: 'calibration' | 'early' | 'pro' | null;
 
   createdAt: string;
 }
