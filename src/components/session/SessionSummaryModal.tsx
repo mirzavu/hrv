@@ -6,13 +6,20 @@ import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
 import RestorationIndexGauge from './RestorationIndexGauge';
 import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
-import HRVScoreGauge from './HRVScoreGauge';
 import WellnessScoreGrid from './WellnessScoreGrid';
 import BreathingCoherenceChart from './BreathingCoherenceChart';
 import TachogramChart from './TachogramChart';
 import AutonomicBalanceChart from './AutonomicBalanceChart';
 import AutonomicInterpretation from './AutonomicInterpretation';
 import { interpretHRVSession } from '@/utils/autonomicInterpretation';
+import {
+  generateScoreBasedInterpretation,
+  generateCalibrationInterpretation,
+  detectCrashSession,
+  findComparisonSession
+} from '@/utils/sessionComparison';
+import type { InterpretationResult } from '@/utils/autonomicInterpretation';
+import type { SessionSummaryRecord } from '@/types';
 import AdvancedMetricsToggle from './AdvancedMetricsToggle';
 
 interface SessionSummaryModalProps {
@@ -41,7 +48,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   const [chartsReady, setChartsReady] = useState(false);
   const [baseline, setBaseline] = useState<UserBaseline | null>(null);
   const [baselineLoading, setBaselineLoading] = useState(true);
-  const [interpretation, setInterpretation] = useState<ReturnType<typeof interpretHRVSession>>(null);
+  const [interpretation, setInterpretation] = useState<InterpretationResult | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
+  const [firstSessionDate, setFirstSessionDate] = useState<string | null>(null);
 
   // Sync content state with toggle state slightly deferred to allow button animation to start
   useEffect(() => {
@@ -92,23 +101,157 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
   // Calculate interpretation when baseline or summary changes
   useEffect(() => {
-    if (!baselineLoading) {
-      console.log('[SessionSummaryModal] Calculating interpretation:', {
-        hasBaseline: !!baseline,
-        baselineEstablished: baseline?.established,
-        baselineId: baseline?.$id
-      });
-      const result = interpretHRVSession(summary, baseline);
-      console.log('[SessionSummaryModal] Interpretation result:', {
-        hasResult: !!result,
-        patternId: result?.patternId,
-        reason: !baseline ? 'no baseline' : !baseline.established ? 'baseline not established' : result ? 'success' : 'comparison/match failed'
-      });
-      setInterpretation(result);
-    } else {
-      console.log('[SessionSummaryModal] baseline loading...', { baseline, baselineLoading });
-    }
-  }, [summary, baseline, baselineLoading]);
+    const calculateInterpretation = async () => {
+      if (baselineLoading) {
+        console.log('[SessionSummaryModal] baseline loading...', { baseline, baselineLoading });
+        return;
+      }
+
+      // If baseline is established, use existing interpretation logic
+      if (baseline?.established) {
+        console.log('[SessionSummaryModal] Baseline established, using interpretHRVSession');
+        const result = interpretHRVSession(summary, baseline);
+        console.log('[SessionSummaryModal] Interpretation result:', {
+          hasResult: !!result,
+          patternId: result?.patternId
+        });
+        setInterpretation(result);
+        return;
+      }
+
+      // No baseline - calibration phase (Days 1-3)
+      // No baseline - calibration phase (Days 1-3)
+      if (!userId && !isGuest) {
+        console.log('[SessionSummaryModal] No userId and not guest, skipping interpretation');
+        setInterpretation(null);
+        return;
+      }
+
+      // Guest user handling
+      if (isGuest) {
+        console.log('[SessionSummaryModal] Guest user - using score-based interpretation');
+        // Use true for isFirstSession to show generic text 
+        const result = generateScoreBasedInterpretation(summary, true);
+        setInterpretation(result);
+        setComparisonLoading(false);
+        return;
+      }
+
+      console.log('[SessionSummaryModal] Calibration phase - fetching comparison data');
+      setComparisonLoading(true);
+
+      try {
+        // Fetch all previous session summaries for this user
+        const response = await fetch(`/api/sessions/comparison?userId=${userId}`);
+
+        if (!response.ok) {
+          console.error('[SessionSummaryModal] Failed to fetch comparison sessions:', response.status);
+          // Fallback to score-based if API fails
+          const result = generateScoreBasedInterpretation(summary, true);
+          setInterpretation(result);
+          setComparisonLoading(false);
+          return;
+        }
+
+        const comparisonData = await response.json();
+        const previousSessions: SessionSummaryRecord[] = comparisonData.previousSessions || [];
+        const isFirstSession = comparisonData.isFirstSession || previousSessions.length === 0;
+
+        // Detect crash session
+        if (previousSessions.length > 0) {
+          const crashResult = detectCrashSession(summary, previousSessions);
+          if (crashResult.isCrash) {
+            console.log('[SessionSummaryModal] Crash detected:', crashResult.zScore);
+            // Note: Crash marking is handled server-side in analyze route
+          }
+        }
+
+        // Determine First Session Date for Calibration Timer
+        // Sort sessions by date ascending to find the true first session
+        const allSessions = [...previousSessions];
+        allSessions.sort((a, b) => {
+          const dateA = new Date(a.session_date || a.createdAt).getTime();
+          const dateB = new Date(b.session_date || b.createdAt).getTime();
+          return dateA - dateB;
+        });
+
+        const firstSession = allSessions[0];
+        // If we have history, use first session. If not, use current session date or NOW.
+        const firstDate = firstSession
+          ? (firstSession.session_date || firstSession.createdAt)
+          : (summary.rrIntervals?.[0]?.timestamp ? new Date(summary.rrIntervals[0].timestamp).toISOString() : new Date().toISOString());
+
+        setFirstSessionDate(firstDate);
+
+        if (isFirstSession) {
+          // First session - use score-based
+          console.log('[SessionSummaryModal] First session - using score-based interpretation');
+          const result = generateScoreBasedInterpretation(summary, true);
+          setInterpretation(result);
+          setComparisonLoading(false);
+          return;
+        }
+
+        // Find comparison session using time gaps
+        // Use current time as reference (session was just completed)
+        const currentSessionDate = new Date();
+        const comparisonResult = findComparisonSession(currentSessionDate, previousSessions);
+
+        // Check if time gap is <4 hours (Priority 5)
+        if (comparisonResult.session) {
+          const timeGap = comparisonResult.timeGapHours;
+          if (timeGap < 4) {
+            // <4h gap - use score-based
+            console.log('[SessionSummaryModal] <4h gap - using score-based interpretation');
+            const result = generateScoreBasedInterpretation(summary, false);
+            setInterpretation(result);
+            setComparisonLoading(false);
+            return;
+          }
+
+          // Has valid comparison session - use metric comparison
+          console.log('[SessionSummaryModal] Using calibration interpretation with comparison');
+          const result = generateCalibrationInterpretation(
+            summary,
+            comparisonResult.session,
+            comparisonResult.insightText,
+            comparisonResult.metricTitle
+          );
+          setInterpretation(result);
+        } else {
+          // No valid comparison found - check if <4h from most recent
+          const mostRecent = previousSessions[0];
+          if (mostRecent) {
+            const mostRecentDate = mostRecent.session_date ? new Date(mostRecent.session_date) : new Date(mostRecent.createdAt);
+            const timeGap = (currentSessionDate.getTime() - mostRecentDate.getTime()) / (1000 * 60 * 60);
+
+            if (timeGap < 4) {
+              // <4h gap - use score-based
+              console.log('[SessionSummaryModal] <4h gap (no priority match) - using score-based interpretation');
+              const result = generateScoreBasedInterpretation(summary, false);
+              setInterpretation(result);
+              setComparisonLoading(false);
+              return;
+            }
+          }
+
+          // Fallback to score-based
+          console.log('[SessionSummaryModal] No comparison match - fallback to score-based interpretation');
+          const result = generateScoreBasedInterpretation(summary, false);
+          setInterpretation(result);
+        }
+      } catch (error) {
+        console.error('[SessionSummaryModal] Error calculating calibration interpretation:', error);
+        // Fallback to score-based
+        const result = generateScoreBasedInterpretation(summary, false);
+        setInterpretation(result);
+      } finally {
+        setComparisonLoading(false);
+      }
+    };
+
+    calculateInterpretation();
+  }, [summary, baseline, baselineLoading, userId, isGuest]);
 
   // Defer chart rendering briefly to allow the toggle animation to start
   // Note: We don't reset chartsReady to false when collapsing, so charts stay mounted
@@ -237,8 +380,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
               {summary.usage_phase && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${summary.usage_phase === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    summary.usage_phase === 'early' ? 'bg-sky-100 text-sky-700 border-sky-200' :
-                      'bg-purple-100 text-purple-700 border-purple-200'
+                  summary.usage_phase === 'early' ? 'bg-sky-100 text-sky-700 border-sky-200' :
+                    'bg-purple-100 text-purple-700 border-purple-200'
                   }`}>
                   {summary.usage_phase === 'calibration' ? 'Calibration Phase' :
                     summary.usage_phase === 'early' ? 'Early Phase' : 'Pro Phase'}
@@ -279,7 +422,12 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <Sparkles className="w-6 h-6 text-purple-600" />
               Wellness Scores
             </h2>
-            <WellnessScoreGrid summary={summary} baseline={baseline} />
+            <WellnessScoreGrid
+              summary={summary}
+              baseline={baseline}
+              interpretation={interpretation}
+            />
+
           </section>
 
           {/* Key Metrics Section - Always Visible */}
@@ -369,18 +517,11 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     </div>
 
                     <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
-                      <HRVScoreGauge
-                        score={summary.hrvScore.value}
-                        baselineEstablished={baseline?.established ?? false}
-                      />
                       <NervousSystemBalanceGauge
                         parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
                         sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
                         sd2_sd1_ratio={summary.sd2_sd1_ratio}
                       />
-                    </div>
-
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
                       <RestorationIndexGauge score={summary.restorationIndex.value} />
                     </div>
                   </section>
@@ -427,6 +568,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               isLoading={baselineLoading}
               summary={summary}
               userId={userId}
+              firstSessionDate={firstSessionDate}
             />
           </section>
         </main>

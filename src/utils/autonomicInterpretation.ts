@@ -2,28 +2,10 @@
  * Autonomic Interpretation Matrix: Multi-Metric HRV Logic
  * 
  * This module implements the autonomic interpretation system that analyzes HRV patterns
- * relative to user baseline and population norms to provide personalized insights.
+ * relative to user baseline to provide personalized insights.
  */
 
 import type { UserBaseline, SessionSummary } from '@/types';
-
-// Population reference ranges (healthy adults, age-adjusted approximations)
-export interface PopulationReference {
-  rmssd: { min: number; optimal: number };
-  sdnn: { min: number; optimal: number };
-  lfPower: { min: number; optimal: number };
-  hfPower: { min: number; optimal: number };
-  lfhfRatio: { min: number; max: number; optimal: number };
-}
-
-// Default population references (can be age/gender adjusted later)
-const DEFAULT_POPULATION_REF: PopulationReference = {
-  rmssd: { min: 30, optimal: 50 },
-  sdnn: { min: 50, optimal: 80 },
-  lfPower: { min: 200, optimal: 1000 },
-  hfPower: { min: 200, optimal: 1000 },
-  lfhfRatio: { min: 0.5, max: 2.0, optimal: 1.0 }
-};
 
 // Threshold for relative comparison (20% change)
 const RELATIVE_THRESHOLD = 0.20;
@@ -46,6 +28,7 @@ export interface InterpretationResult {
     percentChange: number;
     direction: 'up' | 'down' | 'stable';
   }[];
+  title?: string;
 }
 
 // Metric comparison result
@@ -153,8 +136,7 @@ function compareMetrics(
   const sdnn = compareToBaseline(summary.sdnn?.value ?? null, baseline.sdnn_avg);
 
   // For LF/HF, we'll use the ratio directly from summary if available
-  // Since baseline doesn't store LF/HF, we'll compare against population norm (1.0)
-  // But we'll be more lenient - only mark as extreme if significantly different
+  // We'll mark as extreme if significantly different from baseline
   const currentLFHF = summary.lfhfRatio ??
     (summary.lfPower.value && summary.hfPower.value && summary.hfPower.value > 0
       ? summary.lfPower.value / summary.hfPower.value
@@ -579,7 +561,8 @@ function matchPattern(comparison: MetricComparison): InterpretationResult | null
     recommendedAction: bestMatch.pattern.recommendedAction,
     technicalChanges: [],
     relativeInterpretation: '',
-    combinedAdvice: bestMatch.pattern.combinedAdvice
+    combinedAdvice: bestMatch.pattern.combinedAdvice,
+    title: "HRV Changes vs Baseline"
   };
 }
 
@@ -621,58 +604,11 @@ function generateTechnicalChanges(
 }
 
 /**
- * Generate absolute interpretation based on population norms
- */
-function generateAbsoluteInterpretation(
-  summary: SessionSummary,
-  popRef: PopulationReference = DEFAULT_POPULATION_REF
-): string | undefined {
-  const parts: string[] = [];
-
-  const rmssdValue = summary.sessionRMSSD.value;
-  if (rmssdValue !== null && rmssdValue !== undefined) {
-    const value = rmssdValue.toFixed(1);
-    if (rmssdValue < popRef.rmssd.min) {
-      parts.push(`RMSSD is ${value} ms which is below typical healthy range`);
-    } else if (rmssdValue >= popRef.rmssd.optimal) {
-      parts.push(`RMSSD is ${value} ms which is in optimal range`);
-    }
-  }
-
-  const sdnnValue = summary.sdnn?.value;
-  if (sdnnValue !== null && sdnnValue !== undefined) {
-    const value = sdnnValue.toFixed(1);
-    if (sdnnValue < popRef.sdnn.min) {
-      parts.push(`SDNN is ${value} ms which is below typical healthy range`);
-    } else if (sdnnValue >= popRef.sdnn.optimal) {
-      parts.push(`SDNN is ${value} ms which is in optimal range`);
-    }
-  }
-
-  const lfValue = summary.lfPower.value;
-  const hfValue = summary.hfPower.value;
-  if (lfValue !== null && lfValue !== undefined && hfValue !== null && hfValue !== undefined && hfValue > 0) {
-    const lfhf = lfValue / hfValue;
-    const ratio = lfhf.toFixed(2);
-    if (lfhf < popRef.lfhfRatio.min || lfhf > popRef.lfhfRatio.max) {
-      parts.push(`LF/HF ratio is ${ratio} which is outside typical healthy range`);
-    }
-  }
-
-  if (parts.length === 0) {
-    return undefined;
-  }
-
-  return parts.join('. ') + '.';
-}
-
-/**
  * Main function to interpret HRV session
  */
 export function interpretHRVSession(
   summary: SessionSummary,
-  baseline: UserBaseline | null,
-  popRef?: PopulationReference
+  baseline: UserBaseline | null
 ): InterpretationResult | null {
   // If no baseline, cannot provide interpretation
   if (!baseline || !baseline.established) {
@@ -788,24 +724,12 @@ export function interpretHRVSession(
 
   interpretation.relativeInterpretation = mainText;
 
-  // Generate absolute interpretation
-  interpretation.absoluteInterpretation = generateAbsoluteInterpretation(summary, popRef);
+  // No absolute interpretation needed - all interpretations are personalized based on baseline
+  interpretation.absoluteInterpretation = undefined;
 
-  // Combine advice - Ensure we don't duplicate recommendedAction which is displayed as a headline
-  const adviceParts: string[] = [];
-
-  // Only add population reference (absolute interpretation) if NO baseline is established
-  // If baseline exists, we rely purely on relative comparison
-  if (!baseline?.established && interpretation.absoluteInterpretation) {
-    adviceParts.push(interpretation.absoluteInterpretation);
-  }
-
-  // Add the pattern-specific detailed advice
-  adviceParts.push(interpretation.combinedAdvice);
-
-  // Update combinedAdvice to be just the body text (Absolute + Pattern Advice)
-  interpretation.combinedAdvice = adviceParts.join(' ');
-
-  return interpretation;
+  return {
+    ...interpretation,
+    title: "HRV Changes vs Baseline"
+  };
 }
 

@@ -4,12 +4,15 @@ import WellnessMetricCard from './WellnessMetricCard';
 import { getWellnessMetricConfig } from '@/utils/wellnessLogic';
 import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
 
+import type { InterpretationResult } from '@/utils/autonomicInterpretation';
+
 interface WellnessScoreGridProps {
     summary: SessionSummary;
     baseline: UserBaseline | null;
+    interpretation: InterpretationResult | null;
 }
 
-const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline }) => {
+const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation }) => {
     const scores = useMemo(() => {
         // Calculate Readiness Score on the fly
         const readinessScore = calculateHrvReadinessScore({
@@ -33,18 +36,44 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
         return configs;
     }, [summary, baseline]);
 
+    // Get comparison data for wellness scores
+    const getWellnessComparison = (scoreKey: string) => {
+        if (!interpretation?.baselineDetails) return null;
+        
+        // Map score keys to metric names in baselineDetails
+        const metricMap: Record<string, string> = {
+            'HRV Score': 'HRV Score',
+            'Energy Score': 'Energy Score',
+            'Stress Score': 'Stress Score',
+            'Health Score': 'Health Score',
+            'Focus Score': 'Focus Score',
+        };
+        
+        const metricName = metricMap[scoreKey];
+        if (!metricName) return null;
+        
+        return interpretation.baselineDetails.find(d => d.metric === metricName);
+    };
+
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {scores.map((config) => (
-                <WellnessMetricCard
-                    key={config.label}
-                    label={config.label}
-                    status={config.status}
-                    score={config.score}
-                    color={config.color}
-                    className="h-full"
-                />
-            ))}
+            {scores.map((config) => {
+                const comparison = getWellnessComparison(config.label);
+                return (
+                    <WellnessMetricCard
+                        key={config.label}
+                        label={config.label}
+                        status={config.status}
+                        score={config.score}
+                        color={config.color}
+                        className="h-full"
+                        comparison={comparison ? {
+                            percentChange: comparison.percentChange,
+                            direction: comparison.direction
+                        } : undefined}
+                    />
+                );
+            })}
         </div>
     );
 };

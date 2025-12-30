@@ -50,7 +50,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL;
                 description = 'Typical variability and heart rate.';
             } else {
-                status = 'Poor';
+                status = 'Needs Improvement';
                 color = COLORS.LOW;
                 description = 'Low variability or high heart rate.';
             }
@@ -69,7 +69,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL;
                 description = 'Adequate energy for daily tasks.';
             } else {
-                status = 'Low';
+                status = 'Needs Improvement';
                 color = COLORS.LOW;
                 description = 'Depletion; low parasympathetic recovery.';
             }
@@ -97,7 +97,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL; // Normal state
                 description = 'Typical daily tension.';
             } else {
-                status = 'High Stress';
+                status = 'Needs Improvement';
                 color = COLORS.LOW; // Using Low color as "Grey" for "bad"? Or should it be Red? 
                 // User said: "low value will be grey". 
                 // But here "High Stress" is the "bad" state. 
@@ -122,7 +122,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL;
                 description = 'General wellness is stable.';
             } else {
-                status = 'Concern';
+                status = 'Needs Improvement';
                 color = COLORS.LOW;
                 description = 'Potential long-term fatigue.';
             }
@@ -141,7 +141,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL;
                 description = 'Standard cognitive function.';
             } else {
-                status = 'Low';
+                status = 'Needs Improvement';
                 color = COLORS.LOW;
                 description = 'Mental fatigue; brain fog.';
             }
@@ -164,7 +164,7 @@ export const getWellnessMetricConfig = (
                 color = COLORS.NORMAL;
                 description = 'Within normal range.';
             } else {
-                status = 'Recovery Needed';
+                status = 'Focus on Recovery';
                 color = COLORS.LOW;
                 description = 'Below baseline. Rest recommended.';
             }

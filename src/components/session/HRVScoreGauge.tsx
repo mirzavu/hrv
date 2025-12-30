@@ -46,22 +46,22 @@ const HRVScoreGauge: React.FC<HRVScoreGaugeProps> = ({ score, baselineEstablishe
     label = interpretationData.status.charAt(0).toUpperCase() + interpretationData.status.slice(1).replace('-', ' ');
     interpretation = interpretationData.message;
   } else {
-    // Generic interpretations for users without baseline
+    // Fallback interpretations for users without baseline
     if (score >= 70) {
       label = 'Excellent';
-      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+      interpretation = 'Continue tracking to establish your personal baseline for more individualized insights.';
     } else if (score >= 55) {
       label = 'Good';
-      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+      interpretation = 'Continue tracking to establish your personal baseline for more individualized insights.';
     } else if (score >= 45) {
       label = 'Average';
-      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+      interpretation = 'Continue tracking to establish your personal baseline for more individualized insights.';
     } else if (score >= 30) {
-      label = 'Below Average';
-      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+      label = 'Needs Improvement';
+      interpretation = 'Continue tracking to establish your personal baseline for more individualized insights.';
     } else {
-      label = 'Poor';
-      interpretation = 'This score is calculated using general population ranges. As you record more sessions, your personal baseline will be established for more individualized insights.';
+      label = 'Needs Improvement';
+      interpretation = 'Continue tracking to establish your personal baseline for more individualized insights.';
     }
   }
 
