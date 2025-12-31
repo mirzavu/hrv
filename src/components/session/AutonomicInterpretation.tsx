@@ -88,6 +88,9 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
   const [aiInsight, setAiInsight] = useState<{ title: string; interpretation: string } | null>(null);
   const [isLoadingInsight, setIsLoadingInsight] = useState(false);
 
+  // Track which sessionId has already had AI insight generated to prevent duplicate calls
+  const generatedForSessionRef = React.useRef<string | null>(null);
+
   // Determine if valid for AI generation
   useEffect(() => {
     const generateInsight = async () => {
@@ -112,10 +115,18 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
         return;
       }
 
-
+      // 2. Check if we already generated insight for this session (prevents duplicate calls)
+      if (sessionId && generatedForSessionRef.current === sessionId) {
+        return;
+      }
 
       // Prevent redundant calls if we already have an insight for this exact interpretation
       setIsLoadingInsight(true);
+
+      // Mark this session as being processed
+      if (sessionId) {
+        generatedForSessionRef.current = sessionId;
+      }
 
       try {
         // Check if baseline is established (per plan requirement)
