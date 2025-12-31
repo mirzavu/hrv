@@ -22,11 +22,13 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
         }, baseline);
 
         const configs = [
-            getWellnessMetricConfig('hrvScore', summary.hrvScore.value ?? 0),
+            // Row 1: Health, Energy, Stress
+            getWellnessMetricConfig('healthScore', summary.healthScore.value ?? 0),
             getWellnessMetricConfig('energyScore', summary.energyScore.value ?? 0),
             getWellnessMetricConfig('stressScore', summary.stressScore.value ?? 0),
-            getWellnessMetricConfig('healthScore', summary.healthScore.value ?? 0),
+            // Row 2: Focus, HRV Score, Readiness
             getWellnessMetricConfig('focusScore', summary.focusScore.value ?? 0),
+            getWellnessMetricConfig('hrvScore', summary.hrvScore.value ?? 0, baseline?.established ?? false),
             getWellnessMetricConfig('hrvReadiness', readinessScore ?? 0, baseline?.established ?? false),
         ];
 
@@ -39,7 +41,7 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
     // Get comparison data for wellness scores
     const getWellnessComparison = (scoreKey: string) => {
         if (!interpretation?.baselineDetails) return null;
-        
+
         // Map score keys to metric names in baselineDetails
         const metricMap: Record<string, string> = {
             'HRV Score': 'HRV Score',
@@ -48,10 +50,10 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
             'Health Score': 'Health Score',
             'Focus Score': 'Focus Score',
         };
-        
+
         const metricName = metricMap[scoreKey];
         if (!metricName) return null;
-        
+
         return interpretation.baselineDetails.find(d => d.metric === metricName);
     };
 

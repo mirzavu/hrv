@@ -109,7 +109,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     };
 
     fetchData();
-  }, [userId, isGuest, summary.sessionId]); // Refetch when sessionId changes (e.g., after analyze API completes)
+  }, [userId, isGuest, summary.session_id]); // Refetch when session_id changes (e.g., after analyze API completes)
 
   // Calculate interpretation when baseline or summary changes
   useEffect(() => {

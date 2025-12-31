@@ -127,14 +127,6 @@ const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
                 </div>
             )}
 
-            {/* Markers for Calibration Phase */}
-            {phaseInfo.status === 'calibration' && (
-                <div className="flex justify-between mt-1.5 px-0.5">
-                    <span className="text-[9px] font-bold text-slate-400/80 uppercase tracking-wide">Day 0</span>
-                    <div className="flex-1 border-t border-dotted border-slate-300/50 mx-3 self-center" />
-                    <span className="text-[9px] font-bold text-slate-400/80 uppercase tracking-wide">Day 3</span>
-                </div>
-            )}
         </div>
     );
 };

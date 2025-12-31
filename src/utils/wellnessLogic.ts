@@ -41,7 +41,11 @@ export const getWellnessMetricConfig = (
             // Good/Optimal (70–100)
             // Normal (40–69)
             // Poor (0–39)
-            if (value >= 70) {
+            if (!baselineEstablished) {
+                status = 'No Baseline';
+                color = COLORS.LOW;
+                description = 'Will be computed once you establish your personalised baseline.';
+            } else if (value >= 70) {
                 status = 'Optimal';
                 color = COLORS.OPTIMAL;
                 description = 'High RMSSD and SDNN with lower heart rate.';
