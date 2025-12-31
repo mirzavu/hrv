@@ -409,8 +409,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
               {userProfile?.usage_phase && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${userProfile.usage_phase === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    userProfile.usage_phase === 'early_baseline' ? 'bg-sky-100 text-sky-700 border-sky-200' :
-                      'bg-purple-100 text-purple-700 border-purple-200'
+                  userProfile.usage_phase === 'early_baseline' ? 'bg-sky-100 text-sky-700 border-sky-200' :
+                    'bg-purple-100 text-purple-700 border-purple-200'
                   }`}>
                   {userProfile.usage_phase === 'calibration' ? 'Calibration Phase' :
                     userProfile.usage_phase === 'early_baseline' ? 'Early Baseline' : 'Full Baseline'}
@@ -608,7 +608,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               summary={summary}
               userId={userId}
               firstSessionDate={firstSessionDate}
-              sessionId={summary.session_id || null}
+              sessionId={summary.session_id ?? undefined}
               baseline={baseline}
             />
           </section>
