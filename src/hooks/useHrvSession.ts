@@ -161,14 +161,14 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       baevsky_stress_index: null,
     };
 
-    // Build initial display summary (will show N/A for advanced metrics until API returns)
-    const initialSummary = buildSessionSummary(summaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
-    setSessionSummary(initialSummary);
-
     // Prepare for analysis
     const userId = user?.$id || 'guest';
     const isGuest = userId === 'guest';
     let sessionId = 'guest-' + Date.now(); // Temp ID for guests
+
+    // Build initial display summary (will show N/A for advanced metrics until API returns)
+    const initialSummary = buildSessionSummary(summaryPayload, finalElapsedTime, finalRawData.length, finalRawData, sessionId);
+    setSessionSummary(initialSummary);
     let shouldSaveSummaryToDb = false;
 
     // Ensure startTime is never null - fallback to first data timestamp or current time
@@ -256,7 +256,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       console.log('🔍 [API_RESPONSE_DEBUG] API Response Payload:', finalSummaryPayload);
 
       // 3. UPDATE UI WITH RESULTS
-      const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData);
+      // Use sessionId from payload if available, otherwise use the one we have
+      const finalSessionId = finalSummaryPayload.session_id || sessionId;
+      const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData, finalSessionId);
       setSessionSummary(finalSummary);
 
       // 4. SAVE SUMMARY TO DB (Only for logged in users where session create succeeded)

@@ -3,10 +3,11 @@
 import { CalendarView } from '@/components/calendar/CalendarView';
 import { useAuth } from '@/hooks/useAuth';
 import Header from '@/components/ui/Header';
+import LoginModal from '@/components/auth/LoginModal';
+import UserOnboardingModal from '@/components/UserOnboardingModal';
 import { useState } from 'react';
 
 export default function CalendarPage() {
-  const { user, loading: authLoading, handleLogout } = useAuth(() => {});
   const [toasts, setToasts] = useState<Array<{ id: number; message: string }>>([]);
   const [darkMode, setDarkMode] = useState(false);
   
@@ -17,6 +18,18 @@ export default function CalendarPage() {
       setToasts(prev => prev.filter(toast => toast.id !== id));
     }, 3000);
   };
+
+  const { 
+    user, 
+    loading: authLoading, 
+    handleLogout,
+    showLoginModal,
+    showOnboardingModal,
+    handleLoginSuccess,
+    handleOnboardingComplete,
+    handleOnboardingSkip,
+    setShowLoginModal
+  } = useAuth(addToast);
 
   const handleViewCalendar = () => {
     window.location.href = '/calendar';
@@ -35,12 +48,28 @@ export default function CalendarPage() {
 
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col">
+      {showLoginModal && (
+        <LoginModal
+          darkMode={darkMode} 
+          onClose={() => setShowLoginModal(false)} 
+          onLoginSuccess={handleLoginSuccess} 
+        />
+      )}
+      {showOnboardingModal && user && (
+        <UserOnboardingModal 
+          darkMode={darkMode} 
+          user={user}
+          onComplete={handleOnboardingComplete}
+          onClose={handleOnboardingSkip}
+        />
+      )}
       <Header 
         user={user} 
         handleLogout={handleLogout} 
         handleViewCalendar={handleViewCalendar}
         toggleDarkMode={() => setDarkMode(!darkMode)} 
         darkMode={darkMode}
+        onLoginClick={() => setShowLoginModal(true)}
       />
       
       <main className="flex-1 p-4 md:p-8 lg:p-10">

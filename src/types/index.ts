@@ -146,6 +146,13 @@ export interface SessionSummary {
   is_crash?: boolean;
   usage_phase?: 'calibration' | 'early' | 'pro' | null;
 
+  // AI Insight
+  ai_title?: string | null;
+  ai_interpretation?: string | null;
+
+  // Session ID for database operations
+  session_id?: string | null;
+
   // Raw data for visualization
   rrIntervals: Array<{ timestamp: number; value: number }>;
 }
@@ -214,6 +221,10 @@ export interface SessionSummaryRecord {
   // Crash Protection & Onboarding Phase
   is_crash?: boolean;
   usage_phase?: 'calibration' | 'early' | 'pro' | null;
+
+  // AI Insight
+  ai_title?: string | null;
+  ai_interpretation?: string | null;
 
   createdAt: string;
 }

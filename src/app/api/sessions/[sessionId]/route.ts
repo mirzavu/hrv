@@ -196,12 +196,14 @@ export async function GET(
       focus_score: summaryRecord.focus_score ?? null,
       hrv_score: summaryRecord.hrv_score ?? null,
       session_date: summaryRecord.session_date ?? null,
+      ai_title: summaryRecord.ai_title ?? null,
+      ai_interpretation: summaryRecord.ai_interpretation ?? null,
     };
 
     // Build SessionSummary with ACTUAL raw data
     // If raw extraction failed (rawData empty), fall back to estimate for data points count
     const dataPointsCount = rawData.length > 0 ? rawData.length : Math.max(60, durationSeconds);
-    const sessionSummary = buildSessionSummary(payload, durationSeconds, dataPointsCount, rawData);
+    const sessionSummary = buildSessionSummary(payload, durationSeconds, dataPointsCount, rawData, sessionId);
 
     return NextResponse.json({
       session: withDollarId(session),

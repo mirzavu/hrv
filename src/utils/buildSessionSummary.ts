@@ -7,7 +7,8 @@ export const buildSessionSummary = (
   payload: SessionSummaryPayload,
   durationSeconds: number,
   dataPointsCount: number,
-  rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = []
+  rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = [],
+  sessionId?: string | null
 ): SessionSummary => {
   console.log('🔍 [BUILD_SUMMARY_DEBUG] Building session summary');
   console.log('🔍 [BUILD_SUMMARY_DEBUG] payload.rmssd_cv_percent:', payload.rmssd_cv_percent);
@@ -163,6 +164,13 @@ export const buildSessionSummary = (
     // Crash & Phase from Server
     is_crash: payload.is_crash,
     usage_phase: payload.usage_phase,
+
+    // AI Insight from database
+    ai_title: payload.ai_title ?? null,
+    ai_interpretation: payload.ai_interpretation ?? null,
+
+    // Session ID for database operations
+    session_id: sessionId || payload.session_id || null,
 
     // Raw data for visualization
     rrIntervals: rrIntervals

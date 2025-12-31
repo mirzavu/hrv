@@ -569,6 +569,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               summary={summary}
               userId={userId}
               firstSessionDate={firstSessionDate}
+              sessionId={summary.session_id || null}
+              baseline={baseline}
             />
           </section>
         </main>
