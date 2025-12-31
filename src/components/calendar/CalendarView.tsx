@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { sessionCache } from '@/lib/sessionCache';
 import { SessionSummary } from '@/types';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
@@ -58,7 +58,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [dayLoading, setDayLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
   const [selectedSessionSummary, setSelectedSessionSummary] = useState<SessionSummary | null>(null);
-  const [sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
+  const [_sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
@@ -396,8 +396,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                   onClick={() => baselineEstablished && setShowMonthlyReport(true)}
                   disabled={!baselineEstablished}
                   className={`w-full px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold rounded-lg shadow-sm border transition-colors duration-200 flex items-center justify-center gap-2 ${baselineEstablished
-                      ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-                      : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                    ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                    : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
                     }`}
                   title={!baselineEstablished ? "Establish a baseline first" : "View Monthly Trends"}
                 >

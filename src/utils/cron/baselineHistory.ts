@@ -4,7 +4,6 @@
  */
 
 import { getAdminPb } from '@/lib/pbAdmin';
-import type { UserBaseline } from '@/types';
 
 /**
  * Create weekly baseline snapshots for all users with established baselines

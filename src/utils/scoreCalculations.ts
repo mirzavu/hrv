@@ -34,34 +34,34 @@ export const calculateHrvScore = (metrics: {
     restoration: number | null;
 }): number | null => {
     const { rmssd, sdnn, meanHR } = metrics;
-    
+
     // Check if we have the minimum required metrics
     if (rmssd === null || sdnn === null || meanHR === null) {
         return null;
     }
-    
+
     try {
         // Simplified approach for backward compatibility
         // Used as fallback when personalized baseline is not available
-        
+
         // Normalize RMSSD (10-120 ms range, higher is better)
         const rmssdScore = normalizeMinMax(rmssd, 10, 120);
-        
+
         // Normalize SDNN (10-150 ms range, higher is better)
         const sdnnScore = normalizeMinMax(sdnn, 10, 150);
-        
+
         // Invert heart rate (lower HR is better for HRV)
         const hrScore = normalizeMinMax(110 - meanHR, 0, 70); // Assuming 40-110 BPM range
-        
+
         // Calculate simplified HRV score (matching new formula weights)
         // Formula: (0.35 * RMSSD) + (0.35 * SDNN) + (0.30 * inverted_HR)
-        const hrvScore = 
+        const hrvScore =
             0.35 * rmssdScore +
             0.35 * sdnnScore +
             0.30 * hrScore;
-        
+
         return Number((hrvScore * 100).toFixed(1));
-        
+
     } catch (error) {
         console.error('Error calculating HRV score:', error);
         return null;
@@ -94,8 +94,8 @@ export const calculateFourScores = (metrics: {
         meanHR,
         bsi,
         totalPower,
-        sleepRecovery = 0.6,
-        shortTermRRStd,
+        sleepRecovery: _sleepRecovery = 0.6,
+        shortTermRRStd: _shortTermRRStd,
         sd1,
         sd2,
         hti
@@ -127,13 +127,13 @@ export const calculateFourScores = (metrics: {
         // Calculate normalized components
         const p_RMSSD = normalizeMinMax(rmssd, RMSSD_MIN, RMSSD_MAX);
         const p_SDNN = normalizeMinMax(sdnn, SDNN_MIN, SDNN_MAX);
-        const p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN); // Inverted: higher HR reduces score
-        const p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
+        const _p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN); // Inverted: higher HR reduces score
+        const _p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
 
         // Calculate BSI normalization
-        let p_BSI = 0.5; // Default neutral value
+        let _p_BSI = 0.5; // Default neutral value
         if (bsi !== null) {
-            p_BSI = normalizeMinMax(bsi, BSI_MIN, BSI_MAX);
+            _p_BSI = normalizeMinMax(bsi, BSI_MIN, BSI_MAX);
         }
 
         // Calculate Energy Score
@@ -147,21 +147,21 @@ export const calculateFourScores = (metrics: {
         // Option 1: A two-factor model with nonlinear analysis
         // RMSSD (60%) + SD1/SD2 ratio (40%)
         let stressScore = null;
-        
+
         if (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6) {
             // Calculate SD1/SD2 ratio (inverse of SD2/SD1)
             const sd1_sd2_ratio = sd1 / sd2;
-            
+
             // Define normalization ranges for SD1/SD2 ratio
             // Based on typical Poincaré plot values where:
             // - Lower SD1/SD2 indicates higher stress (more sympathetic)
             // - Higher SD1/SD2 indicates lower stress (more parasympathetic)
             const SD1_SD2_MIN = 0.1;  // Typical minimum for high stress
             const SD1_SD2_MAX = 1.0;  // Typical maximum for low stress
-            
+
             // Normalize SD1/SD2 ratio
             const p_SD1_SD2 = normalizeMinMax(sd1_sd2_ratio, SD1_SD2_MIN, SD1_SD2_MAX);
-            
+
             // Calculate stress score: lower ratios = higher stress
             // Formula: Stress Score = (0.60 * (1 - p_RMSSD)) + (0.40 * (1 - p_SD1/SD2))
             const stressRaw = 0.60 * (1 - p_RMSSD) + 0.40 * (1 - p_SD1_SD2);
@@ -176,15 +176,15 @@ export const calculateFourScores = (metrics: {
         // Long-term indicator of general wellness and resilience
         // SDNN (50%) + SD1/SD2 ratio normalized around 1 (30%) + RHR inverted (20%)
         let healthScore = null;
-        
+
         if (sd1 !== null && sd1 !== undefined && sd2 !== null && sd2 !== undefined && sd1 > 1e-6) {
             // Calculate SD1/SD2 ratio
             const sd1_sd2_ratio = sd1 / sd2;
-            
+
             // Normalize around 1: ratio closer to 1 indicates better health
             // p_SD1/SD2 = 1 - abs(1 - (SD1/SD2))
             const p_SD1_SD2 = 1 - Math.abs(1 - sd1_sd2_ratio);
-            
+
             // Calculate health score
             const healthRaw = 0.50 * p_SDNN + 0.30 * p_SD1_SD2 + 0.20 * (1 - p_RHR);
             healthScore = Math.max(0, Math.min(100, healthRaw * 100));
@@ -198,16 +198,16 @@ export const calculateFourScores = (metrics: {
         // Assesses cognitive readiness and mental fatigue
         // RMSSD (70%) + HTI (30%)
         let focusScore = null;
-        
+
         if (hti !== null && hti !== undefined && hti > 0) {
             // Define normalization range for HTI
             // Typical HTI values range from ~5 (low variability) to ~50+ (high variability)
             const HTI_MIN = 5;
             const HTI_MAX = 50;
-            
+
             // Normalize HTI
             const p_HTI = normalizeMinMax(hti, HTI_MIN, HTI_MAX);
-            
+
             // Focus Score: RMSSD (70%) + HTI (30%)
             const focusRaw = 0.70 * p_RMSSD + 0.30 * p_HTI;
             focusScore = Math.max(0, Math.min(100, focusRaw * 100));

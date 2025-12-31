@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState } from 'react';
-import PocketBase from 'pocketbase';
 import { pb } from '@/lib/pocketbase';
 import { User } from '@/types';
 

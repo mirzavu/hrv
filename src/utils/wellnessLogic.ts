@@ -1,4 +1,4 @@
-import { SessionSummary } from '@/types';
+// Wellness logic for score interpretation
 
 export type WellnessMetricType =
     | 'hrvScore'

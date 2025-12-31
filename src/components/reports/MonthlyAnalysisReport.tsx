@@ -231,7 +231,7 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
     };
 
     const getInsightText = () => {
-        const count = stats?.sessionCount || 0;
+        const _count = stats?.sessionCount || 0;
         switch (activeTab) {
             case 'score': return `Overall wellness trend. Staying close to or above the dashed line indicates positive adaptation.`;
             case 'adaptation': return `Parasympathetic recovery. Higher RMSSD generally means better recovery.`;

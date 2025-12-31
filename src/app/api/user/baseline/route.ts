@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
-import type { UserBaseline, SessionSummaryRecord } from '@/types';
+import type { SessionSummaryRecord } from '@/types';
 import { calculateBaselineMetrics, canEstablishBaseline, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from '@/utils/baselineCalculations';
 
 /**
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
       const baseline = await pb.collection('user_baselines').getFirstListItem(
         `user_id = "${userId}"`
       );
-      
+
       return NextResponse.json({ baseline: withDollarId(baseline) });
     } catch (error: any) {
       // If baseline doesn't exist (404), return null
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { userId, sessionCount = 14 } = body;
+    const { userId, sessionCount: _sessionCount = 14 } = body;
 
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });

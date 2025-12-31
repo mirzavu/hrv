@@ -78,7 +78,7 @@ function compareToBaseline(
 /**
  * Compare LF/HF ratio with special handling for extreme values
  */
-function compareLFHF(
+function _compareLFHF(
   current: number | null | undefined,
   baseline: number | null | undefined,
   threshold: number = RELATIVE_THRESHOLD
@@ -101,7 +101,7 @@ function compareLFHF(
 /**
  * Compare AMo50 with special handling for double arrows
  */
-function compareAMo50(
+function _compareAMo50(
   current: number | null | undefined,
   baseline: number | null | undefined,
   threshold: number = RELATIVE_THRESHOLD
@@ -680,7 +680,7 @@ export function interpretHRVSession(
   // 1. RMSSD (Parasympathetic)
   const rmssdDiff = addDiff('RMSSD', 'RMSSD', summary.sessionRMSSD.value, baseline.rmssd_avg);
   if (rmssdDiff) {
-    const sign = rmssdDiff.change >= 0 ? '+' : '-';
+    const _sign = rmssdDiff.change >= 0 ? '+' : '-';
     relativeParts.push(`Parasympathetic activity is ${rmssdDiff.change >= 0 ? 'up' : 'down'} ${rmssdDiff.absChange.toFixed(1)}%`);
   }
 
