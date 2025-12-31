@@ -61,6 +61,10 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {scores.map((config) => {
                 const comparison = getWellnessComparison(config.label);
+                // Pass calibration progress for locked cards (HRV Score and Readiness)
+                const needsProgress = config.status === 'No Baseline';
+                const progress = needsProgress ? (baseline?.calibration_progress ?? 0) : undefined;
+
                 return (
                     <WellnessMetricCard
                         key={config.label}
@@ -73,6 +77,7 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
                             percentChange: comparison.percentChange,
                             direction: comparison.direction
                         } : undefined}
+                        calibrationProgress={progress}
                     />
                 );
             })}
