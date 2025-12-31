@@ -148,25 +148,31 @@ export const getWellnessMetricConfig = (
             break;
 
         case 'hrvReadiness':
-            // Optimal (75–100)
-            // Stable/Good (40–74)
-            // Recovery Needed (0–39)
+            // Optimized Readiness Scoring
+            // Optimal (90-100)
+            // Normal (70-89)
+            // Strained (35-69) (Based on Z=-1.5 mapping to 35)
+            // Inhibited (0-34)
             if (!baselineEstablished) {
                 status = 'No Baseline';
                 color = COLORS.LOW;
-                description = 'Need more sessions to establish baseline.';
-            } else if (value >= 75) {
+                description = 'Will be computed once you establish your personalised baseline.';
+            } else if (value >= 90) {
                 status = 'Optimal';
                 color = COLORS.OPTIMAL;
-                description = 'Significantly above 14-day average.';
-            } else if (value >= 40) {
-                status = 'Stable';
+                description = 'Well Recovered. Ready for high intensity.';
+            } else if (value >= 70) {
+                status = 'Normal';
                 color = COLORS.NORMAL;
-                description = 'Within normal range.';
+                description = 'Ready. Typical training recommended.';
+            } else if (value >= 35) {
+                status = 'Strained';
+                color = COLORS.WARNING;
+                description = 'Needs Rest. Prioritize recovery.';
             } else {
-                status = 'Focus on Recovery';
-                color = COLORS.LOW;
-                description = 'Below baseline. Rest recommended.';
+                status = 'Inhibited';
+                color = COLORS.LOW; // Grey for Crash/Inhibited
+                description = 'Warning. Rest recommended.';
             }
             break;
     }
