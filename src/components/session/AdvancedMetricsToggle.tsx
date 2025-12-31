@@ -69,7 +69,7 @@ const AdvancedMetricsToggle: React.FC<AdvancedMetricsToggleProps> = ({ isOpen, o
                             <span className={`text-[10px] font-bold uppercase tracking-wider ${isOpen ? 'text-indigo-600' : 'text-slate-300'}`}>
                                 {isOpen ? 'Minimize' : 'Expand Details'}
                             </span>
-                            <span className="text-xs font-semibold text-slate-500">Tier 2 Data Access</span>
+                            <span className="text-xs font-semibold text-slate-500">Click here to view</span>
                         </div>
                         <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-all duration-300
               ${isOpen ? 'bg-indigo-50 border-indigo-100 text-indigo-600 rotate-180' : 'bg-slate-50 border-slate-100 text-slate-300 group-hover:text-slate-500'}

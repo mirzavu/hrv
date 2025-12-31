@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { SessionSummary, UserBaseline } from '@/types';
+import { SessionSummary, UserBaseline, PhaseData } from '@/types';
 import WellnessMetricCard from './WellnessMetricCard';
 import { getWellnessMetricConfig } from '@/utils/wellnessLogic';
 import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
@@ -10,9 +10,11 @@ interface WellnessScoreGridProps {
     summary: SessionSummary;
     baseline: UserBaseline | null;
     interpretation: InterpretationResult | null;
+    phaseData?: PhaseData | null;
+    showProgress?: boolean; // Whether to show progress bars on locked cards
 }
 
-const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation }) => {
+const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation, phaseData, showProgress = true }) => {
     const scores = useMemo(() => {
         // Calculate Readiness Score on the fly
         const readinessScore = calculateHrvReadinessScore({
@@ -62,8 +64,12 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
             {scores.map((config) => {
                 const comparison = getWellnessComparison(config.label);
                 // Pass calibration progress for locked cards (HRV Score and Readiness)
-                const needsProgress = config.status === 'No Baseline';
-                const progress = needsProgress ? (baseline?.calibration_progress ?? 0) : undefined;
+                // Use phaseData.progress first (same source as BaselineProgressBar)
+                // Only show if showProgress is true (hide for historical sessions)
+                const needsProgress = config.status === 'No Baseline' && showProgress;
+                const progress = needsProgress
+                    ? (phaseData?.progress ?? baseline?.calibration_progress ?? 0)
+                    : undefined;
 
                 return (
                     <WellnessMetricCard

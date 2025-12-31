@@ -63,11 +63,14 @@ const WellnessMetricCard: React.FC<WellnessMetricCardProps> = ({
                                 </span>
                             </div>
                         )}
-                        <div className="mt-1">
-                            <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                                {status}
-                            </span>
-                        </div>
+                        {/* Hide status text for locked cards */}
+                        {!isLocked && (
+                            <div className="mt-1">
+                                <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                                    {status}
+                                </span>
+                            </div>
+                        )}
                     </div>
                     {isLocked ? (
                         <div className="mt-4">
@@ -126,31 +129,29 @@ const WellnessMetricCard: React.FC<WellnessMetricCardProps> = ({
                 </div>
             )}
 
-            {/* Shake Animation Styles */}
-            {isLocked && (
-                <style>{`
-                    .shake-wrapper {
-                        display: flex;
-                        align-items: center;
-                        justify-content: center;
-                        will-change: transform;
-                    }
+            {/* Shake Animation Styles - always render to avoid DOM manipulation errors */}
+            <style>{`
+                .shake-wrapper {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    will-change: transform;
+                }
 
-                    .group:hover .shake-wrapper {
-                        animation: fancy-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
-                    }
+                .group:hover .shake-wrapper {
+                    animation: fancy-shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+                }
 
-                    @keyframes fancy-shake {
-                        0% { transform: translateX(0); }
-                        15% { transform: translateX(-6px) rotate(-10deg); }
-                        30% { transform: translateX(5px) rotate(8deg); }
-                        45% { transform: translateX(-4px) rotate(-5deg); }
-                        60% { transform: translateX(3px) rotate(3deg); }
-                        75% { transform: translateX(-1px) rotate(-1deg); }
-                        100% { transform: translateX(0); }
-                    }
-                `}</style>
-            )}
+                @keyframes fancy-shake {
+                    0% { transform: translateX(0); }
+                    15% { transform: translateX(-6px) rotate(-10deg); }
+                    30% { transform: translateX(5px) rotate(8deg); }
+                    45% { transform: translateX(-4px) rotate(-5deg); }
+                    60% { transform: translateX(3px) rotate(3deg); }
+                    75% { transform: translateX(-1px) rotate(-1deg); }
+                    100% { transform: translateX(0); }
+                }
+            `}</style>
         </div>
     );
 };

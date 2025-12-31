@@ -75,14 +75,6 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
               {sympatheticPercent.toFixed(1)}%
             </span>
           </div>
-          {sd2_sd1_ratio !== null && sd2_sd1_ratio !== undefined && (
-            <div className="flex justify-between items-center text-sm pt-2 border-t border-slate-200">
-              <span className="text-slate-600">SD2/SD1 Ratio</span>
-              <span className="font-mono text-slate-700">
-                {sd2_sd1_ratio.toFixed(4)}
-              </span>
-            </div>
-          )}
         </div>
       </div>
     </div>

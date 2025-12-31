@@ -465,6 +465,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               summary={summary}
               baseline={baseline}
               interpretation={interpretation}
+              phaseData={summary.phaseData}
+              showProgress={isRecentSession}
             />
 
           </section>
