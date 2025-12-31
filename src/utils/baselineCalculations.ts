@@ -235,18 +235,22 @@ export const calculateBaselineMetrics = (
 };
 
 /**
- * Calculate HRV Readiness Score using Optimized Scoring Logic
+ * Calculate HRV Readiness Score using Z-Score Based Mapping
  * 
  * Formula: 
- * Z = (Ln(Today) - Ln(BaselineMean)) / Max(Ln(BaselineSD), 0.07)
+ * Z = (Ln(Today) - Ln(WeightedBaselineMean)) / Max(Ln(BaselineSD), 0.07)
  * 
- * Mapping Z to 0-100:
- * Z = 0    -> 70 (Normal)
- * Z = -1.5 -> 35 (Warning)
- * Z = -2.5 -> 10 (Crash)
+ * Z-Score to HRV Score Mapping (70-centered):
+ * | Z-Score | HRV Score | Interpretation      |
+ * |---------|-----------|---------------------|
+ * | ≥ +2.0  | 90-100    | Peak Recovery       |
+ * |   0     | 70        | Optimal (baseline)  |
+ * |  -1.5   | 35        | Warning             |
+ * |  -2.5   | 10        | Crash               |
+ * | ≤ -4.0  | 0         | Severe              |
  * 
  * @param sessionMetrics - Current session metrics
- * @param baseline - User's personalized baseline
+ * @param baseline - User's personalized baseline (with geometric mean)
  * @returns HRV Readiness Score (0-100)
  */
 export const calculateHrvReadinessScore = (
@@ -282,35 +286,35 @@ export const calculateHrvReadinessScore = (
     // 3. Z-Score
     const zScore = (currentLn - baseMeanLn) / effectiveSd;
 
-    // 4. Piecewise Mapping
-    // Points: (-2.5, 10), (-1.5, 35), (0, 70)
-    // We need to extrapolate above 0 as well.
-    // If Z=0 is 70, maybe Z=1.5 is 85 or 90?
-    // Let's assume symmetry or linear extension for >0.
-    // Let's use (0, 70) -> (1.5, 95) -> (2.5, 100)
+    // 4. Piecewise Linear Mapping (70-centered scale)
+    // Anchor points per spec:
+    // Z ≥ +2.0 → 90-100 (Peak Recovery)
+    // Z = 0   → 70     (Optimal - at baseline)
+    // Z = -1.5 → 35    (Warning)
+    // Z = -2.5 → 10    (Crash)
+    // Z ≤ -4.0 → 0     (Severe)
 
-    // Linear interpolation helper
     const lerp = (x: number, x0: number, x1: number, y0: number, y1: number) => {
       return y0 + (x - x0) * (y1 - y0) / (x1 - x0);
     };
 
-    let score = 70;
+    let score: number;
 
-    if (zScore >= 0) {
-      // High Readiness (0 to +Max)
-      // Map 0->70, 2.0->100
-      score = lerp(Math.min(zScore, 2.0), 0, 2.0, 70, 100);
+    if (zScore >= 2.0) {
+      // Peak Recovery zone: Z ≥ +2.0 → 90-100
+      // Cap at 100 for Z ≥ 3.0
+      score = lerp(Math.min(zScore, 3.0), 2.0, 3.0, 90, 100);
+    } else if (zScore >= 0) {
+      // Above baseline: Z 0→+2.0 maps to 70→90
+      score = lerp(zScore, 0, 2.0, 70, 90);
     } else if (zScore >= -1.5) {
-      // Normal to Warning
-      // Map 0->70, -1.5->35
+      // Optimal to Warning: Z 0→-1.5 maps to 70→35
       score = lerp(zScore, -1.5, 0, 35, 70);
     } else if (zScore >= -2.5) {
-      // Warning to Crash
-      // Map -1.5->35, -2.5->10
+      // Warning to Crash: Z -1.5→-2.5 maps to 35→10
       score = lerp(zScore, -2.5, -1.5, 10, 35);
     } else {
-      // Crash Zone
-      // Map -2.5->10 down to 0
+      // Crash/Severe zone: Z -2.5→-4.0 maps to 10→0
       score = lerp(Math.max(zScore, -4.0), -4.0, -2.5, 0, 10);
     }
 
@@ -324,19 +328,20 @@ export const calculateHrvReadinessScore = (
 
 /**
  * Interpret the HRV Readiness Score
+ * Uses 70-centered Z-score mapping thresholds
  * NOTE: Frontend uses wellnessLogic.ts for display
  */
 export const interpretReadinessScore = (score: number | null): {
-  status: 'peak' | 'stable' | 'functional' | 'rest' | 'no-baseline';
+  status: 'peak' | 'optimal' | 'warning' | 'crash' | 'no-baseline';
   message: string;
   color: string;
 } => {
   if (score === null) return { status: 'no-baseline', message: 'Building baseline...', color: '#6B7280' };
 
-  if (score >= 90) return { status: 'peak', message: 'Optimal', color: '#059669' };
-  if (score >= 70) return { status: 'stable', message: 'Ready', color: '#10B981' };
-  if (score >= 35) return { status: 'functional', message: 'Strained', color: '#EAB308' };
-  return { status: 'rest', message: 'Recover', color: '#EF4444' };
+  if (score >= 90) return { status: 'peak', message: 'Peak Recovery', color: '#059669' };
+  if (score >= 70) return { status: 'optimal', message: 'Optimal', color: '#10B981' };
+  if (score >= 35) return { status: 'warning', message: 'Warning', color: '#EAB308' };
+  return { status: 'crash', message: 'Crash', color: '#EF4444' };
 };
 
 /**

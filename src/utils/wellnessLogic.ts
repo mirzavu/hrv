@@ -152,31 +152,36 @@ export const getWellnessMetricConfig = (
             break;
 
         case 'hrvReadiness':
-            // Optimized Readiness Scoring
-            // Optimal (90-100)
-            // Normal (70-89)
-            // Strained (35-69) (Based on Z=-1.5 mapping to 35)
-            // Inhibited (0-34)
+            // Z-Score Based Readiness (70-centered)
+            // Peak Recovery (90-100): Z >= +2.0
+            // Optimal (70-89): Z around 0
+            // Warning (35-69): Z around -1.5
+            // Crash (10-34): Z around -2.5
+            // Severe (0-9): Z <= -4.0
             if (!baselineEstablished) {
                 status = 'No Baseline';
                 color = COLORS.LOW;
                 description = 'Will be computed once you establish your personalised baseline.';
             } else if (value >= 90) {
-                status = 'Optimal';
+                status = 'Peak Recovery';
                 color = COLORS.OPTIMAL;
-                description = 'Well Recovered. Ready for high intensity.';
+                description = 'Exceptionally high variability. Ready for maximum effort.';
             } else if (value >= 70) {
-                status = 'Normal';
+                status = 'Optimal';
                 color = COLORS.NORMAL;
-                description = 'Ready. Typical training recommended.';
+                description = 'At your weighted baseline. Normal training recommended.';
             } else if (value >= 35) {
-                status = 'Strained';
+                status = 'Warning';
                 color = COLORS.WARNING;
-                description = 'Needs Rest. Prioritize recovery.';
+                description = 'Recovery significantly lower than normal. Prioritize rest.';
+            } else if (value >= 10) {
+                status = 'Crash';
+                color = COLORS.CRITICAL;
+                description = 'Severe dip detected. Full rest day recommended.';
             } else {
-                status = 'Inhibited';
-                color = COLORS.LOW; // Grey for Crash/Inhibited
-                description = 'Warning. Rest recommended.';
+                status = 'Severe';
+                color = COLORS.LOW;
+                description = 'Critical recovery state. Consult a professional if persistent.';
             }
             break;
     }
