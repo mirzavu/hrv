@@ -1,10 +1,10 @@
-import { SessionSummary, SessionSummaryPayload } from '@/types';
+import { SessionSummary, SessionSummaryPayload, PhaseData } from '@/types';
 
 /**
  * Build a SessionSummary object for display from computed session metrics
  */
 export const buildSessionSummary = (
-  payload: SessionSummaryPayload,
+  payload: SessionSummaryPayload & { phase?: PhaseData | null },
   durationSeconds: number,
   dataPointsCount: number,
   rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = [],
@@ -163,7 +163,7 @@ export const buildSessionSummary = (
 
     // Crash & Phase from Server
     is_crash: payload.is_crash,
-    usage_phase: payload.usage_phase,
+    // usage_phase is now stored in users table, not in session_summary
 
     // AI Insight from database
     ai_title: payload.ai_title ?? null,
@@ -171,6 +171,9 @@ export const buildSessionSummary = (
 
     // Session ID for database operations
     session_id: sessionId || payload.session_id || null,
+
+    // Phase data from analyze API (for progress bar)
+    phaseData: payload.phase || null,
 
     // Raw data for visualization
     rrIntervals: rrIntervals

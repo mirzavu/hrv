@@ -24,52 +24,43 @@ Rules for "interpretation":
 - If signals are mixed, acknowledge it gracefully (e.g., "Your recovery is good, but stress stability is lower today.").
 `;
 
-// Helper for exponential backoff fetch
-async function fetchWithRetry(payload: any, maxRetries = 3) {
-    let delay = 1000;
+// Simplified fetch without retry
+async function fetchWithRetry(payload: any, maxRetries = 1) {
+    try {
+        console.log(`[API/AI-Insight] ===== GEMINI API REQUEST =====`);
+        console.log(`[API/AI-Insight] API URL: ${API_URL.replace(GEN_AI_API_KEY || '', '[REDACTED]')}`);
 
-    for (let i = 0; i < maxRetries; i++) {
-        try {
-            console.log(`[API/AI-Insight] ===== GEMINI API REQUEST (Attempt ${i + 1}/${maxRetries}) =====`);
-            console.log(`[API/AI-Insight] API URL: ${API_URL.replace(GEN_AI_API_KEY || '', '[REDACTED]')}`);
-            console.log(`[API/AI-Insight] Request Method: POST`);
-            console.log(`[API/AI-Insight] Request Headers:`, { 'Content-Type': 'application/json' });
-            console.log(`[API/AI-Insight] Request Payload (full):`, JSON.stringify(payload, null, 2));
-            console.log(`[API/AI-Insight] Request Payload size: ${JSON.stringify(payload).length} bytes`);
+        const response = await fetch(API_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
 
-            const response = await fetch(API_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+        console.log(`[API/AI-Insight] Response Status: ${response.status} ${response.statusText}`);
 
-            console.log(`[API/AI-Insight] Response Status: ${response.status} ${response.statusText}`);
-            console.log(`[API/AI-Insight] Response Headers:`, Object.fromEntries(response.headers.entries()));
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error(`[API/AI-Insight] ❌ Gemini API Error Response:`, errorText);
-                console.error(`[API/AI-Insight] Error Status: ${response.status}`);
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log(`[API/AI-Insight] ✅ Gemini API Success Response:`, JSON.stringify(data, null, 2));
-            return data;
-        } catch (error: any) {
-            console.error(`[API/AI-Insight] ❌ Request failed (Attempt ${i + 1}/${maxRetries}):`, error.message);
-            if (i === maxRetries - 1) {
-                console.error(`[API/AI-Insight] ❌ All retry attempts exhausted`);
-                throw error;
-            }
-            console.log(`[API/AI-Insight] ⏳ Retrying in ${delay}ms...`);
-            await new Promise(resolve => setTimeout(resolve, delay));
-            delay *= 2;
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`[API/AI-Insight] ❌ Gemini API Error Response:`, errorText);
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
+
+        const data = await response.json();
+        console.log(`[API/AI-Insight] ✅ Gemini API Success Response size:`, JSON.stringify(data).length);
+        return data;
+    } catch (error: any) {
+        console.error(`[API/AI-Insight] ❌ Request failed:`, error.message);
+        throw error;
     }
 }
 
 export async function POST(request: NextRequest) {
+    // TEMPORARY: Disable Gemini API calls completely to preserve quota
+    return NextResponse.json({
+        title: 'Insight Unavailable',
+        interpretation: 'AI insights are temporarily disabled.'
+    });
+
+    // --- ALL CODE BELOW IS UNREACHABLE WHILE DISABLED ---
     console.log('[API/AI-Insight] ===== REQUEST RECEIVED =====');
     console.log('[API/AI-Insight] Request URL:', request.url);
     console.log('[API/AI-Insight] Request Method:', request.method);

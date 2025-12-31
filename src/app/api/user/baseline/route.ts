@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
 import type { UserBaseline, SessionSummaryRecord } from '@/types';
-import { calculateBaselineMetrics, canEstablishBaseline, canCreateBaseline, selectSessionsForBaseline } from '@/utils/baselineCalculations';
+import { calculateBaselineMetrics, canEstablishBaseline, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from '@/utils/baselineCalculations';
 
 /**
  * GET /api/user/baseline?userId=xxx
@@ -34,11 +34,12 @@ export async function GET(request: NextRequest) {
       throw error;
     }
   } catch (error: unknown) {
-    console.error('Error fetching user baseline:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch baseline', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    console.error('[BASELINE] Error fetching user baseline:', error);
+    const errorResponse = {
+      error: 'Failed to fetch baseline',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    };
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
@@ -76,7 +77,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (sessions.items.length === 0) {
-      return NextResponse.json({ 
+      return NextResponse.json({
         error: 'No sessions found',
         message: 'User has no sessions to calculate baseline from'
       }, { status: 400 });
@@ -103,12 +104,12 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Check if user can create baseline (at least 5 unique days in last 14 days)
+    // Check if user can create baseline (at least 4 unique days in last 30 days)
     const baselineCheck = canCreateBaseline(allSummaries);
     if (!baselineCheck.valid) {
       return NextResponse.json({
         error: 'Insufficient days',
-        message: `Need sessions on at least 5 different days in the last 14 days. Current: ${baselineCheck.uniqueDays} days.`,
+        message: `Need sessions on at least 4 different days in the last 30 days. Current: ${baselineCheck.uniqueDays} days.`,
         sessionsCount: allSummaries.length,
         uniqueDays: baselineCheck.uniqueDays
       }, { status: 400 });
@@ -116,11 +117,11 @@ export async function POST(request: NextRequest) {
 
     // Select sessions for baseline: latest 7 dates, up to 2 sessions per date (max 14, min 5)
     const summaries = selectSessionsForBaseline(allSummaries);
-    
-    if (summaries.length < 5) {
+
+    if (summaries.length < 4) {
       return NextResponse.json({
         error: 'Insufficient sessions',
-        message: `Need at least 5 sessions to calculate baseline. Found ${summaries.length}.`,
+        message: `Need at least 4 sessions to calculate baseline. Found ${summaries.length}.`,
         sessionsCount: summaries.length
       }, { status: 400 });
     }
@@ -152,12 +153,29 @@ export async function POST(request: NextRequest) {
 
     let baseline: any;
 
+    // Update usage_phase in users table
+    const uniqueCount = countUniqueMorningSessions(allSummaries);
+    const progressInfo = calculateBaselineProgress(uniqueCount);
+    try {
+      const userRecord = await pb.collection('users').getFirstListItem(
+        `id = "${userId}"`
+      );
+      await pb.collection('users').update(userRecord.id, {
+        usage_phase: progressInfo.phase
+      });
+    } catch (error: any) {
+      console.error('Failed to update usage_phase in users table:', error);
+      // Don't throw - continue with baseline update
+    }
+
     if (existingBaseline) {
       // Update existing baseline
       baseline = await pb.collection('user_baselines').update(existingBaseline.id, {
         ...baselineMetrics,
         sessions_count: summaries.length,
         established: canEstablishBaseline(summaries.length),
+        unique_morning_sessions_count: uniqueCount,
+        calibration_progress: progressInfo.progress,
         last_updated: currentTime
       });
     } else {
@@ -167,6 +185,8 @@ export async function POST(request: NextRequest) {
         ...baselineMetrics,
         sessions_count: summaries.length,
         established: canEstablishBaseline(summaries.length),
+        unique_morning_sessions_count: uniqueCount,
+        calibration_progress: progressInfo.progress,
         last_updated: currentTime
       });
     }
@@ -206,16 +226,16 @@ export async function DELETE(request: NextRequest) {
       const baseline = await pb.collection('user_baselines').getFirstListItem(
         `user_id = "${userId}"`
       );
-      
+
       await pb.collection('user_baselines').delete(baseline.id);
-      
-      return NextResponse.json({ 
-        message: 'Baseline deleted successfully' 
+
+      return NextResponse.json({
+        message: 'Baseline deleted successfully'
       });
     } catch (error: any) {
       if (error.status === 404) {
-        return NextResponse.json({ 
-          message: 'No baseline found to delete' 
+        return NextResponse.json({
+          message: 'No baseline found to delete'
         });
       }
       throw error;

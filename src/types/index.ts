@@ -29,6 +29,13 @@ export interface UserProfile {
   lastLoginAt: string;
   onboardingCompletedAt?: string;
   updatedAt?: string;
+  usage_phase?: 'calibration' | 'early_baseline' | 'full_baseline' | null;
+}
+
+export interface PhaseData {
+  name: 'calibration' | 'early_baseline' | 'full_baseline';
+  progress: number; // 0-100
+  uniqueDays: number;
 }
 
 export interface UserBaseline {
@@ -58,6 +65,8 @@ export interface UserBaseline {
   hrv_score_stdev?: number | null;
   sessions_count: number | null;
   established: boolean;
+  unique_morning_sessions_count?: number; // Count of unique days with valid morning sessions (0, 1, 2...)
+  calibration_progress?: number; // 0-100 percentage
   last_updated: string | null;
   createdAt: string;
 }
@@ -144,7 +153,7 @@ export interface SessionSummary {
 
   // Crash & Phase
   is_crash?: boolean;
-  usage_phase?: 'calibration' | 'early' | 'pro' | null;
+  // usage_phase is now stored in users table, not in session_summary
 
   // AI Insight
   ai_title?: string | null;
@@ -152,6 +161,9 @@ export interface SessionSummary {
 
   // Session ID for database operations
   session_id?: string | null;
+
+  // Phase data from analyze API (for progress bar)
+  phaseData?: PhaseData | null;
 
   // Raw data for visualization
   rrIntervals: Array<{ timestamp: number; value: number }>;
@@ -220,7 +232,7 @@ export interface SessionSummaryRecord {
 
   // Crash Protection & Onboarding Phase
   is_crash?: boolean;
-  usage_phase?: 'calibration' | 'early' | 'pro' | null;
+  // usage_phase is now stored in users table, not in session_summary
 
   // AI Insight
   ai_title?: string | null;

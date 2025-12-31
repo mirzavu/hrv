@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionSummaryPayload, RawHeartData, UserBaseline } from '@/types';
+import type { SessionSummaryPayload, RawHeartData, UserBaseline, PhaseData } from '@/types';
 import {
     calculateRMSSD,
     calculateSDNN,
@@ -180,6 +180,8 @@ const computeSessionSummaryPayload = async ({
             sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
             sessions_count: baseline.sessions_count,
             established: baseline.established,
+            unique_morning_sessions_count: baseline.unique_morning_sessions_count,
+            calibration_progress: baseline.calibration_progress,
             last_updated: baseline.last_updated,
             createdAt: baseline.created
         };
@@ -205,7 +207,17 @@ const computeSessionSummaryPayload = async ({
     let hrvScore: number | null = fallbackHrvScore; // Start with fallback
     let baselineUsed = false;
     let isCrash = false;
-    let usagePhase: 'calibration' | 'early' | 'pro' | null = null;
+    let usagePhase: 'calibration' | 'early_baseline' | 'full_baseline' | null = null;
+
+    // Fetch usage_phase from users table
+    try {
+        const pb = await getAdminPb();
+        const userRecord = await pb.collection('users').getOne(userId);
+        usagePhase = userRecord.usage_phase || 'calibration';
+    } catch (error: any) {
+        // If user not found or field doesn't exist, default to calibration
+        usagePhase = 'calibration';
+    }
 
     if (userBaseline && userBaseline.established) {
         // Use personalized baseline approach
@@ -221,11 +233,23 @@ const computeSessionSummaryPayload = async ({
             hrvScore = personalizedScore;
             baselineUsed = true;
 
-            // Determine Phase
-            const count = userBaseline.sessions_count || 0;
-            if (count < 4) usagePhase = 'calibration';
-            else if (count < 15) usagePhase = 'early';
-            else usagePhase = 'pro';
+            // Determine Phase based on unique_morning_sessions_count (not sessions_count)
+            // This ensures a user with 20 sessions on day 1 is still in calibration phase
+            const uniqueDays = userBaseline.unique_morning_sessions_count ?? 0;
+            if (uniqueDays < 4) usagePhase = 'calibration';
+            else if (uniqueDays < 15) usagePhase = 'early_baseline';
+            else usagePhase = 'full_baseline';
+
+            // Update usage_phase in users table
+            try {
+                const pb = await getAdminPb();
+                await pb.collection('users').update(userId, {
+                    usage_phase: usagePhase
+                });
+            } catch (error: any) {
+                console.error('[API_ANALYZE] Failed to update usage_phase:', error);
+                // Don't throw - continue
+            }
 
             // Check for Crash (Z < -2.0)
             // Score = 50 + (Z * 20) => Z = (Score - 50) / 20
@@ -238,6 +262,15 @@ const computeSessionSummaryPayload = async ({
     } else {
         // No baseline established yet - Calibration Phase
         usagePhase = 'calibration';
+        // Update users table
+        try {
+            const pb = await getAdminPb();
+            await pb.collection('users').update(userId, {
+                usage_phase: 'calibration'
+            });
+        } catch (error: any) {
+            console.error('[API_ANALYZE] Failed to update usage_phase:', error);
+        }
     }
 
     return {
@@ -280,7 +313,7 @@ const computeSessionSummaryPayload = async ({
         focus_score: fourScores.focusScore,
         hrv_score: hrvScore,
         is_crash: isCrash,
-        usage_phase: usagePhase,
+        // usage_phase is now stored in users table, not in session_summary
     };
 };
 
@@ -288,6 +321,14 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { rawData, sessionStartTime, durationSeconds, userId, sessionId } = body;
+
+        console.log('[ANALYZE_API] Received request:', {
+            userId,
+            sessionId,
+            sessionStartTime,
+            durationSeconds,
+            rawDataPoints: rawData?.length || 0
+        });
 
         if (!rawData || !userId || !sessionId) {
             return NextResponse.json(
@@ -304,24 +345,115 @@ export async function POST(request: NextRequest) {
             sessionId,
         });
 
-        // Auto-check and update baseline after session analysis
-        // This runs in background - doesn't block response
-        // Only runs once per day (after first valid session of the day)
-        console.log(`[ANALYZE_API] Triggering baseline check for user ${userId}`);
-        autoCheckAndUpdateBaseline(userId, sessionId).then(result => {
-            console.log(`[ANALYZE_API] Baseline check result:`, {
-                success: result.success,
-                action: result.action,
-                baselineEstablished: result.baselineEstablished,
-                sessionsUsed: result.sessionsUsed,
-                uniqueDays: result.uniqueDays
-            });
-        }).catch(error => {
-            console.error('[ANALYZE_API] Background baseline check failed:', error);
-            // Don't throw - this is non-critical background task
+        console.log('[ANALYZE_API] Session summary payload computed:', {
+            session_id: summaryPayload.session_id,
+            rmssd_session_ms: summaryPayload.rmssd_session_ms,
+            sdnn_session_ms: summaryPayload.sdnn_session_ms,
+            hrv_score: summaryPayload.hrv_score
         });
 
-        return NextResponse.json(summaryPayload);
+        // Run baseline check synchronously and include phase data + baseline in response
+        // Pass current session summary so it's included in unique day count
+        let phaseData: PhaseData | null = null;
+        let updatedBaseline: UserBaseline | null = null;
+
+        try {
+            const currentSessionSummary = {
+                session_date: sessionStartTime || new Date().toISOString(),
+                rmssd_session_ms: summaryPayload.rmssd_session_ms
+            };
+
+            console.log('[ANALYZE_API] Calling autoCheckAndUpdateBaseline with:', {
+                userId,
+                sessionId,
+                currentSessionSummary: {
+                    session_date: currentSessionSummary.session_date,
+                    rmssd_session_ms: currentSessionSummary.rmssd_session_ms
+                }
+            });
+
+            const baselineResult = await autoCheckAndUpdateBaseline(
+                userId,
+                sessionId,
+                currentSessionSummary
+            );
+
+            console.log('[ANALYZE_API] autoCheckAndUpdateBaseline returned:', {
+                success: baselineResult.success,
+                phase: baselineResult.phase,
+                phaseProgress: baselineResult.phaseProgress,
+                uniqueDays: baselineResult.uniqueDays,
+                baselineCreated: baselineResult.baselineCreated,
+                baselineUpdated: baselineResult.baselineUpdated
+            });
+
+            // Extract phase data from result
+            phaseData = {
+                name: baselineResult.phase,
+                progress: baselineResult.phaseProgress,
+                uniqueDays: baselineResult.uniqueDays
+            };
+
+            // Only fetch baseline from DB if it was just created or updated
+            // Skip fetch during calibration phase (no baseline exists yet)
+            if (baselineResult.baselineCreated || baselineResult.baselineUpdated) {
+                const pb = await getAdminPb();
+                try {
+                    const baseline = await pb.collection('user_baselines').getFirstListItem(
+                        `user_id = "${userId}"`
+                    );
+                    updatedBaseline = {
+                        $id: baseline.id,
+                        user_id: baseline.user_id,
+                        rmssd_avg: baseline.rmssd_avg,
+                        rmssd_stdev: baseline.rmssd_stdev,
+                        sdnn_avg: baseline.sdnn_avg,
+                        sdnn_stdev: baseline.sdnn_stdev,
+                        hr_avg: baseline.hr_avg,
+                        hr_stdev: baseline.hr_stdev,
+                        sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
+                        sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
+                        sessions_count: baseline.sessions_count,
+                        established: baseline.established,
+                        unique_morning_sessions_count: baseline.unique_morning_sessions_count,
+                        calibration_progress: baseline.calibration_progress,
+                        last_updated: baseline.last_updated,
+                        createdAt: baseline.created
+                    };
+                    console.log('[ANALYZE_API] Fetched baseline from DB:', {
+                        id: updatedBaseline.$id,
+                        established: updatedBaseline.established,
+                        uniqueDays: updatedBaseline.unique_morning_sessions_count,
+                        progress: updatedBaseline.calibration_progress
+                    });
+                } catch (error: unknown) {
+                    console.error('[ANALYZE_API] Error fetching baseline:', error);
+                }
+            }
+        } catch (error) {
+            console.error('[ANALYZE_API] Baseline check failed:', error);
+            // Set default phase data on error
+            phaseData = {
+                name: 'calibration',
+                progress: 0,
+                uniqueDays: 0
+            };
+        }
+
+        const responseData = {
+            ...summaryPayload,
+            phase: phaseData,
+            baseline: updatedBaseline
+        };
+
+        console.log('[ANALYZE_API] Sending response with:', {
+            session_id: responseData.session_id,
+            phase: responseData.phase,
+            hasBaseline: !!responseData.baseline,
+            baselineEstablished: responseData.baseline?.established
+        });
+
+        return NextResponse.json(responseData);
     } catch (error) {
         console.error('Error in session analysis API:', error);
         return NextResponse.json(

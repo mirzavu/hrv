@@ -145,7 +145,7 @@ export const calculateBaselineMetrics = (
   // Map sessions to { val, daysOld } structure
   // We sort Newest -> Oldest for easy tier checking, or calculate absolute days.
   const sessionMeta = validSessions.map(s => {
-    const d = new Date(s.session_date || s.created || s.createdAt || 0);
+    const d = new Date(s.session_date || s.createdAt || 0);
     const diffTime = Math.abs(now.getTime() - d.getTime());
     const daysOld = Math.floor(diffTime / (1000 * 60 * 60 * 24));
     return { session: s, daysOld };
@@ -387,7 +387,7 @@ export const canCreateBaseline = <T extends { session_date?: string | null; crea
     return date >= thirtyDaysAgo;
   });
 
-  return { valid: recentDates.length >= 3, uniqueDays: recentDates.length };
+  return { valid: recentDates.length >= 4, uniqueDays: recentDates.length };
 };
 
 /**
@@ -430,4 +430,87 @@ export const hasValidTemporalDistribution = (
 ): { valid: boolean; uniqueDays: number; timeSpanDays: number } => {
   const check = canCreateBaseline(sessions);
   return { valid: check.valid, uniqueDays: check.uniqueDays, timeSpanDays: 0 };
+};
+/**
+ * Count "Unique Morning Sessions" based on Calendar Days
+ * 
+ * Logic:
+ * - Filter sessions to ensure they are valid (have RMSSD etc)
+ * - Group by UTC Date (YYYY-MM-DD)
+ * - Return count of unique days
+ * 
+ * Note: This assumes the input sessions are already filtered for "Morning" context if that's a strict requirement,
+ * or we just treat all valid sessions as "Morning" candidates if the user only scans in the morning.
+ * The current app logic seems to filter for "First Morning" in `selectSessionsForBaseline`.
+ * We should run this count on the *full history* of valid sessions, not just the 30-day window.
+ */
+export const countUniqueMorningSessions = (
+  sessions: { session_date?: string | null; createdAt?: string; created?: string, rmssd_session_ms?: number | null }[]
+): number => {
+  if (!sessions.length) {
+    return 0;
+  }
+
+  const uniqueDays = new Set<string>();
+
+  sessions.forEach(session => {
+    // Basic validity check - ignore broken sessions
+    if (session.rmssd_session_ms === null) {
+      return;
+    }
+
+    const dateStr = session.session_date || session.created || session.createdAt;
+    if (!dateStr) return;
+
+    // Ensure consistent date handling (UTC Day)
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return;
+
+    const key = date.toISOString().split('T')[0];
+    uniqueDays.add(key);
+  });
+
+  return uniqueDays.size;
+};
+
+/**
+ * Calculate Baseline Progress and Phase
+ * 
+ * Milestones:
+ * - Calibration: 0-3 Unique Days
+ * - Early Baseline: 4-14 Unique Days
+ * - Full Baseline: 15+ Unique Days
+ */
+export const calculateBaselineProgress = (uniqueDays: number): {
+  phase: 'calibration' | 'early_baseline' | 'full_baseline';
+  progress: number;
+  label: string;
+} => {
+  if (uniqueDays < 4) {
+    // 0, 1, 2, 3 days -> 0%, 25%, 50%, 75%
+    // Day 4 = 100% (baseline established, transition to early_baseline)
+    return {
+      phase: 'calibration',
+      progress: Math.round((uniqueDays / 4) * 100),
+      label: 'Calibrating System'
+    };
+  } else if (uniqueDays < 15) {
+    // 4 to 14 days -> Early Baseline
+    // Map 4..14 to 0..100% of "Building Baseline" phase?
+    // Or just simple (count / 15) * 100?
+    // "Building Baseline..."
+    // The user requirement table: "4–14 -> (count / 15) * 100"
+    return {
+      phase: 'early_baseline',
+      progress: Math.round((uniqueDays / 15) * 100),
+      label: 'Building Baseline'
+    };
+  } else {
+    // 15+ days -> Full Baseline
+    return {
+      phase: 'full_baseline',
+      progress: 100,
+      label: 'Pro Baseline Active'
+    };
+  }
 };

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { SessionSummary, UserBaseline } from '@/types';
+import { SessionSummary, UserBaseline, UserProfile } from '@/types';
 import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge, ChevronDown, ChevronUp } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
@@ -21,6 +21,7 @@ import {
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 import type { SessionSummaryRecord } from '@/types';
 import AdvancedMetricsToggle from './AdvancedMetricsToggle';
+import BaselineProgressBar from './BaselineProgressBar';
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -48,6 +49,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   const [chartsReady, setChartsReady] = useState(false);
   const [baseline, setBaseline] = useState<UserBaseline | null>(null);
   const [baselineLoading, setBaselineLoading] = useState(true);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [interpretation, setInterpretation] = useState<InterpretationResult | null>(null);
   const [comparisonLoading, setComparisonLoading] = useState(false);
   const [firstSessionDate, setFirstSessionDate] = useState<string | null>(null);
@@ -64,40 +66,50 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     return () => clearTimeout(timer);
   }, [isToggleExpanded]);
 
-  // Fetch baseline when modal opens
+  // Fetch baseline and user profile when modal opens
   useEffect(() => {
-    const fetchBaseline = async () => {
+    const fetchData = async () => {
       if (!userId || isGuest) {
         setBaselineLoading(false);
         return;
       }
-      // ... existing baseline fetch logic ...
       try {
         setBaselineLoading(true);
-        console.log(`[SessionSummaryModal] Fetching baseline for user ${userId}`);
-        const response = await fetch(`/api/user/baseline?userId=${userId}`);
-        if (response.ok) {
-          const data = await response.json();
+        console.log(`[SessionSummaryModal] Fetching baseline and user profile for user ${userId}`);
+
+        // Fetch baseline
+        const baselineResponse = await fetch(`/api/user/baseline?userId=${userId}`);
+        if (baselineResponse.ok) {
+          const baselineData = await baselineResponse.json();
           console.log(`[SessionSummaryModal] Baseline fetched:`, {
-            exists: !!data.baseline,
-            established: data.baseline?.established,
-            id: data.baseline?.id
+            exists: !!baselineData.baseline,
+            established: baselineData.baseline?.established,
+            id: baselineData.baseline?.id
           });
-          setBaseline(data.baseline);
+          setBaseline(baselineData.baseline);
         } else {
-          console.log(`[SessionSummaryModal] Baseline fetch failed: ${response.status}`);
+          console.log(`[SessionSummaryModal] Baseline fetch failed: ${baselineResponse.status}`);
           setBaseline(null);
         }
+
+        // Fetch user profile for usage_phase
+        const userResponse = await fetch(`/api/user/profile?userId=${userId}`);
+        if (userResponse.ok) {
+          const userData = await userResponse.json();
+          setUserProfile(userData.profile);
+        } else {
+          console.log(`[SessionSummaryModal] User profile fetch failed: ${userResponse.status}`);
+        }
       } catch (error) {
-        console.error('[SessionSummaryModal] Error fetching baseline:', error);
+        console.error('[SessionSummaryModal] Error fetching data:', error);
         setBaseline(null);
       } finally {
         setBaselineLoading(false);
       }
     };
 
-    fetchBaseline();
-  }, [userId, isGuest]);
+    fetchData();
+  }, [userId, isGuest, summary.sessionId]); // Refetch when sessionId changes (e.g., after analyze API completes)
 
   // Calculate interpretation when baseline or summary changes
   useEffect(() => {
@@ -309,6 +321,23 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
       );
   }, [summary.rrIntervals]);
 
+  // Determine if session is "new" (within last 30 mins) to show Progress Bar
+  const isRecentSession = useMemo(() => {
+    if (!summary.rrIntervals || summary.rrIntervals.length === 0) return true;
+    const lastInterval = summary.rrIntervals[summary.rrIntervals.length - 1];
+
+    // Check if timestamp appears to be an absolute epoch (milliseconds)
+    // 1600000000000 is approx year 2020
+    if (lastInterval.timestamp > 1600000000000) {
+      const diff = Date.now() - lastInterval.timestamp;
+      // Show only if session ended within the last 60 minutes
+      return diff < 1000 * 60 * 60;
+    }
+
+    // If relative timestamps or unsure, default to true (safest for fresh sessions)
+    return true;
+  }, [summary.rrIntervals]);
+
   const poincareData = useMemo(() => {
     const intervals = summary.rrIntervals ?? [];
     const valid = intervals.filter(
@@ -378,13 +407,13 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
-              {summary.usage_phase && (
-                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${summary.usage_phase === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                  summary.usage_phase === 'early' ? 'bg-sky-100 text-sky-700 border-sky-200' :
-                    'bg-purple-100 text-purple-700 border-purple-200'
+              {userProfile?.usage_phase && (
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${userProfile.usage_phase === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                    userProfile.usage_phase === 'early_baseline' ? 'bg-sky-100 text-sky-700 border-sky-200' :
+                      'bg-purple-100 text-purple-700 border-purple-200'
                   }`}>
-                  {summary.usage_phase === 'calibration' ? 'Calibration Phase' :
-                    summary.usage_phase === 'early' ? 'Early Phase' : 'Pro Phase'}
+                  {userProfile.usage_phase === 'calibration' ? 'Calibration Phase' :
+                    userProfile.usage_phase === 'early_baseline' ? 'Early Baseline' : 'Full Baseline'}
                 </span>
               )}
             </div>
@@ -401,6 +430,16 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         </header>
 
         <main className="p-8 space-y-8">
+          {/* Baseline Progress Bar (Top of Content) - Only for new sessions */}
+          {userId && !isGuest && isRecentSession && (
+            <BaselineProgressBar
+              baseline={baseline}
+              userProfile={userProfile}
+              phaseData={summary.phaseData}
+              isLoading={baselineLoading}
+            />
+          )}
+
           {/* Crash Alert */}
           {summary.is_crash && (
             <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
