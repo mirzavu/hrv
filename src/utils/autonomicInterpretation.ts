@@ -707,6 +707,28 @@ export function interpretHRVSession(
     addDiff('AMo50', 'AMo50', summary.amode50, baseline.amo50_avg);
   }
 
+  // 7. Wellness Scores
+  if (summary.hrvScore.value !== null && baseline.hrv_score_avg) {
+    addDiff('HRV Score', 'HRV Score', summary.hrvScore.value, baseline.hrv_score_avg);
+  }
+  if (summary.energyScore.value !== null && baseline.energy_score_avg) {
+    addDiff('Energy Score', 'Energy Score', summary.energyScore.value, baseline.energy_score_avg);
+  }
+  if (summary.stressScore.value !== null && baseline.stress_score_avg) {
+    addDiff('Stress Score', 'Stress Score', summary.stressScore.value, baseline.stress_score_avg);
+  }
+  if (summary.healthScore.value !== null && baseline.health_score_avg) {
+    addDiff('Health Score', 'Health Score', summary.healthScore.value, baseline.health_score_avg);
+  }
+  if (summary.focusScore.value !== null && baseline.focus_score_avg) {
+    addDiff('Focus Score', 'Focus Score', summary.focusScore.value, baseline.focus_score_avg);
+  }
+
+  // 8. Nervous System Balance (SD2/SD1 ratio - lower means more parasympathetic dominant)
+  if (summary.sd2_sd1_ratio !== null && summary.sd2_sd1_ratio !== undefined && baseline.sd1_sd2_ratio_avg) {
+    addDiff('NS Balance', 'NS Balance', summary.sd2_sd1_ratio, baseline.sd1_sd2_ratio_avg);
+  }
+
   interpretation.baselineDetails = baselineDetails;
 
   // Construct the main text

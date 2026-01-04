@@ -242,6 +242,11 @@ export function compareMetricsToPrevious(
     addChange('Focus Score', 'Focus Score', currentSummary.focusScore.value, previousSummary.focus_score);
   }
 
+  // 8. Nervous System Balance (SD2/SD1 ratio)
+  if (currentSummary.sd2_sd1_ratio !== null && currentSummary.sd2_sd1_ratio !== undefined && previousSummary.sd2_sd1_ratio !== null) {
+    addChange('NS Balance', 'NS Balance', currentSummary.sd2_sd1_ratio, previousSummary.sd2_sd1_ratio);
+  }
+
   return changes;
 }
 

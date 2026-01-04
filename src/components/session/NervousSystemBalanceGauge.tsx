@@ -1,16 +1,22 @@
 import React from 'react';
+import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface NervousSystemBalanceGaugeProps {
   // Use SD2/SD1-based percentages
   parasympatheticPercent?: number | null | undefined;
   sympatheticPercent?: number | null | undefined;
   sd2_sd1_ratio?: number | null | undefined;
+  comparison?: {
+    percentChange: number;
+    direction: 'up' | 'down' | 'stable';
+  };
 }
 
 const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   parasympatheticPercent: propParasympatheticPercent,
   sympatheticPercent: propSympatheticPercent,
-  sd2_sd1_ratio
+  sd2_sd1_ratio,
+  comparison
 }) => {
   // Use SD2/SD1-based percentages - no fallback
   let parasympatheticPercent: number = 50; // Default neutral
@@ -33,8 +39,19 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   return (
     <div className="p-0.5 rounded-2xl bg-slate-200 h-full flex flex-col">
       <div className="bg-white rounded-[15px] p-6 text-center flex flex-col h-full">
-        <div className="mb-4">
+        <div className="mb-4 flex items-center justify-center gap-2">
           <h3 className="text-lg font-semibold text-slate-700">Nervous System Balance</h3>
+          {comparison && comparison.direction !== 'stable' && (
+            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded inline-flex items-center ${comparison.direction === 'up' ? 'bg-slate-100 text-slate-600' :
+              comparison.direction === 'down' ? 'bg-emerald-50 text-emerald-600' :
+                'bg-slate-50 text-slate-500'
+              }`}>
+              {/* Note: For NS Balance, "down" (lower ratio) means more parasympathetic = better recovery */}
+              {comparison.direction === 'down' && <TrendingDown size={10} className="mr-1" />}
+              {comparison.direction === 'up' && <TrendingUp size={10} className="mr-1" />}
+              {comparison.percentChange.toFixed(0)}%
+            </span>
+          )}
         </div>
 
         {/* Horizontal Bar Segmented Visualization */}

@@ -515,15 +515,19 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
                 sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
                 sd2_sd1_ratio={summary.sd2_sd1_ratio}
+                comparison={interpretation?.baselineDetails?.find(d => d.metric === 'NS Balance') ? {
+                  percentChange: interpretation.baselineDetails.find(d => d.metric === 'NS Balance')!.percentChange,
+                  direction: interpretation.baselineDetails.find(d => d.metric === 'NS Balance')!.direction
+                } : undefined}
               />
             </div>
           </section>
 
-          {/* Key Metrics Section - Always Visible */}
+          {/* Session Overview Section - Always Visible */}
           <section>
             <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
               <Activity className="w-6 h-6 text-blue-600" />
-              Key Metrics
+              Session Overview
             </h2>
 
             {/* First Row: Session Duration, Mean Heart Rate, Beats */}
