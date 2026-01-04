@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline, UserProfile } from '@/types';
-import { X, Heart, Activity, TrendingUp, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, TrendingDown, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge, ChevronDown, ChevronUp } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
@@ -22,6 +22,44 @@ import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 import type { SessionSummaryRecord } from '@/types';
 import AdvancedMetricsToggle from './AdvancedMetricsToggle';
 import BaselineProgressBar from './BaselineProgressBar';
+
+// Compact HRV Metric Card for the HRV Analysis section
+const HrvMetricCard = ({
+  label,
+  value,
+  unit,
+  change,
+  trend,
+  showComparison = true
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  change: string | number;
+  trend: 'up' | 'down' | 'stable';
+  showComparison?: boolean;
+}) => (
+  <div className="bg-white border border-slate-200 p-4 rounded-xl hover:border-indigo-200 transition-all flex flex-col justify-between min-h-[100px]">
+    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">{label}</span>
+    <div className="flex justify-between items-end mt-2">
+      <div className="flex items-baseline gap-1">
+        <span className="text-xl font-bold text-slate-800 tabular-nums">{value}</span>
+        <span className="text-slate-400 text-[10px] font-medium">{unit}</span>
+      </div>
+      {showComparison && change !== '-' && (
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-md flex items-center ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' :
+          trend === 'down' ? 'bg-slate-100 text-slate-600' :
+            'bg-slate-50 text-slate-500'
+          }`}>
+          {trend === 'up' && <TrendingUp size={12} className="mr-1" />}
+          {trend === 'down' && <TrendingDown size={12} className="mr-1" />}
+          {trend === 'stable' && <span className="mr-1">=</span>}
+          {change}%
+        </span>
+      )}
+    </div>
+  </div>
+);
 
 interface SessionSummaryModalProps {
   summary: SessionSummary;
@@ -471,6 +509,14 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               showProgress={isRecentSession}
             />
 
+            {/* Nervous System Balance moved here */}
+            <div className="mt-6">
+              <NervousSystemBalanceGauge
+                parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
+                sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
+                sd2_sd1_ratio={summary.sd2_sd1_ratio}
+              />
+            </div>
           </section>
 
           {/* Key Metrics Section - Always Visible */}
@@ -535,37 +581,98 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               }`}>
               <div className="flex flex-col gap-8">
                 <section className="space-y-8">
-                  <section>
+                  <section className="pt-4">
                     <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
                       <Waves className="w-6 h-6 text-blue-600" />
                       HRV Analysis
                     </h2>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-                      <MetricCard
-                        title="Session RMSSD"
-                        value={summary.sessionRMSSD.value}
-                        unit={summary.sessionRMSSD.unit}
+                    {/* Dynamic Title with Lines - moved from Analysis section */}
+                    {interpretation?.title && (
+                      <div className="flex items-center justify-center gap-4 mb-6">
+                        <div className="h-[1px] flex-1 bg-slate-200"></div>
+                        <div className="flex items-center gap-2">
+                          <Activity className="w-4 h-4 text-indigo-400" />
+                          <span className="text-sm font-bold uppercase tracking-widest text-slate-700">
+                            {interpretation.title}
+                          </span>
+                        </div>
+                        <div className="h-[1px] flex-1 bg-slate-200"></div>
+                      </div>
+                    )}
+
+                    {/* HRV Metric Cards - moved from Analysis section */}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+                      <HrvMetricCard
+                        label="RMSSD"
+                        value={summary.sessionRMSSD.value?.toFixed(1) || '-'}
+                        unit="ms"
+                        change={interpretation?.baselineDetails?.find(d => d.metric === 'RMSSD')?.percentChange.toFixed(0) || '-'}
+                        trend={(interpretation?.baselineDetails?.find(d => d.metric === 'RMSSD')?.direction as 'up' | 'down' | 'stable') || 'stable'}
+                        showComparison={!!interpretation?.baselineDetails}
                       />
-                      <MetricCard
-                        title="HRV Stability"
-                        value={summary.hrvStability.value}
-                        unit={summary.hrvStability.unit}
+                      <HrvMetricCard
+                        label="SDNN"
+                        value={summary.sdnn?.value?.toFixed(0) || '-'}
+                        unit="ms"
+                        change={interpretation?.baselineDetails?.find(d => d.metric === 'SDNN')?.percentChange.toFixed(0) || '-'}
+                        trend={(interpretation?.baselineDetails?.find(d => d.metric === 'SDNN')?.direction as 'up' | 'down' | 'stable') || 'stable'}
+                        showComparison={!!interpretation?.baselineDetails}
                       />
-                      <MetricCard
-                        title="Respiratory Coherence"
-                        value={summary.respCoherence.value}
-                        unit={summary.respCoherence.unit}
+                      <HrvMetricCard
+                        label="LF"
+                        value={summary.lfPower.value?.toFixed(0) || '-'}
+                        unit="ms²"
+                        change={interpretation?.baselineDetails?.find(d => d.metric === 'LF')?.percentChange.toFixed(0) || '-'}
+                        trend={(interpretation?.baselineDetails?.find(d => d.metric === 'LF')?.direction as 'up' | 'down' | 'stable') || 'stable'}
+                        showComparison={!!interpretation?.baselineDetails}
+                      />
+                      <HrvMetricCard
+                        label="HF"
+                        value={summary.hfPower.value?.toFixed(0) || '-'}
+                        unit="ms²"
+                        change={interpretation?.baselineDetails?.find(d => d.metric === 'HF')?.percentChange.toFixed(0) || '-'}
+                        trend={(interpretation?.baselineDetails?.find(d => d.metric === 'HF')?.direction as 'up' | 'down' | 'stable') || 'stable'}
+                        showComparison={!!interpretation?.baselineDetails}
+                      />
+                      <HrvMetricCard
+                        label="AMo50"
+                        value={summary.amode50?.toFixed(1) || '-'}
+                        unit="%"
+                        change={interpretation?.baselineDetails?.find(d => d.metric === 'AMo50')?.percentChange.toFixed(0) || '-'}
+                        trend={(interpretation?.baselineDetails?.find(d => d.metric === 'AMo50')?.direction as 'up' | 'down' | 'stable') || 'stable'}
+                        showComparison={!!interpretation?.baselineDetails}
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 mb-6 items-stretch">
-                      <NervousSystemBalanceGauge
-                        parasympatheticPercent={summary.sd1_sd2_parasympathetic_percent}
-                        sympatheticPercent={summary.sd1_sd2_sympathetic_percent}
-                        sd2_sd1_ratio={summary.sd2_sd1_ratio}
-                      />
-                      <RestorationIndexGauge score={summary.restorationIndex.value} />
+                    {/* Compact 3-column layout for remaining metrics */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      {/* HRV Stability */}
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">HRV Stability</span>
+                        <div className="flex items-baseline gap-1 mt-2">
+                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.hrvStability.value?.toFixed(1) ?? '-'}</span>
+                          <span className="text-slate-400 text-sm font-medium">{summary.hrvStability.unit}</span>
+                        </div>
+                      </div>
+
+                      {/* Restoration Index - Same style as others */}
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Restoration Index</span>
+                        <div className="flex items-baseline gap-1 mt-2">
+                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.restorationIndex.value?.toFixed(1) ?? '-'}</span>
+                          <span className="text-slate-400 text-sm font-medium">/100</span>
+                        </div>
+                      </div>
+
+                      {/* Respiratory Coherence */}
+                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
+                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Respiratory Coherence</span>
+                        <div className="flex items-baseline gap-1 mt-2">
+                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.respCoherence.value?.toFixed(1) ?? '-'}</span>
+                          <span className="text-slate-400 text-sm font-medium">{summary.respCoherence.unit}</span>
+                        </div>
+                      </div>
                     </div>
                   </section>
 

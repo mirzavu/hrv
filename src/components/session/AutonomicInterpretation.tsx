@@ -427,66 +427,14 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
       {/* Dashboard Body */}
       <div className="bg-white border-x border-b border-slate-200 rounded-b-2xl p-6">
 
-        {/* Dynamic Title Separator */}
-        {interpretation.title && (
-          <div className="flex items-center justify-center gap-4 mb-5">
-            <div className="h-[1px] flex-1 bg-slate-200/70"></div>
-            <div className="flex items-center gap-2.5">
-              <Activity size={18} className={theme.accent} strokeWidth={2.5} />
-              <h3 className="text-sm font-black uppercase tracking-widest text-slate-800">
-                {interpretation.title}
-              </h3>
-            </div>
-            <div className="h-[1px] flex-1 bg-slate-200/70"></div>
-          </div>
-        )}
+        {/* Dynamic Title Separator - REMOVED (moved to HRV Analysis section) */}
 
         {/* Interpretation Info Banner - REMOVED (Replaced by Title) */}
 
-        {/* Metrics Row */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-10">
-          <MetricCard
-            label="RMSSD"
-            value={summary.sessionRMSSD.value?.toFixed(0) || '-'}
-            change={interpretation.baselineDetails?.find(d => d.metric === 'RMSSD')?.percentChange.toFixed(0) || '-'}
-            trend={interpretation.baselineDetails?.find(d => d.metric === 'RMSSD')?.direction as any || 'stable'}
-            showComparison={!isScoreBasedSession}
-          />
-          <MetricCard
-            label="SDNN"
-            value={summary.sdnn?.value?.toFixed(0) || '-'}
-            change={interpretation.baselineDetails?.find(d => d.metric === 'SDNN')?.percentChange.toFixed(0) || '-'}
-            trend={interpretation.baselineDetails?.find(d => d.metric === 'SDNN')?.direction as any || 'stable'}
-            showComparison={!isScoreBasedSession}
-          />
-          <MetricCard
-            label="LF"
-            value={summary.lfPower.value?.toFixed(0) || '-'}
-            unit="ms²"
-            change={interpretation.baselineDetails?.find(d => d.metric === 'LF')?.percentChange.toFixed(0) || '-'}
-            trend={interpretation.baselineDetails?.find(d => d.metric === 'LF')?.direction as any || 'stable'}
-            showComparison={!isScoreBasedSession}
-          />
-          <MetricCard
-            label="HF"
-            value={summary.hfPower.value?.toFixed(0) || '-'}
-            unit="ms²"
-            change={interpretation.baselineDetails?.find(d => d.metric === 'HF')?.percentChange.toFixed(0) || '-'}
-            trend={interpretation.baselineDetails?.find(d => d.metric === 'HF')?.direction as any || 'stable'}
-            showComparison={!isScoreBasedSession}
-          />
-          <MetricCard
-            label="AMo50"
-            value={summary.amode50?.toFixed(1) || '-'}
-            unit="%"
-            change={interpretation.baselineDetails?.find(d => d.metric === 'AMo50')?.percentChange.toFixed(0) || '-'}
-            trend={interpretation.baselineDetails?.find(d => d.metric === 'AMo50')?.direction as any || 'stable'}
-            showComparison={!isScoreBasedSession}
-          />
-        </div>
+        {/* Metrics Row - REMOVED (moved to HRV Analysis section in SessionSummaryModal) */}
 
         {/* Protocol Recommendation Section */}
-        <div className="bg-slate-50 rounded-[2.5rem] p-8 lg:p-10 flex flex-col items-center text-center relative overflow-hidden border border-slate-100 mb-10">
+        <div className="bg-slate-50 rounded-[2.5rem] p-6 lg:p-8 flex flex-col items-center text-center relative overflow-hidden border border-slate-100 mb-6">
           {/* Watermark detail */}
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
             <Wind size={160} />
