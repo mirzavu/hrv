@@ -403,7 +403,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   return (
     <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs flex items-center justify-center p-4 z-50">
       <div className="text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl" style={{ backgroundColor: '#f9fafb' }}>
-        <header className="sticky top-0 bg-white/70 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-10">
+        <header className="sticky top-0 bg-white/95 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-20">
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-slate-800">Session Summary</h1>
@@ -418,7 +418,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               )}
             </div>
             <p className="text-slate-500 mt-1">
-              A complete analysis of your session.
+              {interpretation?.title && interpretation.title !== "HRV Summary" && interpretation.title !== "HRV Analysis"
+                ? <>A complete analysis of your session and comparison <span className="font-semibold text-slate-600">{interpretation.title.replace("HRV Changes ", "").toLowerCase()}</span>.</>
+                : "A complete analysis of your session."}
             </p>
           </div>
           <button

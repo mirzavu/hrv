@@ -13,6 +13,7 @@ import UserOnboardingModal from '@/components/UserOnboardingModal';
 import AuthCallback from '@/components/auth/AuthCallback';
 import BluetoothCompatibilityCheck from '@/components/ui/BluetoothCompatibilityCheck';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
+import CalibrationInitiatedModal from '@/components/session/CalibrationInitiatedModal';
 import LegacyHeartRateChart from '@/components/session/LegacyHeartRateChart';
 import EndSessionConfirmationModal from '@/components/session/EndSessionConfirmationModal';
 import { AuthProvider } from '@/contexts/AuthContext';
@@ -115,6 +116,7 @@ const AppContent = () => {
     const [showBluetoothMessage, setShowBluetoothMessage] = useState(false);
     const [showLoginFromStart, setShowLoginFromStart] = useState(false);
     const [showEndSessionConfirmation, setShowEndSessionConfirmation] = useState(false);
+    const [showCalibrationModal, setShowCalibrationModal] = useState(false);
 
     // Check if Web Bluetooth is supported
     const isWebBluetoothSupported = useMemo(() => {
@@ -323,6 +325,13 @@ const AppContent = () => {
         document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
     }, [darkMode]);
 
+    // Show calibration modal only on the very first session (Day 1, first session)
+    useEffect(() => {
+        if (sessionSummary && sessionSummary.phaseData?.uniqueDays === 1 && sessionSummary.phaseData?.isFirstSession) {
+            setShowCalibrationModal(true);
+        }
+    }, [sessionSummary]);
+
     // Calculate current step for progress stepper (5 steps mapped to 1-5 minute milestones)
     const currentStep = useMemo(() => {
         if (!sessionActive) return -1;
@@ -387,16 +396,27 @@ const AppContent = () => {
                 <div className="max-w-7xl mx-auto">
                     <BluetoothCompatibilityCheck darkMode={darkMode} showMessage={showBluetoothMessage} />
                     {sessionSummary && (
-                        <SessionSummaryModal
-                            summary={sessionSummary}
-                            darkMode={darkMode}
-                            onReset={resetApp}
-                            isGuest={user?.$id === 'guest'}
-                            onGuestLogin={() => setShowLoginModal(true)}
-                            userId={user?.$id ?? null}
-                            onClose={() => setSessionSummary(null)}
-                            rrQuality={finalRRQuality || undefined}
-                        />
+                        showCalibrationModal ? (
+                            <CalibrationInitiatedModal
+                                onViewResults={() => setShowCalibrationModal(false)}
+                                onClose={() => {
+                                    setShowCalibrationModal(false);
+                                    setSessionSummary(null);
+                                }}
+                                currentDay={1}
+                            />
+                        ) : (
+                            <SessionSummaryModal
+                                summary={sessionSummary}
+                                darkMode={darkMode}
+                                onReset={resetApp}
+                                isGuest={user?.$id === 'guest'}
+                                onGuestLogin={() => setShowLoginModal(true)}
+                                userId={user?.$id ?? null}
+                                onClose={() => setSessionSummary(null)}
+                                rrQuality={finalRRQuality || undefined}
+                            />
+                        )
                     )}
 
                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8">
@@ -415,10 +435,10 @@ const AppContent = () => {
                                     <h2 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Live Monitor</h2>
                                     <div className="flex items-center gap-2 text-green-500">
                                         <div className={`w-2 h-2 rounded-full ${sessionActive
-                                                ? (sessionPaused ? 'bg-yellow-400' : 'bg-green-500 animate-pulse')
-                                                : isConnected
-                                                    ? 'bg-green-500'
-                                                    : 'bg-red-500'
+                                            ? (sessionPaused ? 'bg-yellow-400' : 'bg-green-500 animate-pulse')
+                                            : isConnected
+                                                ? 'bg-green-500'
+                                                : 'bg-red-500'
                                             }`}></div>
                                         <span className="text-lg font-medium">{liveMetrics.status}</span>
                                     </div>

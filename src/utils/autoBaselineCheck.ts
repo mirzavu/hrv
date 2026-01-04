@@ -56,6 +56,7 @@ export const autoCheckAndUpdateBaseline = async (
   phase: 'calibration' | 'early_baseline' | 'full_baseline';
   phaseProgress: number; // 0-100
   uniqueDays: number;
+  isFirstSession?: boolean;
   baselineCreated?: boolean;
   baselineUpdated?: boolean;
 }> => {
@@ -67,7 +68,7 @@ export const autoCheckAndUpdateBaseline = async (
       rmssd_session_ms: currentSessionSummary.rmssd_session_ms
     } : 'none'
   });
-  
+
   try {
     const pb = await getAdminPb();
     console.log(`[BASELINE] Starting baseline check for user ${userId}, sessionId: ${currentSessionId || 'none'}`);
@@ -81,27 +82,27 @@ export const autoCheckAndUpdateBaseline = async (
         try {
           const userRecord = await pb.collection('users').getOne(userId);
           const currentPhase = userRecord.usage_phase || 'calibration';
-          
+
           // Fetch sessions to calculate unique days
           const sessions = await pb.collection('sessions').getList(1, 200, {
             filter: `userId = "${userId}"`,
             sort: '-startTime'
           });
-          
+
           const sessionIds = sessions.items.map(s => s.id);
           const summaryPromises = sessionIds.map(id =>
             pb.collection('session_summary').getFirstListItem(`session_id = "${id}"`)
               .catch(() => null)
           );
-          
+
           const allSummaries = (await Promise.all(summaryPromises))
             .filter((s): s is any => s !== null);
-          
+
           const uniqueCount = countUniqueMorningSessions(allSummaries);
           const progressInfo = calculateBaselineProgress(uniqueCount);
-          
+
           console.log(`[BASELINE] Step 0: Returning current phase: ${currentPhase}, uniqueDays: ${uniqueCount}, progress: ${progressInfo.progress}%`);
-          
+
           return {
             success: true,
             phase: currentPhase as 'calibration' | 'early_baseline' | 'full_baseline',
@@ -158,11 +159,15 @@ export const autoCheckAndUpdateBaseline = async (
         success: true,
         phase: 'calibration' as const,
         phaseProgress: 0,
-        uniqueDays: 0
+        uniqueDays: 0,
+        isFirstSession: true
       };
       console.log(`[BASELINE] No session summaries found, returning:`, result);
       return result;
     }
+
+    // Detect if this is the user's first session ever
+    const isFirstSession = allSummaries.length === 1;
 
     // Step 1: Get unique day count (including current session)
     const uniqueDays = countUniqueMorningSessions(allSummaries);
@@ -195,12 +200,13 @@ export const autoCheckAndUpdateBaseline = async (
       } catch (error: any) {
         console.error('[BASELINE] Failed to update usage_phase:', error);
       }
-      
+
       const result = {
         success: true,
         phase: 'calibration' as const,
         phaseProgress: progressInfo.progress,
-        uniqueDays
+        uniqueDays,
+        isFirstSession
       };
       console.log(`[BASELINE] Step 2: Returning:`, result);
       return result;
@@ -210,7 +216,7 @@ export const autoCheckAndUpdateBaseline = async (
     if (uniqueDays > 14) {
       console.log(`[BASELINE] Step 5: uniqueDays (${uniqueDays}) > 14 - Setting phase to 'full_baseline'`);
       const fullBaselinePhase: 'full_baseline' = 'full_baseline';
-      
+
       try {
         await pb.collection('users').update(userId, {
           usage_phase: fullBaselinePhase
@@ -263,6 +269,7 @@ export const autoCheckAndUpdateBaseline = async (
         phase: fullBaselinePhase,
         phaseProgress: 100,
         uniqueDays,
+        isFirstSession,
         baselineUpdated: !!existingBaseline,
         baselineCreated: !existingBaseline
       };
@@ -299,6 +306,7 @@ export const autoCheckAndUpdateBaseline = async (
         phase: progressInfo.phase,
         phaseProgress: progressInfo.progress,
         uniqueDays,
+        isFirstSession,
         baselineUpdated: true
       };
       console.log(`[BASELINE] Step 4: Returning:`, result);
@@ -310,11 +318,11 @@ export const autoCheckAndUpdateBaseline = async (
       console.log(`[BASELINE] Step 3: uniqueDays (${uniqueDays}) >= 4, no baseline exists - Creating baseline`);
       const summaries = selectSessionsForBaseline(allSummaries);
       console.log(`[BASELINE] Step 3: Selected ${summaries.length} sessions for baseline calculation`);
-      
+
       if (summaries.length >= 4) {
         const baselineMetrics = calculateBaselineMetrics(summaries);
         console.log(`[BASELINE] Step 3: Calculated baseline metrics: RMSSD=${baselineMetrics.rmssd_avg?.toFixed(2)}, SDNN=${baselineMetrics.sdnn_avg?.toFixed(2)}`);
-        
+
         await pb.collection('user_baselines').create({
           user_id: userId,
           ...baselineMetrics,
@@ -336,6 +344,7 @@ export const autoCheckAndUpdateBaseline = async (
           phase: progressInfo.phase,
           phaseProgress: progressInfo.progress,
           uniqueDays,
+          isFirstSession,
           baselineCreated: true
         };
         console.log(`[BASELINE] Step 3: Returning:`, result);
@@ -351,7 +360,8 @@ export const autoCheckAndUpdateBaseline = async (
       success: true,
       phase: progressInfo.phase,
       phaseProgress: progressInfo.progress,
-      uniqueDays
+      uniqueDays,
+      isFirstSession
     };
 
   } catch (error) {

@@ -240,17 +240,6 @@ const computeSessionSummaryPayload = async ({
             else if (uniqueDays < 15) usagePhase = 'early_baseline';
             else usagePhase = 'full_baseline';
 
-            // Update usage_phase in users table
-            try {
-                const pb = await getAdminPb();
-                await pb.collection('users').update(userId, {
-                    usage_phase: usagePhase
-                });
-            } catch (error: any) {
-                console.error('[API_ANALYZE] Failed to update usage_phase:', error);
-                // Don't throw - continue
-            }
-
             // Check for Crash (Z < -2.0)
             // Score = 50 + (Z * 20) => Z = (Score - 50) / 20
             // Threshold Z < -2.0 => Score < 10
@@ -262,15 +251,6 @@ const computeSessionSummaryPayload = async ({
     } else {
         // No baseline established yet - Calibration Phase
         usagePhase = 'calibration';
-        // Update users table
-        try {
-            const pb = await getAdminPb();
-            await pb.collection('users').update(userId, {
-                usage_phase: 'calibration'
-            });
-        } catch (error: any) {
-            console.error('[API_ANALYZE] Failed to update usage_phase:', error);
-        }
     }
 
     return {
@@ -391,7 +371,8 @@ export async function POST(request: NextRequest) {
             phaseData = {
                 name: baselineResult.phase,
                 progress: baselineResult.phaseProgress,
-                uniqueDays: baselineResult.uniqueDays
+                uniqueDays: baselineResult.uniqueDays,
+                isFirstSession: baselineResult.isFirstSession
             };
 
             // Only fetch baseline from DB if it was just created or updated

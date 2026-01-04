@@ -36,6 +36,7 @@ export interface PhaseData {
   name: 'calibration' | 'early_baseline' | 'full_baseline';
   progress: number; // 0-100
   uniqueDays: number;
+  isFirstSession?: boolean;
 }
 
 export interface UserBaseline {
