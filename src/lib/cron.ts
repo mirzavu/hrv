@@ -37,9 +37,9 @@ export const initializeCronJobs = () => {
       // This avoids HTTP overhead and works better in serverless environments
       const { createWeeklyBaselineSnapshots } = await import('@/utils/cron/baselineHistory');
       const result = await createWeeklyBaselineSnapshots();
-      
+
       console.log('[CRON] Baseline history job completed:', result);
-      
+
       // Return early - no HTTP call needed
       return;
 
