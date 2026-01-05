@@ -5,6 +5,7 @@
 
 import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from './baselineCalculations';
+import { createBaselineSnapshot } from './baselineHistory';
 
 /**
  * Check if user has any session for today (UTC date), excluding the current session
@@ -121,6 +122,11 @@ export const autoCheckAndUpdateBaseline = async (
         }
       }
     }
+
+    // Capture baseline history snapshot BEFORE calculating new values
+    // This ensures we save the "previous state" before updating it
+    // We only do this if we passed the "hasSessionToday" check (i.e., this IS the first session of the day)
+    await createBaselineSnapshot(userId, pb);
 
     // Fetch all session summaries
     const sessions = await pb.collection('sessions').getList(1, 200, {

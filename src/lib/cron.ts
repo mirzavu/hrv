@@ -25,34 +25,9 @@ export const initializeCronJobs = () => {
 
   console.log('[CRON] Initializing cron jobs...');
 
-  // Schedule weekly baseline history snapshot
-  // Runs every Monday at 00:00 UTC
-  // Cron format: minute hour day-of-month month day-of-week
-  // 0 0 * * 1 = Every Monday at 00:00
-  cron.schedule('0 0 * * 1', async () => {
-    console.log('[CRON] Weekly baseline history job triggered');
-    try {
-      // Call the API route internally
-      // Call the utility function directly instead of HTTP request
-      // This avoids HTTP overhead and works better in serverless environments
-      const { createWeeklyBaselineSnapshots } = await import('@/utils/cron/baselineHistory');
-      const result = await createWeeklyBaselineSnapshots();
-
-      console.log('[CRON] Baseline history job completed:', result);
-
-      // Return early - no HTTP call needed
-      return;
-
-    } catch (error: any) {
-      console.error('[CRON] Error executing baseline history job:', error);
-    }
-  }, {
-    scheduled: true,
-    timezone: 'UTC'
-  });
+  // (Removed weekly baseline cron - now handled via event trigger in autoCheckAndUpdateBaseline)
 
   console.log('[CRON] Cron jobs initialized successfully');
-  console.log('[CRON] - Weekly baseline history: Every Monday at 00:00 UTC');
 
   cronJobsInitialized = true;
 };
