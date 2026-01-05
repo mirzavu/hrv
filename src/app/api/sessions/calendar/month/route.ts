@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
+import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 interface MonthDateData {
   date: string; // YYYY-MM-DD format
@@ -24,13 +25,17 @@ export async function GET(request: NextRequest) {
     }
 
     const pb = await getAdminPb();
-    
-    // Validate user exists
+
+    // Validate user exists and get timezone
+    let userTimezone = DEFAULT_TIMEZONE;
     try {
-      await pb.collection('users').getOne(userId);
+      const user = await pb.collection('users').getOne(userId);
+      userTimezone = user.timezone || DEFAULT_TIMEZONE;
     } catch {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    console.log(`[Calendar Month] User timezone: ${userTimezone}`);
 
     // Build filter for session_summary
     // session_date is stored as datetime (e.g., '2025-11-10 16:33:13.482Z')
@@ -71,24 +76,25 @@ export async function GET(request: NextRequest) {
 
     // Group by date and get first 3 sessions per date
     const dateMap = new Map<string, { sessions: Array<{ id: string; rmssd: number }>; count: number }>();
-    
+
     summariesResponse.items.forEach((summary: any) => {
-      // Extract date from session_date (format: YYYY-MM-DD)
-      // PocketBase date fields return ISO date strings
-      const dateStr = summary.session_date 
-        ? (typeof summary.session_date === 'string' 
-          ? summary.session_date.slice(0, 10) 
-          : new Date(summary.session_date).toISOString().slice(0, 10))
-        : null;
+      // Extract date from session_date, converting to USER's timezone using dateUtils
+      if (!summary.session_date) return;
+
+      // Use the proper timezone-aware conversion
+      const dateStr = toLocalDateString(summary.session_date, userTimezone);
+
+      // Debug: Log date conversion for debugging timezone issues
+      console.log(`[Calendar Month DEBUG] session_date raw: ${summary.session_date} -> userTZ: ${userTimezone} -> local: ${dateStr}`);
       if (!dateStr) return;
 
       if (!dateMap.has(dateStr)) {
         dateMap.set(dateStr, { sessions: [], count: 0 });
       }
-      
+
       const dateData = dateMap.get(dateStr)!;
       dateData.count++;
-      
+
       // Only keep first 3 sessions per date (for dot colors)
       if (dateData.sessions.length < 3) {
         dateData.sessions.push({

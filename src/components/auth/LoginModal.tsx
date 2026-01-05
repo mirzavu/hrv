@@ -10,6 +10,25 @@ interface LoginModalProps {
   onLoginSuccess: (user?: User) => void;
 }
 
+// Helper function to detect and save user's timezone
+const updateUserTimezone = async (userId: string) => {
+  try {
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    console.log('[LoginModal] Detected timezone:', timezone);
+
+    await fetch('/api/user/timezone', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, timezone }),
+    });
+
+    console.log('[LoginModal] Timezone saved successfully');
+  } catch (error) {
+    console.error('[LoginModal] Failed to save timezone:', error);
+    // Non-critical error, don't block login
+  }
+};
+
 const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -34,6 +53,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
       };
 
       console.log('OAuth successful:', user);
+
+      // Detect and save user's timezone
+      await updateUserTimezone(authData.record.id);
+
       setLoading(false);
       onLoginSuccess(user);
       onClose();
@@ -71,6 +94,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ darkMode, onClose, onLoginSucce
       const authData = await pb.collection('users').authWithPassword(email, password);
 
       console.log('Development login successful (real):', authData.record);
+
+      // Detect and save user's timezone
+      await updateUserTimezone(authData.record.id);
+
       setLoading(false);
 
       const user = {

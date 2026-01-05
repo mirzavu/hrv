@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
+import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,18 @@ export async function GET(request: NextRequest) {
 
     try {
         const pb = await getAdminPb();
+
+        // Get user's timezone
+        let userTimezone = DEFAULT_TIMEZONE;
+        try {
+            const user = await pb.collection('users').getOne(userId);
+            userTimezone = user.timezone || DEFAULT_TIMEZONE;
+        } catch {
+            console.warn('[Monthly API] Could not fetch user timezone, using default');
+        }
+
+        // Helper to format date in user's timezone
+        const formatLocalDate = (d: Date) => toLocalDateString(d, userTimezone);
 
         // 1. Determine Time Range
         let targetDate = new Date();
@@ -35,8 +48,8 @@ export async function GET(request: NextRequest) {
         const fetchStart = new Date(monthStart);
         fetchStart.setDate(fetchStart.getDate() - 30);
 
-        const startStr = fetchStart.toISOString().split('T')[0] + ' 00:00:00';
-        const endStr = monthEnd.toISOString().split('T')[0] + ' 23:59:59';
+        const startStr = formatLocalDate(fetchStart) + ' 00:00:00';
+        const endStr = formatLocalDate(monthEnd) + ' 23:59:59';
 
         // 2. Fetch Sessions
         let sessions: any[] = [];
@@ -102,8 +115,8 @@ export async function GET(request: NextRequest) {
 
             weeks.push({
                 label: range.label,
-                startDate: rangeStart.toISOString().split('T')[0],
-                endDate: rangeEnd.toISOString().split('T')[0],
+                startDate: formatLocalDate(rangeStart),
+                endDate: formatLocalDate(rangeEnd),
                 // Meters
                 rmssd: Math.round(rmssdWeeklyParams || 0),
                 rmssdRolling: Math.round(rmssdRolling || 0),

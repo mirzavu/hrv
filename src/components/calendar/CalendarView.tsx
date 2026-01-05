@@ -94,8 +94,10 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
     const fetchMonthData = async () => {
       const year = viewMonth.getFullYear();
       const month = viewMonth.getMonth();
-      const startDate = new Date(year, month, 1).toISOString().slice(0, 10);
-      const endDate = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+      // Use local date format instead of toISOString (which converts to UTC)
+      const startDate = `${year}-${String(month + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(year, month + 1, 0).getDate();
+      const endDate = `${year}-${String(month + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
       const cacheKey = `calendar-month-${userId}-${year}-${month}`;
 
@@ -218,7 +220,12 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const days: Array<{ dateObj: Date; key: string; dateData: MonthDateData | null }> = [];
   for (let d = 1; d <= endDay.getDate(); d++) {
     const dt = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), d);
-    const key = dt.toISOString().slice(0, 10);
+    // Use local date format (YYYY-MM-DD) instead of toISOString which converts to UTC
+    // This fixes off-by-one day issue in positive-offset timezones like IST
+    const year = dt.getFullYear();
+    const month = String(dt.getMonth() + 1).padStart(2, '0');
+    const day = String(dt.getDate()).padStart(2, '0');
+    const key = `${year}-${month}-${day}`;
     days.push({ dateObj: dt, key, dateData: monthData[key] || null });
   }
 
@@ -238,7 +245,11 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const goToday = () => {
     const todayDate = new Date();
     setViewMonth(new Date(todayDate.getFullYear(), todayDate.getMonth(), 1));
-    setSelectedDay(todayDate.toISOString().slice(0, 10));
+    // Use local date format instead of toISOString (which converts to UTC)
+    const year = todayDate.getFullYear();
+    const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+    const day = String(todayDate.getDate()).padStart(2, '0');
+    setSelectedDay(`${year}-${month}-${day}`);
   };
 
   const selectDay = (key: string) => {
@@ -425,7 +436,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                         >
                           <div className="flex flex-col gap-1">
                             <span className="text-base font-semibold text-gray-800">{s.time}</span>
-                            <span className="text-xs font-medium text-gray-400">{s.durationMin} min</span>
+                            <span className="text-xs font-medium text-gray-400">{s.durationMin} min • ID: {s.id.slice(-8)}</span>
                           </div>
                           <div className="flex items-center gap-5 text-right">
                             <div className="flex flex-col">

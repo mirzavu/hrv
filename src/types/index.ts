@@ -30,6 +30,7 @@ export interface UserProfile {
   onboardingCompletedAt?: string;
   updatedAt?: string;
   usage_phase?: 'calibration' | 'early_baseline' | 'full_baseline' | null;
+  timezone?: string; // IANA timezone e.g., "Asia/Kolkata", "America/New_York"
 }
 
 export interface PhaseData {

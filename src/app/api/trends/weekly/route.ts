@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics } from '@/utils/baselineCalculations';
+import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,6 +17,18 @@ export async function GET(request: NextRequest) {
     try {
         const pb = await getAdminPb();
 
+        // Get user's timezone
+        let userTimezone = DEFAULT_TIMEZONE;
+        try {
+            const user = await pb.collection('users').getOne(userId);
+            userTimezone = user.timezone || DEFAULT_TIMEZONE;
+        } catch {
+            console.warn('[Weekly API] Could not fetch user timezone, using default');
+        }
+
+        // Helper to format date in user's timezone
+        const formatLocalDate = (d: Date) => toLocalDateString(d, userTimezone);
+
         // Determine date range
         // End date: specified or today
         const endDate = endDateParam ? new Date(endDateParam) : new Date();
@@ -23,8 +36,8 @@ export async function GET(request: NextRequest) {
         const startDate = new Date(endDate);
         startDate.setDate(endDate.getDate() - 13);
 
-        const startStr = startDate.toISOString().split('T')[0] + ' 00:00:00';
-        const endStr = endDate.toISOString().split('T')[0] + ' 23:59:59';
+        const startStr = formatLocalDate(startDate) + ' 00:00:00';
+        const endStr = formatLocalDate(endDate) + ' 23:59:59';
 
         // Fetch sessions
         // We need: rmssd, session_mean_hr, session_date
@@ -42,7 +55,7 @@ export async function GET(request: NextRequest) {
         // Fetch last 30 days for baseline calculation (Safe fetch)
         const baselineStartDate = new Date(endDate);
         baselineStartDate.setDate(endDate.getDate() - 30);
-        const baselineStartStr = baselineStartDate.toISOString().split('T')[0];
+        const baselineStartStr = formatLocalDate(baselineStartDate);
 
         let baselineSessions: any[] = [];
         try {
@@ -85,8 +98,8 @@ export async function GET(request: NextRequest) {
 
         sessions.forEach((s: any) => {
             if (!s.session_date) return;
-            // Robust parsing: PB might return space or T
-            const date = new Date(s.session_date).toISOString().split('T')[0];
+            // Use user's timezone for date grouping
+            const date = toLocalDateString(s.session_date, userTimezone);
             if (!dailyMap.has(date)) {
                 dailyMap.set(date, { rmssd: [], hr: [], score: [] });
             }
@@ -103,7 +116,7 @@ export async function GET(request: NextRequest) {
         for (let i = 6; i >= 0; i--) {
             const d = new Date(endDate);
             d.setDate(endDate.getDate() - i);
-            const dayStr = d.toISOString().split('T')[0];
+            const dayStr = formatLocalDate(d);
             const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
 
             // Daily Value
@@ -129,7 +142,7 @@ export async function GET(request: NextRequest) {
             for (let j = 0; j < 7; j++) {
                 const lookback = new Date(d);
                 lookback.setDate(d.getDate() - j);
-                const lbStr = lookback.toISOString().split('T')[0];
+                const lbStr = formatLocalDate(lookback);
                 const lbData = dailyMap.get(lbStr);
 
                 if (lbData) {

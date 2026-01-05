@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
+import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 /**
  * GET /api/user/baseline-progress
@@ -19,6 +20,15 @@ export async function GET(request: NextRequest) {
 
         const pb = await getAdminPb();
 
+        // Get user's timezone
+        let userTimezone = DEFAULT_TIMEZONE;
+        try {
+            const user = await pb.collection('users').getOne(userId);
+            userTimezone = user.timezone || DEFAULT_TIMEZONE;
+        } catch {
+            console.warn('[BASELINE_PROGRESS_API] Could not get user timezone, using default');
+        }
+
         // Fetch sessions to count unique days
         let uniqueDays = 0;
         let phase: 'calibration' | 'early_baseline' | 'full_baseline' = 'calibration';
@@ -30,11 +40,11 @@ export async function GET(request: NextRequest) {
                 fields: 'session_date'
             });
 
-            // Count unique days (by date, not datetime)
+            // Count unique days using user's timezone
             const uniqueDates = new Set(
                 sessions.map(s => {
-                    const date = s.session_date ? new Date(s.session_date).toISOString().split('T')[0] : null;
-                    return date;
+                    if (!s.session_date) return null;
+                    return toLocalDateString(s.session_date, userTimezone);
                 }).filter(Boolean)
             );
             uniqueDays = uniqueDates.size;
@@ -47,7 +57,7 @@ export async function GET(request: NextRequest) {
             } else {
                 phase = 'calibration';
             }
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('[BASELINE_PROGRESS_API] Error fetching sessions:', error);
         }
 

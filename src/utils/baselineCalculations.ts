@@ -8,6 +8,7 @@
  */
 
 import type { SessionSummaryRecord, UserBaseline } from '@/types';
+import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 /**
  * Calculate mean (average) of an array of numbers
@@ -362,15 +363,15 @@ export const shouldUpdateBaseline = (
 };
 
 const groupSessionsByDate = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
-  sessions: T[]
+  sessions: T[],
+  timezone: string = DEFAULT_TIMEZONE
 ): Map<string, T[]> => {
   const grouped = new Map<string, T[]>();
   for (const session of sessions) {
     const dateStr = session.session_date || session.created || session.createdAt;
     if (!dateStr) continue;
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) continue;
-    const dateKey = date.toISOString().split('T')[0];
+    // Use user's timezone for consistent date grouping
+    const dateKey = toLocalDateString(dateStr, timezone);
     if (!grouped.has(dateKey)) grouped.set(dateKey, []);
     grouped.get(dateKey)!.push(session);
   }
@@ -450,7 +451,8 @@ export const hasValidTemporalDistribution = (
  * We should run this count on the *full history* of valid sessions, not just the 30-day window.
  */
 export const countUniqueMorningSessions = (
-  sessions: { session_date?: string | null; createdAt?: string; created?: string, rmssd_session_ms?: number | null }[]
+  sessions: { session_date?: string | null; createdAt?: string; created?: string, rmssd_session_ms?: number | null }[],
+  timezone: string = DEFAULT_TIMEZONE
 ): number => {
   if (!sessions.length) {
     return 0;
@@ -467,11 +469,8 @@ export const countUniqueMorningSessions = (
     const dateStr = session.session_date || session.created || session.createdAt;
     if (!dateStr) return;
 
-    // Ensure consistent date handling (UTC Day)
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return;
-
-    const key = date.toISOString().split('T')[0];
+    // Use user's timezone for consistent date counting
+    const key = toLocalDateString(dateStr, timezone);
     uniqueDays.add(key);
   });
 
