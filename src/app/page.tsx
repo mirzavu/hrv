@@ -317,10 +317,6 @@ const AppContent = () => {
     }, [sessionActive, getRRQuality, addToast, poorQualityWarningShown]);
 
 
-    const handleViewCalendar = () => {
-        window.location.href = '/calendar';
-    };
-
     useEffect(() => {
         document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
     }, [darkMode]);
@@ -386,7 +382,6 @@ const AppContent = () => {
             <Header
                 user={user}
                 handleLogout={handleLogout}
-                handleViewCalendar={handleViewCalendar}
                 toggleDarkMode={() => setDarkMode(!darkMode)}
                 darkMode={darkMode}
                 onLoginClick={() => setShowLoginModal(true)}

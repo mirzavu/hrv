@@ -10,7 +10,7 @@ import { useState } from 'react';
 export default function CalendarPage() {
   const [toasts, setToasts] = useState<Array<{ id: number; message: string }>>([]);
   const [darkMode, setDarkMode] = useState(false);
-  
+
   const addToast = (message: string) => {
     const id = Date.now();
     setToasts(prev => [...prev, { id, message }]);
@@ -19,9 +19,9 @@ export default function CalendarPage() {
     }, 3000);
   };
 
-  const { 
-    user, 
-    loading: authLoading, 
+  const {
+    user,
+    loading: authLoading,
     handleLogout,
     showLoginModal,
     showOnboardingModal,
@@ -30,10 +30,6 @@ export default function CalendarPage() {
     handleOnboardingSkip,
     setShowLoginModal
   } = useAuth(addToast);
-
-  const handleViewCalendar = () => {
-    window.location.href = '/calendar';
-  };
 
   if (authLoading) {
     return (
@@ -50,34 +46,33 @@ export default function CalendarPage() {
     <div className="min-h-screen bg-gray-100 flex flex-col">
       {showLoginModal && (
         <LoginModal
-          darkMode={darkMode} 
-          onClose={() => setShowLoginModal(false)} 
-          onLoginSuccess={handleLoginSuccess} 
+          darkMode={darkMode}
+          onClose={() => setShowLoginModal(false)}
+          onLoginSuccess={handleLoginSuccess}
         />
       )}
       {showOnboardingModal && user && (
-        <UserOnboardingModal 
-          darkMode={darkMode} 
+        <UserOnboardingModal
+          darkMode={darkMode}
           user={user}
           onComplete={handleOnboardingComplete}
           onClose={handleOnboardingSkip}
         />
       )}
-      <Header 
-        user={user} 
-        handleLogout={handleLogout} 
-        handleViewCalendar={handleViewCalendar}
-        toggleDarkMode={() => setDarkMode(!darkMode)} 
+      <Header
+        user={user}
+        handleLogout={handleLogout}
+        toggleDarkMode={() => setDarkMode(!darkMode)}
         darkMode={darkMode}
         onLoginClick={() => setShowLoginModal(true)}
       />
-      
+
       <main className="flex-1 p-4 md:p-8 lg:p-10">
         <div className="max-w-7xl mx-auto">
           <CalendarView userId={user?.$id || null} darkMode={darkMode} />
         </div>
       </main>
-      
+
       {/* Toast notifications */}
       <div className="fixed top-4 right-4 z-50 space-y-2">
         {toasts.map(toast => (

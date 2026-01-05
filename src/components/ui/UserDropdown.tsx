@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, LogOut, Settings, User as UserIcon, Moon } from 'lucide-react';
+import { LogOut, Settings, User as UserIcon, Moon } from 'lucide-react';
 import { BaselineProgress } from './BaselineProgress';
 
 interface UserDropdownProps {
@@ -7,7 +7,6 @@ interface UserDropdownProps {
     userEmail?: string;
     currentDay?: number;
     totalDays?: number;
-    onCalendarClick?: () => void;
     onLogout?: () => void;
     onSettingsClick?: () => void;
     onProfileClick?: () => void;
@@ -20,7 +19,6 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
     userEmail = 'user@example.com',
     currentDay = 4,
     totalDays = 15,
-    onCalendarClick,
     onLogout,
     onSettingsClick,
     onProfileClick,
@@ -60,14 +58,6 @@ export const UserDropdown: React.FC<UserDropdownProps> = ({
             {/* Menu Items */}
             <div className="px-2 pb-2">
                 <div className="space-y-1">
-                    <button
-                        onClick={onCalendarClick}
-                        className="w-full flex items-center space-x-3 px-3 py-2.5 text-sm font-medium text-slate-600 rounded-xl hover:bg-slate-50 hover:text-teal-600 transition-colors group cursor-pointer"
-                    >
-                        <Calendar size={18} className="text-slate-400 group-hover:text-teal-500 transition-colors" />
-                        <span>Calendar</span>
-                    </button>
-
                     <button
                         onClick={onProfileClick}
                         className="w-full flex items-center space-x-3 px-3 py-2.5 text-sm font-medium text-slate-600 rounded-xl hover:bg-slate-50 hover:text-indigo-600 transition-colors group cursor-pointer"
