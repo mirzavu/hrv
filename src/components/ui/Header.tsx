@@ -1,6 +1,7 @@
-import React from 'react';
-import { Activity, Calendar, LogOut, Moon } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Activity, Bell } from 'lucide-react';
 import { User } from '@/types';
+import { UserDropdown } from './UserDropdown';
 
 interface HeaderProps {
   user: User | null;
@@ -11,50 +12,166 @@ interface HeaderProps {
   onLoginClick?: () => void;
 }
 
-const Header: React.FC<HeaderProps> = ({ user, handleLogout, handleViewCalendar, toggleDarkMode, darkMode, onLoginClick }) => {
+interface BaselineProgress {
+  uniqueDays: number;
+  progress: number;
+  phase: 'calibration' | 'early_baseline' | 'full_baseline';
+  totalDays: number;
+}
+
+const Header: React.FC<HeaderProps> = ({
+  user,
+  handleLogout,
+  handleViewCalendar,
+  toggleDarkMode,
+  darkMode,
+  onLoginClick
+}) => {
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [baselineProgress, setBaselineProgress] = useState<BaselineProgress | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const toggleDropdown = () => setIsDropdownOpen(!isDropdownOpen);
+
+  // Fetch baseline progress when user changes or dropdown opens
+  useEffect(() => {
+    const fetchBaselineProgress = async () => {
+      if (!user || user.$id === 'guest') {
+        setBaselineProgress(null);
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/user/baseline-progress?userId=${user.$id}`);
+        if (response.ok) {
+          const data = await response.json();
+          setBaselineProgress(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch baseline progress:', error);
+      }
+    };
+
+    fetchBaselineProgress();
+  }, [user]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Close dropdown on escape key
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, []);
+
+  const getUserInitials = () => {
+    if (!user) return 'U';
+    const name = user.name || user.email || 'User';
+    return name.slice(0, 2).toUpperCase();
+  };
+
+  const getUserDisplayName = () => {
+    if (!user) return 'User';
+    return user.name || user.email?.split('@')[0] || 'User';
+  };
+
   return (
     <header className={`border-b shadow-sm transition-colors duration-300 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
-      <div className="max-w-7xl mx-auto py-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto py-3 px-4 sm:px-6 flex items-center justify-between">
+        {/* Logo */}
         <a href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="bg-gradient-to-br from-teal-500 to-cyan-600 p-2.5 rounded-xl shadow-lg">
             <Activity className="w-6 h-6 text-white" strokeWidth={2.5} />
           </div>
           <h1 className={`text-2xl font-bold tracking-tight ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>HRV Monitor</h1>
         </a>
-        <div className="flex items-center space-x-4">
+
+        {/* Right Side: Actions & Profile */}
+        <div className="flex items-center space-x-2 sm:space-x-4">
           {user ? (
             <>
-              <span className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>Hello, <span className={`font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{user.name || user.email || 'User'}!</span></span>
-              {user.$id !== 'guest' && (
-                <>
-                  <button
-                    onClick={handleViewCalendar}
-                    className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm cursor-pointer"
-                  >
-                    <Calendar className="w-4 h-4 inline mr-2" />
-                    Calendar
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors cursor-pointer ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-200' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                  >
-                    <LogOut className="w-4 h-4 inline mr-2" />
-                    Logout
-                  </button>
-                </>
-              )}
+              {/* Notification Bell */}
+              <button className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors relative cursor-pointer">
+                <Bell size={20} />
+                <span className="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+              </button>
+
+              <div className="h-6 w-px bg-slate-200 mx-2 hidden sm:block"></div>
+
+              {/* Profile Dropdown Container */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={toggleDropdown}
+                  className={`flex items-center space-x-3 p-1 pr-3 rounded-full transition-all border cursor-pointer ${isDropdownOpen
+                      ? 'bg-slate-50 border-teal-500 ring-2 ring-teal-100'
+                      : 'hover:bg-slate-50 border-transparent hover:border-slate-200'
+                    }`}
+                >
+                  <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
+                    {getUserInitials()}
+                  </div>
+                  <div className="hidden sm:block text-left">
+                    <p className="text-sm font-semibold text-slate-700 leading-none">{getUserDisplayName()}</p>
+                    <p className="text-xs text-slate-500 leading-none mt-1">Pro Member</p>
+                  </div>
+                </button>
+
+                {/* Dropdown Widget */}
+                {isDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-3 w-80 origin-top-right z-50">
+                    <UserDropdown
+                      userName={getUserDisplayName()}
+                      userEmail={user.email || 'user@example.com'}
+                      currentDay={baselineProgress?.uniqueDays ?? 0}
+                      totalDays={baselineProgress?.totalDays ?? 15}
+                      onCalendarClick={() => {
+                        handleViewCalendar?.();
+                        setIsDropdownOpen(false);
+                      }}
+                      onLogout={() => {
+                        handleLogout();
+                        setIsDropdownOpen(false);
+                      }}
+                      onSettingsClick={() => {
+                        // TODO: Add settings handler
+                        setIsDropdownOpen(false);
+                      }}
+                      onProfileClick={() => {
+                        // TODO: Add profile handler
+                        setIsDropdownOpen(false);
+                      }}
+                      darkMode={darkMode}
+                      onToggleDarkMode={() => {
+                        toggleDarkMode();
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
             </>
           ) : (
             <button
-              onClick={onLoginClick || (() => {})}
+              onClick={onLoginClick || (() => { })}
               className="px-4 py-2 bg-teal-500 hover:bg-teal-600 text-white text-sm font-medium rounded-lg transition-colors shadow-sm cursor-pointer"
             >
               Login
             </button>
           )}
-          <button onClick={toggleDarkMode} className={`p-2 transition-colors cursor-pointer ${darkMode ? 'text-amber-400 hover:text-amber-300' : 'text-slate-400 hover:text-amber-500'}`}>
-            <Moon className="w-5 h-5" />
-          </button>
         </div>
       </div>
     </header>
