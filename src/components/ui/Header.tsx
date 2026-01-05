@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Activity, Bell } from 'lucide-react';
 import { User } from '@/types';
 import { UserDropdown } from './UserDropdown';
-import { NotificationDropdown } from './NotificationDropdown';
+import { NotificationDropdown, Notification } from './NotificationDropdown';
 
 interface HeaderProps {
   user: User | null;
@@ -35,6 +35,8 @@ const Header: React.FC<HeaderProps> = ({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const [baselineProgress, setBaselineProgress] = useState<BaselineProgress | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationsLoading, setNotificationsLoading] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const notificationRef = useRef<HTMLDivElement>(null);
 
@@ -60,6 +62,72 @@ const Header: React.FC<HeaderProps> = ({
     }
   };
 
+  // Fetch notifications
+  const fetchNotifications = useCallback(async () => {
+    if (!user || user.$id === 'guest') {
+      setNotifications([]);
+      return;
+    }
+
+    setNotificationsLoading(true);
+    try {
+      const response = await fetch(`/api/notifications?userId=${user.$id}`);
+      if (response.ok) {
+        const data = await response.json();
+        setNotifications(data.notifications || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setNotificationsLoading(false);
+    }
+  }, [user]);
+
+  // Mark all as read - optimistic update
+  const handleMarkAllRead = async () => {
+    if (!user || user.$id === 'guest') return;
+
+    // Update UI immediately
+    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+
+    // Fire and forget API call
+    fetch(`/api/notifications?userId=${user.$id}`, { method: 'PATCH' })
+      .catch(error => console.error('Failed to mark all as read:', error));
+  };
+
+  // Delete all notifications - optimistic update
+  const handleDeleteAll = async () => {
+    if (!user || user.$id === 'guest') return;
+
+    // Update UI immediately
+    setNotifications([]);
+    setIsNotificationOpen(false);
+
+    // Fire and forget API call
+    fetch(`/api/notifications?userId=${user.$id}`, { method: 'DELETE' })
+      .catch(error => console.error('Failed to delete all notifications:', error));
+  };
+
+  // Delete single notification - optimistic update
+  const handleDeleteOne = async (id: string) => {
+    // Update UI immediately
+    setNotifications(prev => prev.filter(n => n.id !== id));
+
+    // Fire and forget API call
+    fetch(`/api/notifications/${id}`, { method: 'DELETE' })
+      .catch(error => console.error('Failed to delete notification:', error));
+  };
+
+  // Mark single as read - optimistic update
+  const handleMarkAsRead = async (id: string) => {
+    // Update UI immediately
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+
+    // Fire and forget API call
+    fetch(`/api/notifications/${id}`, { method: 'PATCH' })
+      .catch(error => console.error('Failed to mark as read:', error));
+  };
+
   // Fetch baseline progress when user changes
   useEffect(() => {
     const fetchBaselineProgress = async () => {
@@ -81,6 +149,11 @@ const Header: React.FC<HeaderProps> = ({
 
     fetchBaselineProgress();
   }, [user]);
+
+  // Fetch notifications when user changes
+  useEffect(() => {
+    fetchNotifications();
+  }, [fetchNotifications]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -120,6 +193,8 @@ const Header: React.FC<HeaderProps> = ({
     if (!user) return 'User';
     return user.name || user.email?.split('@')[0] || 'User';
   };
+
+  const unreadCount = notifications.filter(n => !n.read).length;
 
   return (
     <header className={`border-b shadow-sm transition-colors duration-300 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
@@ -170,12 +245,23 @@ const Header: React.FC<HeaderProps> = ({
                     }`}
                 >
                   <Bell size={20} />
-                  <span className="absolute top-2 right-2 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
+                  {unreadCount > 0 && (
+                    <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
                 </button>
 
                 {isNotificationOpen && (
                   <div className="absolute right-0 top-full mt-3 origin-top-right z-50">
-                    <NotificationDropdown />
+                    <NotificationDropdown
+                      notifications={notifications}
+                      loading={notificationsLoading}
+                      onMarkAllRead={handleMarkAllRead}
+                      onDeleteAll={handleDeleteAll}
+                      onDeleteOne={handleDeleteOne}
+                      onMarkAsRead={handleMarkAsRead}
+                    />
                   </div>
                 )}
               </div>

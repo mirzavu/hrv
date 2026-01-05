@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { zipSync, strToU8 } from 'fflate';
 import { pb } from '@/lib/pocketbase';
+import { sessionCache } from '@/lib/sessionCache';
 import { User, SessionSummary, SessionMilestone, RawHeartData } from '@/types';
 // import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
@@ -211,6 +212,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
         sessionId = sessionRecord.id;
         shouldSaveSummaryToDb = true;
+
+        // Clear calendar cache so new session appears immediately when viewing calendar
+        sessionCache.clearByPrefix('calendar-');
+
         addToast('Session saved successfully!');
       } catch (error) {
         console.error('Error saving session to database:', error);

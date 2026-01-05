@@ -6,6 +6,7 @@
 import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from './baselineCalculations';
 import { createBaselineSnapshot } from './baselineHistory';
+import { createStreakNotification, createBaselineUpdatedNotification } from './notifications';
 
 /**
  * Check if user has any session for today (UTC date), excluding the current session
@@ -247,6 +248,12 @@ export const autoCheckAndUpdateBaseline = async (
               last_updated: currentTime
             });
             console.log(`[BASELINE] Step 5: Baseline updated with ${summaries.length} sessions`);
+
+            // Trigger baseline updated notification
+            await createBaselineUpdatedNotification(userId, false);
+
+            // Check for streak milestone
+            await createStreakNotification(userId, uniqueDays);
           }
         } catch (error: any) {
           console.error('[BASELINE] Failed to update baseline:', error);
@@ -267,6 +274,12 @@ export const autoCheckAndUpdateBaseline = async (
             last_updated: currentTime
           });
           console.log(`[BASELINE] Step 5: Baseline created with ${summaries.length} sessions`);
+
+          // Trigger baseline created notification
+          await createBaselineUpdatedNotification(userId, true);
+
+          // Check for streak milestone
+          await createStreakNotification(userId, uniqueDays);
         }
       }
 
@@ -303,6 +316,9 @@ export const autoCheckAndUpdateBaseline = async (
           last_updated: currentTime
         });
         console.log(`[BASELINE] Step 4: Updated baseline progress to ${progressInfo.progress}%`);
+
+        // Check for streak milestone
+        await createStreakNotification(userId, uniqueDays);
       } catch (error: any) {
         console.error('[BASELINE] Failed to update baseline:', error);
       }
@@ -344,6 +360,12 @@ export const autoCheckAndUpdateBaseline = async (
           usage_phase: progressInfo.phase
         });
         console.log(`[BASELINE] Step 3: Updated usage_phase to '${progressInfo.phase}'`);
+
+        // Trigger baseline created notification
+        await createBaselineUpdatedNotification(userId, true);
+
+        // Check for streak milestone
+        await createStreakNotification(userId, uniqueDays);
 
         const result = {
           success: true,
