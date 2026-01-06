@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
-import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
+import { toLocalDateString, DEFAULT_TIMEZONE, getLocalDayStartUTC, getLocalDayEndUTC } from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,16 +40,32 @@ export async function GET(request: NextRequest) {
         const year = targetDate.getFullYear();
         const month = targetDate.getMonth(); // 0-indexed
 
-        // Start and End of the Target Month
-        const monthStart = new Date(year, month, 1);
-        const monthEnd = new Date(year, month + 1, 0, 23, 59, 59);
+        // Start and End of the Target Month (in user's local timezone)
+        const monthStartLocal = formatLocalDate(new Date(year, month, 1));
+        const monthEndLocal = formatLocalDate(new Date(year, month + 1, 0));
 
         // Fetch Data Buffer: Need previous 30 days for rolling predictions/baselines
-        const fetchStart = new Date(monthStart);
-        fetchStart.setDate(fetchStart.getDate() - 30);
+        const fetchStartDate = new Date(year, month, 1);
+        fetchStartDate.setDate(fetchStartDate.getDate() - 30);
+        const fetchStartLocal = formatLocalDate(fetchStartDate);
 
-        const startStr = formatLocalDate(fetchStart) + ' 00:00:00';
-        const endStr = formatLocalDate(monthEnd) + ' 23:59:59';
+        // Convert local date strings to UTC boundaries for database query
+        // Expand range by ±1 day to account for timezone offsets on boundaries
+        const expandedFetchStart = new Date(fetchStartDate);
+        expandedFetchStart.setDate(expandedFetchStart.getDate() - 1);
+        const expandedFetchStartLocal = formatLocalDate(expandedFetchStart);
+        
+        const expandedMonthEnd = new Date(year, month + 1, 0);
+        expandedMonthEnd.setDate(expandedMonthEnd.getDate() + 1);
+        const expandedMonthEndLocal = formatLocalDate(expandedMonthEnd);
+
+        const startUTC = getLocalDayStartUTC(expandedFetchStartLocal, userTimezone);
+        const endUTC = getLocalDayEndUTC(expandedMonthEndLocal, userTimezone);
+
+        const startStr = startUTC.toISOString();
+        const endStr = endUTC.toISOString();
+
+        console.log(`[Monthly API] User timezone: ${userTimezone}, Local range: ${fetchStartLocal} to ${monthEndLocal}, UTC range: ${startStr} to ${endStr}`);
 
         // 2. Fetch Sessions
         let sessions: any[] = [];
@@ -87,9 +103,14 @@ export async function GET(request: NextRequest) {
             if (rangeStart > monthEnd) continue; // Skip if range starts after month ends (shouldn't happen with standard ranges)
 
             // Filtering sessions for this specific week (for Bar Chart)
+            // Convert session_date to local date string for comparison
+            const rangeStartLocal = formatLocalDate(rangeStart);
+            const rangeEndLocal = formatLocalDate(rangeEnd);
+            
             const weeklySessions = sessions.filter(s => {
-                const d = new Date(s.session_date);
-                return d >= rangeStart && d <= rangeEnd;
+                if (!s.session_date) return false;
+                const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
+                return sessionLocalDate >= rangeStartLocal && sessionLocalDate <= rangeEndLocal;
             });
 
             // Weekly Averages
@@ -103,10 +124,12 @@ export async function GET(request: NextRequest) {
             // Window: (rangeEnd - 30 days) to rangeEnd
             const rollingStart = new Date(rangeEnd);
             rollingStart.setDate(rollingStart.getDate() - 30);
+            const rollingStartLocal = formatLocalDate(rollingStart);
 
             const rollingSessions = sessions.filter(s => {
-                const d = new Date(s.session_date);
-                return d >= rollingStart && d <= rangeEnd;
+                if (!s.session_date) return false;
+                const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
+                return sessionLocalDate >= rollingStartLocal && sessionLocalDate <= rangeEndLocal;
             });
 
             const rmssdRolling = calculateAverage(rollingSessions, 'rmssd_session_ms');
@@ -132,10 +155,11 @@ export async function GET(request: NextRequest) {
         }
 
         // 4. Monthly Aggregates
-        // Filter sessions strictly within the month for overall stats
+        // Filter sessions strictly within the month for overall stats (using local dates)
         const monthSessions = sessions.filter(s => {
-            const d = new Date(s.session_date);
-            return d >= monthStart && d <= monthEnd;
+            if (!s.session_date) return false;
+            const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
+            return sessionLocalDate >= monthStartLocal && sessionLocalDate <= monthEndLocal;
         });
 
         // Calculate Monthly CV (Coefficient of Variation of RMSSD)

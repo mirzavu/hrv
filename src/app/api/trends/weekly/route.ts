@@ -43,9 +43,18 @@ export async function GET(request: NextRequest) {
         const startLocalDate = formatLocalDate(startDate);
         const endLocalDate = formatLocalDate(endDate);
 
+        // Expand range by ±1 day to account for timezone offsets on boundaries
+        const expandedStartDate = new Date(startDate);
+        expandedStartDate.setDate(expandedStartDate.getDate() - 1);
+        const expandedStartLocalDate = formatLocalDate(expandedStartDate);
+        
+        const expandedEndDate = new Date(endDate);
+        expandedEndDate.setDate(expandedEndDate.getDate() + 1);
+        const expandedEndLocalDate = formatLocalDate(expandedEndDate);
+
         // Convert to UTC boundaries for query
-        const startUTC = getLocalDayStartUTC(startLocalDate, userTimezone);
-        const endUTC = getLocalDayEndUTC(endLocalDate, userTimezone);
+        const startUTC = getLocalDayStartUTC(expandedStartLocalDate, userTimezone);
+        const endUTC = getLocalDayEndUTC(expandedEndLocalDate, userTimezone);
 
         const startStr = startUTC.toISOString();
         const endStr = endUTC.toISOString();
@@ -69,9 +78,14 @@ export async function GET(request: NextRequest) {
         const baselineStartDate = new Date(endDate);
         baselineStartDate.setDate(endDate.getDate() - 30);
         const baselineStartLocalDate = formatLocalDate(baselineStartDate);
+        
+        // Expand range by ±1 day for boundary safety
+        const expandedBaselineStart = new Date(baselineStartDate);
+        expandedBaselineStart.setDate(expandedBaselineStart.getDate() - 1);
+        const expandedBaselineStartLocal = formatLocalDate(expandedBaselineStart);
 
         // Convert to UTC boundaries
-        const baselineStartUTC = getLocalDayStartUTC(baselineStartLocalDate, userTimezone);
+        const baselineStartUTC = getLocalDayStartUTC(expandedBaselineStartLocal, userTimezone);
         const baselineStartStr = baselineStartUTC.toISOString();
 
         let baselineSessions: any[] = [];
@@ -117,6 +131,10 @@ export async function GET(request: NextRequest) {
             if (!s.session_date) return;
             // Use user's timezone for date grouping
             const date = toLocalDateString(s.session_date, userTimezone);
+            // Filter to only include dates within the requested range (exclude expanded boundary days)
+            if (date < startLocalDate || date > endLocalDate) {
+                return;
+            }
             if (!dailyMap.has(date)) {
                 dailyMap.set(date, { rmssd: [], hr: [], score: [] });
             }

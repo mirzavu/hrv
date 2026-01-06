@@ -41,17 +41,27 @@ export async function GET(request: NextRequest) {
     const { getLocalDayStartUTC, getLocalDayEndUTC } = await import('@/utils/dateUtils');
 
     // Convert local date strings to UTC boundaries for query
-    const startUTC = getLocalDayStartUTC(startDate, userTimezone);
-    const endUTC = getLocalDayEndUTC(endDate, userTimezone);
+    // Expand the range by ±1 day to account for timezone offsets
+    // This ensures we capture all sessions that fall on the first/last day of the month in user's timezone
+    const startDateObj = new Date(startDate + 'T00:00:00');
+    startDateObj.setDate(startDateObj.getDate() - 1);
+    const expandedStartDate = startDateObj.toISOString().split('T')[0];
+    
+    const endDateObj = new Date(endDate + 'T00:00:00');
+    endDateObj.setDate(endDateObj.getDate() + 1);
+    const expandedEndDate = endDateObj.toISOString().split('T')[0];
+
+    const startUTC = getLocalDayStartUTC(expandedStartDate, userTimezone);
+    const endUTC = getLocalDayEndUTC(expandedEndDate, userTimezone);
 
     const startDateTime = startUTC.toISOString();
     const endDateTime = endUTC.toISOString();
 
     let filter = `user_id = "${userId}" && session_date >= "${startDateTime}" && session_date <= "${endDateTime}"`;
 
-    console.log(`[Calendar Month] Fetching for user ${userId}, local date range: ${startDate} to ${endDate}, UTC range: ${startDateTime} to ${endDateTime}`);
+    console.log(`[Calendar Month] Fetching for user ${userId}, local date range: ${startDate} to ${endDate}, expanded UTC range: ${startDateTime} to ${endDateTime}`);
 
-    // Fetch all summaries for the month (single query!)
+    // Fetch all summaries for the month (with expanded range to account for timezone)
     let summariesResponse = await pb.collection('session_summary').getList(1, 1000, {
       filter,
       sort: '-session_date',
@@ -89,8 +99,16 @@ export async function GET(request: NextRequest) {
       // Use the proper timezone-aware conversion
       const dateStr = toLocalDateString(summary.session_date, userTimezone);
 
-      // Debug: Log date conversion for debugging timezone issues
-      console.log(`[Calendar Month DEBUG] session_date raw: ${summary.session_date} -> userTZ: ${userTimezone} -> local: ${dateStr}`);
+      // Filter to only include dates within the requested month range
+      // This filters out the expanded range sessions that don't fall in the actual month
+      if (dateStr < startDate || dateStr > endDate) {
+        return;
+      }
+
+      // Debug: Log date conversion for debugging timezone issues (only for Jan 1)
+      if (dateStr === '2026-01-01' || dateStr === '2025-01-01') {
+        console.log(`[Calendar Month DEBUG] Jan 1 session: session_date raw: ${summary.session_date} -> userTZ: ${userTimezone} -> local: ${dateStr}`);
+      }
       if (!dateStr) return;
 
       if (!dateMap.has(dateStr)) {

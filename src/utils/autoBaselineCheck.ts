@@ -32,9 +32,20 @@ const hasSessionToday = async (userId: string, currentSessionId: string): Promis
     // Get today's date in user's local timezone
     const todayLocal = toLocalDateString(new Date(), userTimezone);
 
+    // Expand range by ±1 day to account for timezone offsets on boundaries
+    // This ensures we capture all sessions that fall on "today" in user's timezone
+    const todayDate = new Date();
+    const yesterdayDate = new Date(todayDate);
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const tomorrowDate = new Date(todayDate);
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    
+    const expandedStartLocal = toLocalDateString(yesterdayDate, userTimezone);
+    const expandedEndLocal = toLocalDateString(tomorrowDate, userTimezone);
+
     // Convert to UTC boundaries for query
-    const todayStartUTC = getLocalDayStartUTC(todayLocal, userTimezone);
-    const todayEndUTC = getLocalDayEndUTC(todayLocal, userTimezone);
+    const todayStartUTC = getLocalDayStartUTC(expandedStartLocal, userTimezone);
+    const todayEndUTC = getLocalDayEndUTC(expandedEndLocal, userTimezone);
 
     // Format for PocketBase: "YYYY-MM-DD HH:MM:SS.mmmZ" (replace T with space)
     const todayStartPB = todayStartUTC.toISOString().replace('T', ' ');
@@ -42,11 +53,17 @@ const hasSessionToday = async (userId: string, currentSessionId: string): Promis
 
     const filterQuery = `userId = "${userId}" && startTime >= "${todayStartPB}" && startTime <= "${todayEndPB}" && id != "${currentSessionId}"`;
     // Check if any OTHER session exists for today (excluding current session)
-    const sessions = await pb.collection('sessions').getList(1, 1, {
+    const sessions = await pb.collection('sessions').getList(1, 100, {
       filter: filterQuery
     });
 
-    return sessions.items.length > 0;
+    // Filter by local date to ensure we only count sessions that fall on "today" in user's timezone
+    const todaySessions = sessions.items.filter(session => {
+      const sessionLocalDate = toLocalDateString(session.startTime, userTimezone);
+      return sessionLocalDate === todayLocal;
+    });
+
+    return todaySessions.length > 0;
   } catch (error) {
     console.error('Error checking for today\'s session:', error);
     // If check fails, allow baseline update to proceed (fail open)
