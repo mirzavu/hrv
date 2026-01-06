@@ -31,7 +31,8 @@ const HrvMetricCard = ({
   unit,
   change,
   trend,
-  showComparison = true
+  showComparison = true,
+  darkMode = false
 }: {
   label: string;
   value: string;
@@ -39,18 +40,19 @@ const HrvMetricCard = ({
   change: string | number;
   trend: 'up' | 'down' | 'stable';
   showComparison?: boolean;
+  darkMode?: boolean;
 }) => (
-  <div className="bg-white border border-slate-200 p-4 rounded-xl hover:border-indigo-200 transition-all flex flex-col justify-between min-h-[100px]">
-    <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">{label}</span>
+  <div className={`border p-4 rounded-xl transition-all flex flex-col justify-between min-h-[100px] ${darkMode ? 'bg-gray-800 border-gray-700 hover:border-indigo-400/50' : 'bg-white border-slate-200 hover:border-indigo-200'}`}>
+    <span className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-slate-400'}`}>{label}</span>
     <div className="flex justify-between items-end mt-2">
       <div className="flex items-baseline gap-1">
-        <span className="text-xl font-bold text-slate-800 tabular-nums">{value}</span>
-        <span className="text-slate-400 text-[10px] font-medium">{unit}</span>
+        <span className={`text-xl font-bold tabular-nums ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{value}</span>
+        <span className={`text-[10px] font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>{unit}</span>
       </div>
       {showComparison && change !== '-' && (
-        <span className={`text-[10px] font-bold px-2 py-1 rounded-md flex items-center ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' :
-          trend === 'down' ? 'bg-slate-100 text-slate-600' :
-            'bg-slate-50 text-slate-500'
+        <span className={`text-[10px] font-bold px-2 py-1 rounded-md flex items-center ${trend === 'up' ? (darkMode ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
+          trend === 'down' ? (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-slate-100 text-slate-600') :
+            (darkMode ? 'bg-gray-800 text-gray-500' : 'bg-slate-50 text-slate-500')
           }`}>
           {trend === 'up' && <TrendingUp size={12} className="mr-1" />}
           {trend === 'down' && <TrendingDown size={12} className="mr-1" />}
@@ -81,6 +83,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   onClose,
   rrQuality,
   userId,
+  darkMode = false
 }) => {
   // Separate states for button animation (instant) and content expansion (deferred)
   const [isToggleExpanded, setIsToggleExpanded] = useState(false);
@@ -95,6 +98,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   const [computedPhaseData, setComputedPhaseData] = useState<{ name: 'calibration' | 'early_baseline' | 'full_baseline'; progress: number; uniqueDays: number } | null>(null);
   const [previousSessions, setPreviousSessions] = useState<SessionSummaryRecord[]>([]);
   const [comparisonSessionDate, setComparisonSessionDate] = useState<Date | null>(null);
+  const [baselineDatetime, setBaselineDatetime] = useState<Date | null>(null);
 
   // Sync content state with toggle state slightly deferred to allow button animation to start
   useEffect(() => {
@@ -123,7 +127,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
       setComparisonLoading(true);
 
       try {
-        console.log(`[SessionSummaryModal] Step 1: Fetching context for user ${userId}`);
+
 
         // Fetch user profile (needed for Timezone)
         const userResponse = await fetch(`/api/user/profile?userId=${userId}`);
@@ -143,7 +147,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           sessionDate = new Date();
         }
         const sessionDateISO = sessionDate.toISOString();
-        console.log('[SessionSummaryModal] Session date for comparison:', sessionDateISO);
+
 
         // Fetch comparison sessions
         const compResponse = await fetch(`/api/sessions/comparison?userId=${userId}&referenceDate=${sessionDateISO}`);
@@ -154,7 +158,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           // Use fetched profile for timezone to avoid stale state issues
           const userTimezone = currentProfile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-          console.log(`[SessionSummaryModal] Computing phase with timezone: ${userTimezone}`);
+
 
           const uniqueDatesSet = new Set<string>();
           prevSessions.forEach(s => {
@@ -171,7 +175,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           if (uniqueDays >= 15) phaseName = 'full_baseline';
           else if (uniqueDays >= 4) phaseName = 'early_baseline';
 
-          console.log('[SessionSummaryModal] Computed Phase:', { uniqueDays, phaseName });
+
           setComputedPhaseData({ name: phaseName, progress, uniqueDays });
 
           // Also set first session date for display
@@ -220,7 +224,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
       const { name: phaseName } = computedPhaseData;
 
       if (phaseName === 'calibration') {
-        console.log('[SessionSummaryModal] Strategy: Calibration (No Baseline Fetch)');
+
 
         let sessionDate: Date;
         if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
@@ -253,23 +257,63 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
         }
 
       } else {
-        console.log('[SessionSummaryModal] Strategy: Baseline (Fetching Baseline)');
+
         setBaselineLoading(true);
         setComparisonSessionDate(null); // Comparison is vs Baseline, not a specific session (conceptually)
 
-        try {
-          const baselineResponse = await fetch(`/api/user/baseline?userId=${userId}`);
-          if (baselineResponse.ok) {
-            const data = await baselineResponse.json();
-            setBaseline(data.baseline);
+        // Determine session date
+        let sessionDate: Date;
+        if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
+          sessionDate = new Date(summary.rrIntervals[0].timestamp);
+        } else {
+          sessionDate = new Date();
+        }
 
-            if (data.baseline?.established) {
-              const result = interpretHRVSession(summary, data.baseline);
-              setInterpretation(result);
-            } else {
-              console.warn('[SessionSummaryModal] Phase says baseline but DB has none. Using score-based.');
-              const result = generateScoreBasedInterpretation(summary, false);
-              setInterpretation(result);
+        // Check if session is historical (more than 5 seconds old)
+        const isHistoricalSession = (Date.now() - sessionDate.getTime()) > 5000;
+
+        try {
+          if (isHistoricalSession) {
+            // For historical sessions, fetch baseline that existed at least 18 hours before the session
+
+            const historyResponse = await fetch(`/api/user/baseline-history?userId=${userId}&beforeDate=${sessionDate.toISOString()}`);
+
+            if (historyResponse.ok) {
+              const data = await historyResponse.json();
+
+
+              if (data.baseline && data.baseline.established) {
+                setBaseline(data.baseline);
+                setBaselineDatetime(data.baselineDatetime ? new Date(data.baselineDatetime) : null);
+                const result = interpretHRVSession(summary, data.baseline);
+                setInterpretation(result);
+              } else {
+                // No historical baseline found - don't show comparison
+                console.warn('[SessionSummaryModal] No historical baseline found for this session. Not showing comparison.');
+                setBaseline(null);
+                setBaselineDatetime(null);
+                const result = generateScoreBasedInterpretation(summary, false);
+                setInterpretation(result);
+              }
+            }
+          } else {
+            // For recent sessions, use current baseline
+
+            const baselineResponse = await fetch(`/api/user/baseline?userId=${userId}`);
+            if (baselineResponse.ok) {
+              const data = await baselineResponse.json();
+
+              setBaseline(data.baseline);
+              setBaselineDatetime(null); // Current baseline, no specific datetime to show
+
+              if (data.baseline?.established) {
+                const result = interpretHRVSession(summary, data.baseline);
+                setInterpretation(result);
+              } else {
+                console.warn('[SessionSummaryModal] Phase says baseline but DB has none. Using score-based.');
+                const result = generateScoreBasedInterpretation(summary, false);
+                setInterpretation(result);
+              }
             }
           }
         } catch (e) {
@@ -342,20 +386,24 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
   // Determine if session is "new" (within last 30 mins) to show Progress Bar
   const isRecentSession = useMemo(() => {
-    if (!summary.rrIntervals || summary.rrIntervals.length === 0) return true;
+    if (!summary.rrIntervals || summary.rrIntervals.length === 0) {
+      return true;
+    }
+
     const lastInterval = summary.rrIntervals[summary.rrIntervals.length - 1];
 
     // Check if timestamp appears to be an absolute epoch (milliseconds)
     // 1600000000000 is approx year 2020
     if (lastInterval.timestamp > 1600000000000) {
       const diff = Date.now() - lastInterval.timestamp;
-      // Show only if session ended within the last 60 minutes
-      return diff < 1000 * 60 * 60;
+      const isRecent = diff < 1000 * 5; // 5 seconds threshold
+      // Show only if session ended within the last 5 seconds
+      return isRecent;
     }
 
     // If relative timestamps or unsure, default to true (safest for fresh sessions)
     return true;
-  }, [summary.rrIntervals]);
+  }, [summary.rrIntervals, summary.session_id]);
 
   // Get session's actual date for display and calculations
   const sessionDate = useMemo(() => {
@@ -440,6 +488,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     })
     : null;
 
+
+
   const formattedComparisonDate = comparisonSessionDate
     ? comparisonSessionDate.toLocaleString('en-US', {
       timeZone: userTimezone,
@@ -451,31 +501,47 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     })
     : null;
 
+  const formattedBaselineDatetime = baselineDatetime
+    ? baselineDatetime.toLocaleString('en-US', {
+      timeZone: userTimezone,
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
+    : null;
+
   return (
     <div className="fixed inset-0 bg-slate-900/10 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div className="text-slate-800 rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl" style={{ backgroundColor: '#f9fafb' }}>
-        <header className="sticky top-0 bg-white/95 backdrop-blur-md rounded-t-3xl border-b border-slate-200 p-6 flex items-center justify-between z-20">
+      <div className={`rounded-3xl w-full max-w-5xl max-h-[90vh] overflow-y-auto animate-in flex flex-col shadow-2xl ${darkMode ? 'bg-gray-900 text-gray-100' : 'text-slate-800'}`} style={{ backgroundColor: darkMode ? '#111827' : '#f9fafb' }}>
+        <header className={`sticky top-0 backdrop-blur-md rounded-t-3xl border-b p-6 flex items-center justify-between z-20 ${darkMode ? 'bg-gray-900/95 border-gray-800' : 'bg-white/95 border-slate-200'}`}>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-slate-800">
+              <h1 className={`text-2xl font-bold ${darkMode ? 'text-white' : 'text-slate-800'}`}>
                 {formattedSessionDate ? formattedSessionDate : "Session Summary"}
               </h1>
               {(computedPhaseData?.name || userProfile?.usage_phase) && (
                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold border ${(computedPhaseData?.name || userProfile?.usage_phase) === 'calibration' ? 'bg-amber-100 text-amber-700 border-amber-200' :
-                    (computedPhaseData?.name || userProfile?.usage_phase) === 'early_baseline' ? 'bg-sky-100 text-sky-700 border-sky-200' :
-                      'bg-purple-100 text-purple-700 border-purple-200'
+                  (computedPhaseData?.name || userProfile?.usage_phase) === 'early_baseline' ? (darkMode ? 'bg-sky-900/30 text-sky-300 border-sky-800' : 'bg-sky-100 text-sky-700 border-sky-200') :
+                    (darkMode ? 'bg-purple-900/30 text-purple-300 border-purple-800' : 'bg-purple-100 text-purple-700 border-purple-200')
                   }`}>
                   {(computedPhaseData?.name || userProfile?.usage_phase) === 'calibration' ? 'Calibration Phase' :
                     (computedPhaseData?.name || userProfile?.usage_phase) === 'early_baseline' ? 'Early Baseline' : 'Full Baseline'}
                 </span>
               )}
             </div>
-            <p className="text-slate-500 mt-1">
+            <p className={`mt-1 ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               {interpretation?.title && interpretation.title !== "HRV Summary" && interpretation.title !== "HRV Analysis"
                 ? <>
                   A complete analysis of your session and comparison{' '}
-                  <span className="font-semibold text-slate-600">
-                    {comparisonSessionDate ? `with session on ${formattedComparisonDate}` : interpretation.title.replace("HRV Changes ", "").toLowerCase()}
+                  <span className={`font-semibold ${darkMode ? 'text-gray-300' : 'text-slate-600'}`}>
+                    {baselineDatetime
+                      ? `with baseline on ${formattedBaselineDatetime}`
+                      : comparisonSessionDate
+                        ? `with session on ${formattedComparisonDate}`
+                        : interpretation.title.replace("HRV Changes ", "").toLowerCase()}
                   </span>
                   .
                 </>
@@ -484,9 +550,9 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-slate-100 rounded-full transition-colors duration-200"
+            className={`p-2 rounded-full transition-colors duration-200 ${darkMode ? 'hover:bg-gray-800' : 'hover:bg-slate-100'}`}
           >
-            <X className="w-6 h-6 text-slate-500" />
+            <X className={`w-6 h-6 ${darkMode ? 'text-gray-500' : 'text-slate-500'}`} />
           </button>
         </header>
 
@@ -498,16 +564,17 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               userProfile={userProfile}
               phaseData={summary.phaseData || computedPhaseData}
               isLoading={baselineLoading}
+              darkMode={darkMode}
             />
           )}
 
           {/* Crash Alert */}
           {summary.is_crash && (
-            <div className="bg-red-50 border border-red-200 rounded-2xl p-4 flex items-start gap-3">
-              <AlertTriangle className="w-6 h-6 text-red-600 shrink-0 mt-0.5" />
+            <div className={`border rounded-2xl p-4 flex items-start gap-3 ${darkMode ? 'bg-red-900/20 border-red-900/50' : 'bg-red-50 border-red-200'}`}>
+              <AlertTriangle className={`w-6 h-6 shrink-0 mt-0.5 ${darkMode ? 'text-red-400' : 'text-red-600'}`} />
               <div>
-                <h3 className="font-semibold text-red-800">Significant Recovery Drop Detected</h3>
-                <p className="text-sm text-red-700 mt-1">
+                <h3 className={`font-semibold ${darkMode ? 'text-red-300' : 'text-red-800'}`}>Significant Recovery Drop Detected</h3>
+                <p className={`text-sm mt-1 ${darkMode ? 'text-red-400' : 'text-red-700'}`}>
                   Your HRV is significantly below your normal range (Crash).
                   This session will be excluded from your future baseline calculations to prevent skewing your data.
                   Prioritize rest and recovery today.
@@ -518,7 +585,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           {/* Wellness Scores Section - Above Key Metrics */}
           <section>
-            <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+            <h2 className={`text-xl font-medium mb-4 flex items-center gap-3 ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>
               <Sparkles className="w-6 h-6 text-purple-600" />
               Wellness Scores
             </h2>
@@ -528,6 +595,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               interpretation={interpretation}
               phaseData={summary.phaseData || computedPhaseData}
               showProgress={isRecentSession}
+              darkMode={darkMode}
             />
 
             {/* Nervous System Balance moved here */}
@@ -540,13 +608,14 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   percentChange: interpretation.baselineDetails.find(d => d.metric === 'NS Balance')!.percentChange,
                   direction: interpretation.baselineDetails.find(d => d.metric === 'NS Balance')!.direction
                 } : undefined}
+                darkMode={darkMode}
               />
             </div>
           </section>
 
           {/* Session Overview Section - Always Visible */}
           <section>
-            <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+            <h2 className={`text-xl font-medium mb-4 flex items-center gap-3 ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>
               <Activity className="w-6 h-6 text-blue-600" />
               Session Overview
             </h2>
@@ -558,17 +627,20 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                 title="Session Duration"
                 value={summary.duration.value}
                 unit={summary.duration.unit}
+                darkMode={darkMode}
               />
               <MetricCard
                 icon={<Heart className="w-5 h-5 text-slate-400" />}
                 title="Mean Heart Rate"
                 value={summary.meanHR.value}
                 unit={summary.meanHR.unit}
+                darkMode={darkMode}
               />
               <MetricCard
                 icon={<Target className="w-5 h-5 text-slate-400" />}
                 title="Beats"
                 value={summary.dataPoints.value}
+                darkMode={darkMode}
               />
               {rrQuality && (
                 <MetricCard
@@ -580,6 +652,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                   title="RR Quality"
                   value={rrQuality.percentage}
                   unit="%"
+                  darkMode={darkMode}
                 />
               )}
             </div>
@@ -588,6 +661,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <HeartRateChart
                 data={heartRateData}
                 stabilizationTime={stabilizationTime}
+                darkMode={darkMode}
               />
             </div>
           </section>
@@ -597,6 +671,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             <AdvancedMetricsToggle
               isOpen={isToggleExpanded}
               onClick={() => setIsToggleExpanded(!isToggleExpanded)}
+              darkMode={darkMode}
             />
 
             {/* Collapsible Advanced Metrics Section */}
@@ -607,7 +682,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               <div className="flex flex-col gap-8">
                 <section className="space-y-8">
                   <section className="pt-4">
-                    <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                    <h2 className={`text-xl font-medium mb-4 flex items-center gap-3 ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>
                       <Waves className="w-6 h-6 text-blue-600" />
                       HRV Analysis
                     </h2>
@@ -615,14 +690,14 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                     {/* Dynamic Title with Lines - moved from Analysis section */}
                     {interpretation?.title && (
                       <div className="flex items-center justify-center gap-4 mb-6">
-                        <div className="h-[1px] flex-1 bg-slate-200"></div>
+                        <div className={`h-[1px] flex-1 ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}></div>
                         <div className="flex items-center gap-2">
                           <Activity className="w-4 h-4 text-indigo-400" />
-                          <span className="text-sm font-bold uppercase tracking-widest text-slate-700">
+                          <span className={`text-sm font-bold uppercase tracking-widest ${darkMode ? 'text-gray-400' : 'text-slate-700'}`}>
                             {interpretation.title}
                           </span>
                         </div>
-                        <div className="h-[1px] flex-1 bg-slate-200"></div>
+                        <div className={`h-[1px] flex-1 ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}></div>
                       </div>
                     )}
 
@@ -635,6 +710,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         change={interpretation?.baselineDetails?.find(d => d.metric === 'RMSSD')?.percentChange.toFixed(0) || '-'}
                         trend={(interpretation?.baselineDetails?.find(d => d.metric === 'RMSSD')?.direction as 'up' | 'down' | 'stable') || 'stable'}
                         showComparison={!!interpretation?.baselineDetails}
+                        darkMode={darkMode}
                       />
                       <HrvMetricCard
                         label="SDNN"
@@ -643,6 +719,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         change={interpretation?.baselineDetails?.find(d => d.metric === 'SDNN')?.percentChange.toFixed(0) || '-'}
                         trend={(interpretation?.baselineDetails?.find(d => d.metric === 'SDNN')?.direction as 'up' | 'down' | 'stable') || 'stable'}
                         showComparison={!!interpretation?.baselineDetails}
+                        darkMode={darkMode}
                       />
                       <HrvMetricCard
                         label="LF"
@@ -651,6 +728,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         change={interpretation?.baselineDetails?.find(d => d.metric === 'LF')?.percentChange.toFixed(0) || '-'}
                         trend={(interpretation?.baselineDetails?.find(d => d.metric === 'LF')?.direction as 'up' | 'down' | 'stable') || 'stable'}
                         showComparison={!!interpretation?.baselineDetails}
+                        darkMode={darkMode}
                       />
                       <HrvMetricCard
                         label="HF"
@@ -659,6 +737,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         change={interpretation?.baselineDetails?.find(d => d.metric === 'HF')?.percentChange.toFixed(0) || '-'}
                         trend={(interpretation?.baselineDetails?.find(d => d.metric === 'HF')?.direction as 'up' | 'down' | 'stable') || 'stable'}
                         showComparison={!!interpretation?.baselineDetails}
+                        darkMode={darkMode}
                       />
                       <HrvMetricCard
                         label="AMo50"
@@ -667,42 +746,43 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         change={interpretation?.baselineDetails?.find(d => d.metric === 'AMo50')?.percentChange.toFixed(0) || '-'}
                         trend={(interpretation?.baselineDetails?.find(d => d.metric === 'AMo50')?.direction as 'up' | 'down' | 'stable') || 'stable'}
                         showComparison={!!interpretation?.baselineDetails}
+                        darkMode={darkMode}
                       />
                     </div>
 
                     {/* Compact 3-column layout for remaining metrics */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       {/* HRV Stability */}
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">HRV Stability</span>
+                      <div className={`border rounded-xl p-4 flex flex-col justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-slate-400'}`}>HRV Stability</span>
                         <div className="flex items-baseline gap-1 mt-2">
-                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.hrvStability.value?.toFixed(1) ?? '-'}</span>
-                          <span className="text-slate-400 text-sm font-medium">{summary.hrvStability.unit}</span>
+                          <span className={`text-2xl font-bold tabular-nums ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{summary.hrvStability.value?.toFixed(1) ?? '-'}</span>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>{summary.hrvStability.unit}</span>
                         </div>
                       </div>
 
                       {/* Restoration Index - Same style as others */}
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Restoration Index</span>
+                      <div className={`border rounded-xl p-4 flex flex-col justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-slate-400'}`}>Restoration Index</span>
                         <div className="flex items-baseline gap-1 mt-2">
-                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.restorationIndex.value?.toFixed(1) ?? '-'}</span>
-                          <span className="text-slate-400 text-sm font-medium">/100</span>
+                          <span className={`text-2xl font-bold tabular-nums ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{summary.restorationIndex.value?.toFixed(1) ?? '-'}</span>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>/100</span>
                         </div>
                       </div>
 
                       {/* Respiratory Coherence */}
-                      <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between">
-                        <span className="text-sm font-bold text-slate-400 uppercase tracking-wider">Respiratory Coherence</span>
+                      <div className={`border rounded-xl p-4 flex flex-col justify-between ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+                        <span className={`text-sm font-bold uppercase tracking-wider ${darkMode ? 'text-gray-400' : 'text-slate-400'}`}>Respiratory Coherence</span>
                         <div className="flex items-baseline gap-1 mt-2">
-                          <span className="text-2xl font-bold text-slate-800 tabular-nums">{summary.respCoherence.value?.toFixed(1) ?? '-'}</span>
-                          <span className="text-slate-400 text-sm font-medium">{summary.respCoherence.unit}</span>
+                          <span className={`text-2xl font-bold tabular-nums ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{summary.respCoherence.value?.toFixed(1) ?? '-'}</span>
+                          <span className={`text-sm font-medium ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>{summary.respCoherence.unit}</span>
                         </div>
                       </div>
                     </div>
                   </section>
 
                   <section>
-                    <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+                    <h2 className={`text-xl font-medium mb-4 flex items-center gap-3 ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>
                       <TrendingUp className="w-6 h-6 text-blue-600" />
                       Detailed Metrics
                     </h2>
@@ -716,12 +796,13 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
                         </div>
                       ) : (
                         <>
-                          <TachogramChart data={tachogramData} />
-                          <PoincarePlot data={poincareData} />
-                          <BreathingCoherenceChart data={heartRateData} />
+                          <TachogramChart data={tachogramData} darkMode={darkMode} />
+                          <PoincarePlot data={poincareData} darkMode={darkMode} />
+                          <BreathingCoherenceChart data={heartRateData} darkMode={darkMode} />
                           <AutonomicBalanceChart
                             currentRatio={summary.sd2_sd1_ratio ?? null}
                             currentTotalPower={summary.totalPower ?? null}
+                            darkMode={darkMode}
                           />
                         </>
                       )}
@@ -734,7 +815,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
 
           {/* Autonomic Interpretation Section */}
           <section>
-            <h2 className="text-xl font-medium text-slate-800 mb-4 flex items-center gap-3">
+            <h2 className={`text-xl font-medium mb-4 flex items-center gap-3 ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>
               <BarChart3 className="w-6 h-6 text-purple-600" />
               Analysis
             </h2>
@@ -746,17 +827,18 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               firstSessionDate={firstSessionDate}
               sessionId={summary.session_id ?? undefined}
               baseline={baseline}
+              darkMode={darkMode}
             />
           </section>
         </main>
 
-        <footer className="sticky bottom-0 bg-white/70 backdrop-blur-md rounded-b-3xl border-t border-slate-200 p-5 mt-auto">
+        <footer className={`sticky bottom-0 backdrop-blur-md rounded-b-3xl border-t p-5 mt-auto ${darkMode ? 'bg-gray-900/70 border-gray-800' : 'bg-white/70 border-slate-200'}`}>
           {isGuest && (
-            <div className="mb-4 p-4 rounded-lg bg-slate-50 border border-slate-200">
+            <div className={`mb-4 p-4 rounded-lg border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-slate-50 border-slate-200'}`}>
               <div className="flex items-start gap-3">
                 <div className="text-2xl">💡</div>
                 <div className="flex-1">
-                  <p className="font-semibold mb-2 text-blue-800">
+                  <p className={`font-semibold mb-2 ${darkMode ? 'text-blue-400' : 'text-blue-800'}`}>
                     Create an Account for Full Features
                   </p>
                   <p className="text-sm mb-3 text-blue-600">
@@ -775,7 +857,7 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
           )}
 
           <div className="flex justify-between items-center">
-            <p className="text-sm text-slate-500">
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               Session on{' '}
               {sessionDate.toLocaleDateString('en-US', {
                 month: 'short',
@@ -796,8 +878,8 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
             </button>
           </div>
         </footer>
-      </div>
-    </div>
+      </div >
+    </div >
   );
 };
 

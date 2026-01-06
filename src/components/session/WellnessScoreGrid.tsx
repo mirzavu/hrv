@@ -12,9 +12,10 @@ interface WellnessScoreGridProps {
     interpretation: InterpretationResult | null;
     phaseData?: PhaseData | null;
     showProgress?: boolean; // Whether to show progress bars on locked cards
+    darkMode?: boolean;
 }
 
-const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation, phaseData, showProgress = true }) => {
+const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation, phaseData, showProgress = true, darkMode = false }) => {
     const scores = useMemo(() => {
         // Calculate Readiness Score on the fly
         const readinessScore = calculateHrvReadinessScore({
@@ -84,6 +85,7 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
                             direction: comparison.direction
                         } : undefined}
                         calibrationProgress={progress}
+                        darkMode={darkMode}
                     />
                 );
             })}
