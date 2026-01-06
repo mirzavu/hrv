@@ -62,63 +62,54 @@ export function getLocalDateParts(utcDate: Date | string, timezone: string): { y
  * Used for database queries - converts local day boundaries to UTC for filtering
  */
 export function getLocalDayStartUTC(localDateStr: string, timezone: string): Date {
-    // localDateStr is YYYY-MM-DD (local date we want to query)
-    // We need to find the UTC time that corresponds to midnight in the user's timezone
+    // 1. Parse the input date
     const [year, month, day] = localDateStr.split('-').map(Number);
 
-    // Create a date string that represents midnight in the user's timezone
-    // Then parse it as if it were that timezone
-    const localMidnight = new Date(`${localDateStr}T00:00:00`);
+    // 2. Create a "Naive" UTC date for this calendar day (e.g., 2026-01-06 00:00 UTC)
+    const utcGuess = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
 
-    // Get the offset for this timezone at this date
+    // 3. Ask Intl what time it is in the target timezone at that exact UTC moment
     const formatter = new Intl.DateTimeFormat('en-US', {
         timeZone: timezone,
-        timeZoneName: 'shortOffset',
+        year: 'numeric', month: 'numeric', day: 'numeric',
+        hour: 'numeric', minute: 'numeric', second: 'numeric',
+        hour12: false, // Ensure 24h format
     });
 
-    // Simple approach: calculate the offset
-    // Create a reference date in the target timezone
-    const utcDate = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    const parts = formatter.formatToParts(utcGuess);
+    const getPart = (type: string) => parseInt(parts.find(p => p.type === type)?.value || '0');
 
-    // Get what time it is in the target timezone when it's midnight UTC
-    const localParts = getLocalDateParts(utcDate, timezone);
+    // 4. Reconstruct what the timezone "thinks" the time is, placed into a UTC container
+    // Example: If it's 05:30 in India, we create a date "2026-01-06 05:30 UTC"
+    const localTimeAtGuess = new Date(Date.UTC(
+        getPart('year'),
+        getPart('month') - 1,
+        getPart('day'),
+        getPart('hour'),
+        getPart('minute'),
+        getPart('second')
+    ));
 
-    // If local date matches, offset is 0
-    // If local date is ahead (e.g., Asia/Kolkata), we need to go back in UTC
-    // If local date is behind (e.g., America/New_York), we need to go forward in UTC
+    // 5. Calculate the offset (Difference between Local Time and UTC)
+    // For India (+5:30), this will be positive 5.5 hours in ms
+    const offsetMs = localTimeAtGuess.getTime() - utcGuess.getTime();
 
-    // Use a different approach: Format a known date in the timezone to get the offset
-    const testDate = new Date(`${localDateStr}T12:00:00Z`); // noon UTC on the target date
-    const localDateOnTestDate = toLocalDateString(testDate, timezone);
+    // 6. Subtract the offset from our original guess to find true Local Midnight in UTC
+    // Logic: If Local is AHEAD of UTC, we must go BACK in time to find midnight.
+    const startUTC = new Date(utcGuess.getTime() - offsetMs);
 
-    if (localDateOnTestDate === localDateStr) {
-        // Noon UTC falls on the same local date - offset is roughly 0 or within ±12h
-        // We need to find exact midnight
+    return startUTC;
+}
 
-        // Try a binary search-like approach or use a library
-        // For simplicity, let's try different hour offsets
-        for (let hourOffset = -14; hourOffset <= 14; hourOffset++) {
-            const tryDate = new Date(Date.UTC(year, month - 1, day, -hourOffset, 0, 0, 0));
-            const tryLocalDate = toLocalDateString(tryDate, timezone);
-            const tryLocalParts = getLocalDateParts(tryDate, timezone);
+// Helper to get the full range (Start + End) for DB queries
+export function getUserDayRangeUTC(localDateStr: string, timezone: string) {
+    const startUTC = getLocalDayStartUTC(localDateStr, timezone);
 
-            // Check if this UTC time corresponds to midnight in the local timezone
-            const timeFormatter = new Intl.DateTimeFormat('en-US', {
-                timeZone: timezone,
-                hour: 'numeric',
-                minute: 'numeric',
-                hour12: false,
-            });
-            const timeStr = timeFormatter.format(tryDate);
+    // Create End Time (Start + 23h 59m 59s 999ms)
+    // We add explicitly rather than calculating 'tomorrow' to avoid DST boundary issues
+    const endUTC = new Date(startUTC.getTime() + (24 * 60 * 60 * 1000) - 1);
 
-            if (tryLocalDate === localDateStr && timeStr === '00:00') {
-                return tryDate;
-            }
-        }
-    }
-
-    // Fallback: Use the date as-is with midnight UTC
-    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    return { startUTC, endUTC };
 }
 
 /**

@@ -15,16 +15,35 @@ import PocketBase from 'pocketbase';
  */
 export const createBaselineSnapshot = async (userId: string, pb: PocketBase): Promise<{ success: boolean; snapshotId?: string }> => {
     try {
-        // Get current date for snapshot (YYYY-MM-DD)
-        const snapshotDate = new Date().toISOString().split('T')[0];
+        // Get user's timezone
+        let userTimezone = 'UTC';
+        try {
+            const user = await pb.collection('users').getOne(userId);
+            userTimezone = user.timezone || 'UTC';
+        } catch (e) {
+            console.error('[BASELINE_HISTORY] Could not fetch user timezone:', e);
+        }
+
+        // Get current date for snapshot in USER'S timezone (YYYY-MM-DD)
+        // Import toLocalDateString at the top if not already imported
+        const { toLocalDateString } = await import('@/utils/dateUtils');
+        const snapshotDate = toLocalDateString(new Date(), userTimezone);
+
+        console.log(`[BASELINE_HISTORY] Checking for existing snapshot: user=${userId}, timezone=${userTimezone}, date=${snapshotDate}`);
 
         // Check if snapshot already exists for today (idempotent)
+        const filterQuery = `user_id = "${userId}" && snapshot_date = "${snapshotDate}"`;
+        console.log(`[BASELINE_HISTORY] Filter query: ${filterQuery}`);
+
         const existingSnapshots = await pb.collection('baseline_history').getList(1, 1, {
-            filter: `user_id = "${userId}" && snapshot_date = "${snapshotDate}"`
+            filter: filterQuery
         });
+
+        console.log(`[BASELINE_HISTORY] Existing snapshots found: ${existingSnapshots.items.length}`);
 
         if (existingSnapshots.items.length > 0) {
             // Snapshot already exists for today
+            console.log(`[BASELINE_HISTORY] Snapshot already exists for user ${userId} on ${snapshotDate}, skipping`);
             return { success: true, snapshotId: existingSnapshots.items[0].id };
         }
 

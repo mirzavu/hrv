@@ -37,14 +37,19 @@ export async function GET(request: NextRequest) {
 
     console.log(`[Calendar Month] User timezone: ${userTimezone}`);
 
-    // Build filter for session_summary
-    // session_date is stored as datetime (e.g., '2025-11-10 16:33:13.482Z')
-    // So we need to filter by datetime range covering the entire month using the same format (with space separator)
-    const startDateTime = `${startDate} 00:00:00.000Z`;
-    const endDateTime = `${endDate} 23:59:59.999Z`;
+    // Import day boundary utilities
+    const { getLocalDayStartUTC, getLocalDayEndUTC } = await import('@/utils/dateUtils');
+
+    // Convert local date strings to UTC boundaries for query
+    const startUTC = getLocalDayStartUTC(startDate, userTimezone);
+    const endUTC = getLocalDayEndUTC(endDate, userTimezone);
+
+    const startDateTime = startUTC.toISOString();
+    const endDateTime = endUTC.toISOString();
+
     let filter = `user_id = "${userId}" && session_date >= "${startDateTime}" && session_date <= "${endDateTime}"`;
 
-    console.log(`[Calendar Month] Fetching for user ${userId}, date range: ${startDate} to ${endDate} (${startDateTime} to ${endDateTime})`);
+    console.log(`[Calendar Month] Fetching for user ${userId}, local date range: ${startDate} to ${endDate}, UTC range: ${startDateTime} to ${endDateTime}`);
 
     // Fetch all summaries for the month (single query!)
     let summariesResponse = await pb.collection('session_summary').getList(1, 1000, {

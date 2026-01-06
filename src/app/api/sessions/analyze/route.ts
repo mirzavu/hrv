@@ -129,15 +129,11 @@ const computeSessionSummaryPayload = async ({
     const timeToStabilize = computeTimeToStabilize(rawData, sessionStartTimestamp, meanHr);
     const respCoherence = computeRespCoherenceScore(rmssdSession, sdnnSession, pnn50);
 
-    console.log('🔍 [API_DEBUG] Before computeHrvStability:', {
-        rrSeriesLength: rrSeries.length,
-        sessionStartTimestamp,
-        durationSeconds
-    });
+
 
     const hrvStability = computeHrvStability(rrSeries, sessionStartTimestamp, calculateRMSSD, calculateSDNN, calculateMeanHR);
 
-    console.log('🔍 [API_DEBUG] HRV Stability result:', hrvStability);
+
 
     let sessionStressIndex: number | null = null;
     if (amode50 !== null && mxDmN && mxDmN !== 0) {
@@ -245,7 +241,7 @@ const computeSessionSummaryPayload = async ({
             // Threshold Z < -2.0 => Score < 10
             if (personalizedScore < 10) {
                 isCrash = true;
-                console.log(`[API_ANALYZE] CRASH DETECTED: Score ${personalizedScore} (Z < -2.0)`);
+                // console.log(`[API_ANALYZE] CRASH DETECTED: Score ${personalizedScore} (Z < -2.0)`);
             }
         }
     } else {
@@ -302,13 +298,7 @@ export async function POST(request: NextRequest) {
         const body = await request.json();
         const { rawData, sessionStartTime, durationSeconds, userId, sessionId } = body;
 
-        console.log('[ANALYZE_API] Received request:', {
-            userId,
-            sessionId,
-            sessionStartTime,
-            durationSeconds,
-            rawDataPoints: rawData?.length || 0
-        });
+
 
         if (!rawData || !userId || !sessionId) {
             return NextResponse.json(
@@ -325,12 +315,7 @@ export async function POST(request: NextRequest) {
             sessionId,
         });
 
-        console.log('[ANALYZE_API] Session summary payload computed:', {
-            session_id: summaryPayload.session_id,
-            rmssd_session_ms: summaryPayload.rmssd_session_ms,
-            sdnn_session_ms: summaryPayload.sdnn_session_ms,
-            hrv_score: summaryPayload.hrv_score
-        });
+
 
         // Run baseline check synchronously and include phase data + baseline in response
         // Pass current session summary so it's included in unique day count
@@ -343,14 +328,7 @@ export async function POST(request: NextRequest) {
                 rmssd_session_ms: summaryPayload.rmssd_session_ms
             };
 
-            console.log('[ANALYZE_API] Calling autoCheckAndUpdateBaseline with:', {
-                userId,
-                sessionId,
-                currentSessionSummary: {
-                    session_date: currentSessionSummary.session_date,
-                    rmssd_session_ms: currentSessionSummary.rmssd_session_ms
-                }
-            });
+
 
             const baselineResult = await autoCheckAndUpdateBaseline(
                 userId,
@@ -358,14 +336,7 @@ export async function POST(request: NextRequest) {
                 currentSessionSummary
             );
 
-            console.log('[ANALYZE_API] autoCheckAndUpdateBaseline returned:', {
-                success: baselineResult.success,
-                phase: baselineResult.phase,
-                phaseProgress: baselineResult.phaseProgress,
-                uniqueDays: baselineResult.uniqueDays,
-                baselineCreated: baselineResult.baselineCreated,
-                baselineUpdated: baselineResult.baselineUpdated
-            });
+
 
             // Extract phase data from result
             phaseData = {
@@ -401,18 +372,13 @@ export async function POST(request: NextRequest) {
                         last_updated: baseline.last_updated,
                         createdAt: baseline.created
                     };
-                    console.log('[ANALYZE_API] Fetched baseline from DB:', {
-                        id: updatedBaseline.$id,
-                        established: updatedBaseline.established,
-                        uniqueDays: updatedBaseline.unique_morning_sessions_count,
-                        progress: updatedBaseline.calibration_progress
-                    });
+
                 } catch (error: unknown) {
-                    console.error('[ANALYZE_API] Error fetching baseline:', error);
+                    console.error('Error fetching baseline:', error);
                 }
             }
         } catch (error) {
-            console.error('[ANALYZE_API] Baseline check failed:', error);
+            console.error('Baseline check failed:', error);
             // Set default phase data on error
             phaseData = {
                 name: 'calibration',
@@ -427,12 +393,7 @@ export async function POST(request: NextRequest) {
             baseline: updatedBaseline
         };
 
-        console.log('[ANALYZE_API] Sending response with:', {
-            session_id: responseData.session_id,
-            phase: responseData.phase,
-            hasBaseline: !!responseData.baseline,
-            baselineEstablished: responseData.baseline?.established
-        });
+
 
         return NextResponse.json(responseData);
     } catch (error) {

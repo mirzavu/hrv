@@ -7,9 +7,10 @@ import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from './baselineCalculations';
 import { createBaselineSnapshot } from './baselineHistory';
 import { createStreakNotification, createBaselineUpdatedNotification } from './notifications';
+import { toLocalDateString, getLocalDayStartUTC, getLocalDayEndUTC, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
 /**
- * Check if user has any session for today (UTC date), excluding the current session
+ * Check if user has any session for today (in user's local timezone), excluding the current session
  * 
  * @param userId - User ID to check
  * @param currentSessionId - Current session ID to exclude from check
@@ -19,22 +20,35 @@ const hasSessionToday = async (userId: string, currentSessionId: string): Promis
   try {
     const pb = await getAdminPb();
 
-    // Get today's date range in UTC (start and end of day)
-    const now = new Date();
-    const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
-    const todayEnd = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+    // Get user's timezone
+    let userTimezone = DEFAULT_TIMEZONE;
+    try {
+      const user = await pb.collection('users').getOne(userId);
+      userTimezone = user.timezone || DEFAULT_TIMEZONE;
+    } catch (e) {
+      console.error('[BASELINE_DEBUG] Could not fetch user timezone:', e);
+    }
 
-    const todayStartISO = todayStart.toISOString();
-    const todayEndISO = todayEnd.toISOString();
+    // Get today's date in user's local timezone
+    const todayLocal = toLocalDateString(new Date(), userTimezone);
 
+    // Convert to UTC boundaries for query
+    const todayStartUTC = getLocalDayStartUTC(todayLocal, userTimezone);
+    const todayEndUTC = getLocalDayEndUTC(todayLocal, userTimezone);
+
+    // Format for PocketBase: "YYYY-MM-DD HH:MM:SS.mmmZ" (replace T with space)
+    const todayStartPB = todayStartUTC.toISOString().replace('T', ' ');
+    const todayEndPB = todayEndUTC.toISOString().replace('T', ' ');
+
+    const filterQuery = `userId = "${userId}" && startTime >= "${todayStartPB}" && startTime <= "${todayEndPB}" && id != "${currentSessionId}"`;
     // Check if any OTHER session exists for today (excluding current session)
     const sessions = await pb.collection('sessions').getList(1, 1, {
-      filter: `userId = "${userId}" && startTime >= "${todayStartISO}" && startTime <= "${todayEndISO}" && id != "${currentSessionId}"`
+      filter: filterQuery
     });
 
     return sessions.items.length > 0;
   } catch (error) {
-    console.error('[BASELINE_DEBUG] Error checking for today\'s session:', error);
+    console.error('Error checking for today\'s session:', error);
     // If check fails, allow baseline update to proceed (fail open)
     return false;
   }
@@ -62,24 +76,24 @@ export const autoCheckAndUpdateBaseline = async (
   baselineCreated?: boolean;
   baselineUpdated?: boolean;
 }> => {
-  console.log(`[BASELINE] Called with params:`, {
-    userId,
-    currentSessionId: currentSessionId || 'none',
-    currentSessionSummary: currentSessionSummary ? {
-      session_date: currentSessionSummary.session_date,
-      rmssd_session_ms: currentSessionSummary.rmssd_session_ms
-    } : 'none'
-  });
+  // console.log(`[BASELINE] Called with params:`, {
+  //   userId,
+  //   currentSessionId: currentSessionId || 'none',
+  //   currentSessionSummary: currentSessionSummary ? {
+  //     session_date: currentSessionSummary.session_date,
+  //     rmssd_session_ms: currentSessionSummary.rmssd_session_ms
+  //   } : 'none'
+  // });
 
   try {
     const pb = await getAdminPb();
-    console.log(`[BASELINE] Starting baseline check for user ${userId}, sessionId: ${currentSessionId || 'none'}`);
+    // console.log(`[BASELINE] Starting baseline check for user ${userId}, sessionId: ${currentSessionId || 'none'}`);
 
     // Step 0: Check if there's already another session for today - if so, skip baseline update (once per day)
     if (currentSessionId) {
       const hasTodaySession = await hasSessionToday(userId, currentSessionId);
       if (hasTodaySession) {
-        console.log(`[BASELINE] Step 0: Another session exists today - skipping baseline update (once per day)`);
+        // console.log(`[BASELINE] Step 0: Another session exists today - skipping baseline update (once per day)`);
         // Fetch current phase from user profile and calculate unique days
         try {
           const userRecord = await pb.collection('users').getOne(userId);
@@ -103,7 +117,7 @@ export const autoCheckAndUpdateBaseline = async (
           const uniqueCount = countUniqueMorningSessions(allSummaries);
           const progressInfo = calculateBaselineProgress(uniqueCount);
 
-          console.log(`[BASELINE] Step 0: Returning current phase: ${currentPhase}, uniqueDays: ${uniqueCount}, progress: ${progressInfo.progress}%`);
+          // console.log(`[BASELINE] Step 0: Returning current phase: ${currentPhase}, uniqueDays: ${uniqueCount}, progress: ${progressInfo.progress}%`);
 
           return {
             success: true,
@@ -118,7 +132,7 @@ export const autoCheckAndUpdateBaseline = async (
             phaseProgress: 0,
             uniqueDays: 0
           };
-          console.log(`[BASELINE] Step 0: Error fetching user data, returning:`, result);
+          // console.log(`[BASELINE] Step 0: Error fetching user data, returning:`, result);
           return result;
         }
       }
@@ -157,7 +171,7 @@ export const autoCheckAndUpdateBaseline = async (
           },
           ...allSummaries
         ];
-        console.log(`[BASELINE] Included current session summary in count (not yet saved to DB)`);
+        // console.log(`[BASELINE] Included current session summary in count (not yet saved to DB)`);
       }
     }
 
@@ -169,7 +183,7 @@ export const autoCheckAndUpdateBaseline = async (
         uniqueDays: 0,
         isFirstSession: true
       };
-      console.log(`[BASELINE] No session summaries found, returning:`, result);
+      // console.log(`[BASELINE] No session summaries found, returning:`, result);
       return result;
     }
 
@@ -180,7 +194,7 @@ export const autoCheckAndUpdateBaseline = async (
     const uniqueDays = countUniqueMorningSessions(allSummaries);
     const progressInfo = calculateBaselineProgress(uniqueDays);
     const currentTime = new Date().toISOString();
-    console.log(`[BASELINE] Step 1: Calculated uniqueDays: ${uniqueDays}, phase: ${progressInfo.phase}, progress: ${progressInfo.progress}%`);
+    // console.log(`[BASELINE] Step 1: Calculated uniqueDays: ${uniqueDays}, phase: ${progressInfo.phase}, progress: ${progressInfo.progress}%`);
 
     // Check if baseline exists
     let existingBaseline: any = null;
@@ -188,17 +202,17 @@ export const autoCheckAndUpdateBaseline = async (
       existingBaseline = await pb.collection('user_baselines').getFirstListItem(
         `user_id = "${userId}"`
       );
-      console.log(`[BASELINE] Step 1: Baseline exists: ${existingBaseline.id}`);
+      // console.log(`[BASELINE] Step 1: Baseline exists: ${existingBaseline.id}`);
     } catch (error: any) {
       if (error.status !== 404) {
         throw error;
       }
-      console.log(`[BASELINE] Step 1: No baseline found`);
+      // console.log(`[BASELINE] Step 1: No baseline found`);
     }
 
     // Step 2: If < 4: Save usage_phase as "calibration", return phase data
     if (uniqueDays < 4) {
-      console.log(`[BASELINE] Step 2: uniqueDays (${uniqueDays}) < 4 - Setting phase to 'calibration'`);
+      // console.log(`[BASELINE] Step 2: uniqueDays (${uniqueDays}) < 4 - Setting phase to 'calibration'`);
       try {
         await pb.collection('users').update(userId, {
           usage_phase: 'calibration'
@@ -298,7 +312,7 @@ export const autoCheckAndUpdateBaseline = async (
 
     // Step 4: If >= 4 and <= 14 and baseline exists: Return phase data
     if (uniqueDays >= 4 && uniqueDays <= 14 && existingBaseline) {
-      console.log(`[BASELINE] Step 4: uniqueDays (${uniqueDays}) >= 4 && <= 14, baseline exists - Updating phase to '${progressInfo.phase}'`);
+      // console.log(`[BASELINE] Step 4: uniqueDays (${uniqueDays}) >= 4 && <= 14, baseline exists - Updating phase to '${progressInfo.phase}'`);
       try {
         await pb.collection('users').update(userId, {
           usage_phase: progressInfo.phase
@@ -315,7 +329,7 @@ export const autoCheckAndUpdateBaseline = async (
           calibration_progress: progressInfo.progress,
           last_updated: currentTime
         });
-        console.log(`[BASELINE] Step 4: Updated baseline progress to ${progressInfo.progress}%`);
+        // console.log(`[BASELINE] Step 4: Updated baseline progress to ${progressInfo.progress}%`);
 
         // Check for streak milestone
         await createStreakNotification(userId, uniqueDays);
@@ -331,7 +345,7 @@ export const autoCheckAndUpdateBaseline = async (
         isFirstSession,
         baselineUpdated: true
       };
-      console.log(`[BASELINE] Step 4: Returning:`, result);
+      // console.log(`[BASELINE] Step 4: Returning:`, result);
       return result;
     }
 

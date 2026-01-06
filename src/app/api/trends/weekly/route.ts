@@ -36,8 +36,21 @@ export async function GET(request: NextRequest) {
         const startDate = new Date(endDate);
         startDate.setDate(endDate.getDate() - 13);
 
-        const startStr = formatLocalDate(startDate) + ' 00:00:00';
-        const endStr = formatLocalDate(endDate) + ' 23:59:59';
+        // Import day boundary utilities
+        const { getLocalDayStartUTC, getLocalDayEndUTC } = await import('@/utils/dateUtils');
+
+        // Get local date strings for the range
+        const startLocalDate = formatLocalDate(startDate);
+        const endLocalDate = formatLocalDate(endDate);
+
+        // Convert to UTC boundaries for query
+        const startUTC = getLocalDayStartUTC(startLocalDate, userTimezone);
+        const endUTC = getLocalDayEndUTC(endLocalDate, userTimezone);
+
+        const startStr = startUTC.toISOString();
+        const endStr = endUTC.toISOString();
+
+        console.log(`[Weekly API] User timezone: ${userTimezone}, Local range: ${startLocalDate} to ${endLocalDate}, UTC range: ${startStr} to ${endStr}`);
 
         // Fetch sessions
         // We need: rmssd, session_mean_hr, session_date
@@ -55,7 +68,11 @@ export async function GET(request: NextRequest) {
         // Fetch last 30 days for baseline calculation (Safe fetch)
         const baselineStartDate = new Date(endDate);
         baselineStartDate.setDate(endDate.getDate() - 30);
-        const baselineStartStr = formatLocalDate(baselineStartDate);
+        const baselineStartLocalDate = formatLocalDate(baselineStartDate);
+
+        // Convert to UTC boundaries
+        const baselineStartUTC = getLocalDayStartUTC(baselineStartLocalDate, userTimezone);
+        const baselineStartStr = baselineStartUTC.toISOString();
 
         let baselineSessions: any[] = [];
         try {
