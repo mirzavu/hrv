@@ -11,14 +11,8 @@ import BreathingCoherenceChart from './BreathingCoherenceChart';
 import TachogramChart from './TachogramChart';
 import AutonomicBalanceChart from './AutonomicBalanceChart';
 import AutonomicInterpretation from './AutonomicInterpretation';
-import { interpretHRVSession } from '@/utils/autonomicInterpretation';
 import { toLocalDateString } from '@/utils/dateUtils';
-import {
-  generateScoreBasedInterpretation,
-  generateCalibrationInterpretation,
-  detectCrashSession,
-  findComparisonSession
-} from '@/utils/sessionComparison';
+import { findComparisonSession, generateScoreBasedInterpretation } from '@/utils/sessionComparison';
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 import type { SessionSummaryRecord } from '@/types';
 import AdvancedMetricsToggle from './AdvancedMetricsToggle';
@@ -202,130 +196,111 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   }, [userId, isGuest, summary.session_id]);
 
 
-  // 2. Decide Interpretation Strategy & Fetch Baseline if needed
-  // This runs when computedPhaseData is available
+  // 2. Fetch Interpretation from Backend API
+  // This replaces the client-side interpretation calculation
   useEffect(() => {
-    const decideStrategy = async () => {
-      if (!userId || isGuest) {
-        // Guest Logic
-        if (isGuest) {
-          const result = generateScoreBasedInterpretation(summary, true);
-          setInterpretation(result);
-        }
+    const fetchInterpretation = async () => {
+      if (!summary.session_id) {
         return;
       }
 
-      if (!computedPhaseData && !comparisonLoading) {
+      // Guest users - generate score-based interpretation client-side (no API call needed)
+      if (isGuest) {
+        const result = generateScoreBasedInterpretation(summary, true);
+        setInterpretation(result);
+        setBaselineLoading(false);
         return;
       }
 
-      if (!computedPhaseData) return; // Wait for phase
+      if (!userId) {
+        setBaselineLoading(false);
+        return;
+      }
 
-      const { name: phaseName } = computedPhaseData;
+      setBaselineLoading(true);
+      setComparisonSessionDate(null);
+      setBaselineDatetime(null);
 
-      if (phaseName === 'calibration') {
-
-
-        let sessionDate: Date;
-        if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-          sessionDate = new Date(summary.rrIntervals[0].timestamp);
-        } else {
-          sessionDate = new Date();
-        }
-
-        const comparisonResult = findComparisonSession(sessionDate, previousSessions);
-
-        if (comparisonResult.session) {
-          const result = generateCalibrationInterpretation(
-            summary,
-            comparisonResult.session,
-            comparisonResult.insightText,
-            comparisonResult.metricTitle
-          );
-          setInterpretation(result);
-
-          // Set Comparison Date
-          if (comparisonResult.session.session_date || comparisonResult.session.createdAt) {
-            setComparisonSessionDate(new Date(comparisonResult.session.session_date || comparisonResult.session.createdAt!));
+      try {
+        const response = await fetch(`/api/sessions/${summary.session_id}/interpret?userId=${userId}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          
+          // Set interpretation
+          if (data.interpretation) {
+            setInterpretation(data.interpretation);
           }
 
-        } else {
-          // Fallback to score-based if no valid comparison found
-          const result = generateScoreBasedInterpretation(summary, false);
-          setInterpretation(result);
-          setComparisonSessionDate(null);
-        }
+          // Set baseline if returned
+          if (data.baseline) {
+            setBaseline(data.baseline);
+          }
 
-      } else {
+          // Set baseline datetime if returned
+          if (data.baselineDatetime) {
+            setBaselineDatetime(new Date(data.baselineDatetime));
+          }
 
-        setBaselineLoading(true);
-        setComparisonSessionDate(null); // Comparison is vs Baseline, not a specific session (conceptually)
+          // Update phase data if returned (more accurate than client-side calculation)
+          if (data.phase) {
+            setComputedPhaseData({
+              name: data.phase.name,
+              progress: data.phase.progress,
+              uniqueDays: data.phase.uniqueDays
+            });
+          }
 
-        // Determine session date
-        let sessionDate: Date;
-        if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-          sessionDate = new Date(summary.rrIntervals[0].timestamp);
-        } else {
-          sessionDate = new Date();
-        }
-
-        // Check if session is historical (more than 5 seconds old)
-        const isHistoricalSession = (Date.now() - sessionDate.getTime()) > 5000;
-
-        try {
-          if (isHistoricalSession) {
-            // For historical sessions, fetch baseline that existed at least 18 hours before the session
-
-            const historyResponse = await fetch(`/api/user/baseline-history?userId=${userId}&beforeDate=${sessionDate.toISOString()}`);
-
-            if (historyResponse.ok) {
-              const data = await historyResponse.json();
-
-
-              if (data.baseline && data.baseline.established) {
-                setBaseline(data.baseline);
-                setBaselineDatetime(data.baselineDatetime ? new Date(data.baselineDatetime) : null);
-                const result = interpretHRVSession(summary, data.baseline);
-                setInterpretation(result);
-              } else {
-                // No historical baseline found - don't show comparison
-                console.warn('[SessionSummaryModal] No historical baseline found for this session. Not showing comparison.');
-                setBaseline(null);
-                setBaselineDatetime(null);
-                const result = generateScoreBasedInterpretation(summary, false);
-                setInterpretation(result);
-              }
+          // For calibration phase, find comparison session for date display
+          if (data.phase?.name === 'calibration' && previousSessions.length > 0) {
+            let sessionDate: Date;
+            if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
+              sessionDate = new Date(summary.rrIntervals[0].timestamp);
+            } else {
+              sessionDate = new Date();
             }
-          } else {
-            // For recent sessions, use current baseline
 
-            const baselineResponse = await fetch(`/api/user/baseline?userId=${userId}`);
-            if (baselineResponse.ok) {
-              const data = await baselineResponse.json();
-
-              setBaseline(data.baseline);
-              setBaselineDatetime(null); // Current baseline, no specific datetime to show
-
-              if (data.baseline?.established) {
-                const result = interpretHRVSession(summary, data.baseline);
-                setInterpretation(result);
-              } else {
-                console.warn('[SessionSummaryModal] Phase says baseline but DB has none. Using score-based.');
-                const result = generateScoreBasedInterpretation(summary, false);
-                setInterpretation(result);
+            const comparisonResult = findComparisonSession(sessionDate, previousSessions);
+            if (comparisonResult.session) {
+              if (comparisonResult.session.session_date || comparisonResult.session.createdAt) {
+                setComparisonSessionDate(new Date(comparisonResult.session.session_date || comparisonResult.session.createdAt!));
               }
             }
           }
-        } catch (e) {
-          console.error(e);
-        } finally {
-          setBaselineLoading(false);
+        } else {
+          console.error('[SessionSummaryModal] Failed to fetch interpretation:', response.status);
+          // Fallback: set a basic interpretation
+          setInterpretation({
+            patternId: 0,
+            physiologicalState: "Analysis Unavailable",
+            coreInterpretation: "Unable to generate interpretation at this time.",
+            recommendedAction: "Please try again later.",
+            technicalChanges: [],
+            relativeInterpretation: "",
+            combinedAdvice: "Continue tracking your sessions.",
+            title: "HRV Analysis"
+          });
         }
+      } catch (error) {
+        console.error('[SessionSummaryModal] Error fetching interpretation:', error);
+        // Fallback: set a basic interpretation
+        setInterpretation({
+          patternId: 0,
+          physiologicalState: "Analysis Unavailable",
+          coreInterpretation: "Unable to generate interpretation at this time.",
+          recommendedAction: "Please try again later.",
+          technicalChanges: [],
+          relativeInterpretation: "",
+          combinedAdvice: "Continue tracking your sessions.",
+          title: "HRV Analysis"
+        });
+      } finally {
+        setBaselineLoading(false);
       }
     };
 
-    decideStrategy();
-  }, [computedPhaseData, userId, isGuest, previousSessions]);
+    fetchInterpretation();
+  }, [summary.session_id, userId, isGuest, previousSessions]);
 
 
   // Defer chart rendering briefly to allow the toggle animation to start

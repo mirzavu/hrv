@@ -61,9 +61,27 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [_sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
+  const [usagePhase, setUsagePhase] = useState<'calibration' | 'early_baseline' | 'full_baseline' | null>(null);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
 
-  // Check baseline status
+  // Fetch user's usage_phase for badge display
+  useEffect(() => {
+    if (!userId) return;
+    const fetchUserPhase = async () => {
+      try {
+        const res = await fetch(`/api/user/profile?userId=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setUsagePhase(data.profile?.usage_phase || null);
+        }
+      } catch (e) {
+        console.error('Error fetching user phase:', e);
+      }
+    };
+    fetchUserPhase();
+  }, [userId]);
+
+  // Check baseline status (still needed for monthly report)
   useEffect(() => {
     if (!userId) return;
     const checkBaseline = async () => {
@@ -307,15 +325,11 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
             <TrashIcon />
             Clear Cache
           </button>
-          {/* Weekly Report Button with Tooltip Logic */}
-          <div className="relative group">
+          {/* Weekly Report Button with Calibration Badge */}
+          <div className="relative flex items-center gap-2">
             <button
-              onClick={() => baselineEstablished && setShowWeeklyReport(true)}
-              disabled={!baselineEstablished}
-              className={`px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 ${baselineEstablished
-                ? 'text-white bg-blue-600 hover:bg-blue-700'
-                : 'text-slate-400 bg-slate-100 cursor-not-allowed'
-                }`}
+              onClick={() => setShowWeeklyReport(true)}
+              className="px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-700"
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M3 3v18h18" />
@@ -323,13 +337,10 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
               </svg>
               Past Week Report
             </button>
-
-            {!baselineEstablished && (
-              <div className="absolute top-full right-0 mt-2 w-64 p-3 bg-slate-800 text-white text-xs rounded-xl shadow-xl z-50 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                <p className="font-bold mb-1">Report Unavailable</p>
-                <p className="text-slate-300">You need to log at least 7 days of data to establish a baseline before viewing trends.</p>
-                <div className="absolute -top-1 right-8 w-2 h-2 bg-slate-800 rotate-45"></div>
-              </div>
+            {usagePhase === 'calibration' && (
+              <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white rounded-full">
+                Calibration
+              </span>
             )}
           </div>
         </div>

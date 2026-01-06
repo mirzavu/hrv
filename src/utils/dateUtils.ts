@@ -182,3 +182,121 @@ export function formatDateForPocketBase(date: Date | string): string {
     // Replace T with space to match PocketBase format: "2024-01-15 10:30:00.000Z"
     return dateObj.toISOString().replace('T', ' ');
 }
+
+/**
+ * Get the current week's Sunday-Saturday range in the user's timezone
+ * Week runs from Sunday (0) to Saturday (6)
+ * 
+ * @param timezone - User's timezone (IANA timezone string)
+ * @param referenceDate - Optional reference date (defaults to now)
+ * @returns Object with Sunday and Saturday dates as Date objects
+ */
+export function getCurrentWeekRange(timezone: string, referenceDate?: Date): { sunday: Date; saturday: Date } {
+    const now = referenceDate || new Date();
+    
+    // Get the current day of week in the user's timezone
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: timezone,
+        weekday: 'long',
+        year: 'numeric',
+        month: 'numeric',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: 'numeric',
+        second: 'numeric',
+        hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const getPart = (type: string) => parts.find(p => p.type === type)?.value;
+    
+    const year = parseInt(getPart('year') || '0');
+    const month = parseInt(getPart('month') || '0') - 1; // 0-indexed
+    const day = parseInt(getPart('day') || '0');
+    
+    // Create a date in the user's timezone
+    const localDate = new Date(year, month, day);
+    
+    // Get day of week (0 = Sunday, 6 = Saturday)
+    const dayOfWeek = localDate.getDay();
+    
+    // Calculate days until Saturday
+    const daysUntilSaturday = (6 - dayOfWeek + 7) % 7;
+    
+    // Calculate Saturday date
+    const saturday = new Date(localDate);
+    saturday.setDate(localDate.getDate() + daysUntilSaturday);
+    
+    // Calculate Sunday date (6 days before Saturday)
+    const sunday = new Date(saturday);
+    sunday.setDate(saturday.getDate() - 6);
+    
+    return { sunday, saturday };
+}
+
+/**
+ * Get the current week's Saturday date in the user's timezone
+ * If today is Saturday, returns today. Otherwise returns the upcoming Saturday.
+ * 
+ * @param timezone - User's timezone (IANA timezone string)
+ * @param referenceDate - Optional reference date (defaults to now)
+ * @returns Saturday date as Date object
+ */
+export function getCurrentWeekSaturday(timezone: string, referenceDate?: Date): Date {
+    const { saturday } = getCurrentWeekRange(timezone, referenceDate);
+    return saturday;
+}
+
+/**
+ * Get the start date for weekly report based on signup date and current week
+ * If user signed up within the current week, start from signup date.
+ * Otherwise, start from current week's Sunday.
+ * 
+ * @param signupDate - User's signup date (Date or ISO string)
+ * @param timezone - User's timezone (IANA timezone string)
+ * @param referenceDate - Optional reference date (defaults to now)
+ * @returns Start date for the weekly report
+ */
+export function getWeeklyReportStartDate(
+    signupDate: Date | string,
+    timezone: string,
+    referenceDate?: Date
+): Date {
+    const signup = typeof signupDate === 'string' ? new Date(signupDate) : signupDate;
+    const { sunday } = getCurrentWeekRange(timezone, referenceDate);
+    
+    // Convert signup date to local date string for comparison
+    const signupLocalStr = toLocalDateString(signup, timezone);
+    const sundayLocalStr = toLocalDateString(sunday, timezone);
+    
+    // If signup is after this week's Sunday, start from signup date
+    if (signupLocalStr >= sundayLocalStr) {
+        return signup;
+    }
+    
+    // Otherwise, start from this week's Sunday
+    return sunday;
+}
+
+/**
+ * Get the end date for weekly report (current week's Saturday or today if today is Saturday)
+ * 
+ * @param timezone - User's timezone (IANA timezone string)
+ * @param referenceDate - Optional reference date (defaults to now)
+ * @returns End date for the weekly report
+ */
+export function getWeeklyReportEndDate(timezone: string, referenceDate?: Date): Date {
+    const now = referenceDate || new Date();
+    const saturday = getCurrentWeekSaturday(timezone, now);
+    
+    // Convert to local date strings for comparison
+    const nowLocalStr = toLocalDateString(now, timezone);
+    const saturdayLocalStr = toLocalDateString(saturday, timezone);
+    
+    // If today is Saturday or before, use today. Otherwise use Saturday.
+    if (nowLocalStr <= saturdayLocalStr) {
+        return now;
+    }
+    
+    return saturday;
+}

@@ -1,7 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics } from '@/utils/baselineCalculations';
-import { toLocalDateString, DEFAULT_TIMEZONE, formatDateForPocketBase } from '@/utils/dateUtils';
+import {
+    toLocalDateString,
+    DEFAULT_TIMEZONE,
+    formatDateForPocketBase,
+    getLocalDayStartUTC,
+    getLocalDayEndUTC,
+    getWeeklyReportStartDate,
+    getWeeklyReportEndDate,
+    getCurrentWeekRange,
+} from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,27 +26,29 @@ export async function GET(request: NextRequest) {
     try {
         const pb = await getAdminPb();
 
-        // Get user's timezone
+        // Get user's timezone, signup date, and usage_phase
         let userTimezone = DEFAULT_TIMEZONE;
+        let userSignupDate: Date | null = null;
+        let usagePhase: 'calibration' | 'early_baseline' | 'full_baseline' | null = null;
+        
         try {
             const user = await pb.collection('users').getOne(userId);
             userTimezone = user.timezone || DEFAULT_TIMEZONE;
+            userSignupDate = user.created ? new Date(user.created) : null;
+            usagePhase = user.usage_phase || null;
         } catch {
-            console.warn('[Weekly API] Could not fetch user timezone, using default');
+            console.warn('[Weekly API] Could not fetch user data, using defaults');
         }
 
         // Helper to format date in user's timezone
         const formatLocalDate = (d: Date) => toLocalDateString(d, userTimezone);
 
-        // Determine date range
-        // End date: specified or today
-        const endDate = endDateParam ? new Date(endDateParam) : new Date();
-        // Start date: 13 days before end date (to get 7 days of display + 6 days prior for rolling avg)
-        const startDate = new Date(endDate);
-        startDate.setDate(endDate.getDate() - 13);
-
-        // Import day boundary utilities
-        const { getLocalDayStartUTC, getLocalDayEndUTC } = await import('@/utils/dateUtils');
+        // Determine date range using Sunday-Saturday week logic
+        const referenceDate = endDateParam ? new Date(endDateParam) : new Date();
+        const endDate = getWeeklyReportEndDate(userTimezone, referenceDate);
+        const startDate = userSignupDate
+            ? getWeeklyReportStartDate(userSignupDate, userTimezone, referenceDate)
+            : getWeeklyReportStartDate(new Date(), userTimezone, referenceDate);
 
         // Get local date strings for the range
         const startLocalDate = formatLocalDate(startDate);
@@ -61,8 +72,7 @@ export async function GET(request: NextRequest) {
 
         console.log(`[Weekly API] User timezone: ${userTimezone}, Local range: ${startLocalDate} to ${endLocalDate}, UTC range: ${startStr} to ${endStr}`);
 
-        // Fetch sessions
-        // We need: rmssd, session_mean_hr, session_date
+        // Fetch sessions - need all score fields
         let sessions: any[] = [];
         try {
             sessions = await pb.collection('session_summary').getFullList({
@@ -74,17 +84,15 @@ export async function GET(request: NextRequest) {
             sessions = [];
         }
 
-        // Fetch last 30 days for baseline calculation (Safe fetch)
+        // Fetch last 30 days for baseline calculation
         const baselineStartDate = new Date(endDate);
         baselineStartDate.setDate(endDate.getDate() - 30);
         const baselineStartLocalDate = formatLocalDate(baselineStartDate);
         
-        // Expand range by ±1 day for boundary safety
         const expandedBaselineStart = new Date(baselineStartDate);
         expandedBaselineStart.setDate(expandedBaselineStart.getDate() - 1);
         const expandedBaselineStartLocal = formatLocalDate(expandedBaselineStart);
 
-        // Convert to UTC boundaries
         const baselineStartUTC = getLocalDayStartUTC(expandedBaselineStartLocal, userTimezone);
         const baselineStartStr = formatDateForPocketBase(baselineStartUTC);
 
@@ -99,7 +107,7 @@ export async function GET(request: NextRequest) {
             baselineSessions = [];
         }
 
-        // Calculate baseline metrics (handle empty input safely)
+        // Calculate baseline metrics
         let baselineMetrics = {
             rmssd_avg: null as number | null,
             rmssd_stdev: null as number | null,
@@ -109,7 +117,6 @@ export async function GET(request: NextRequest) {
 
         try {
             if (baselineSessions.length > 0) {
-                // Cast to SessionSummaryRecord[] and use utility
                 const fullMetrics = calculateBaselineMetrics(baselineSessions as unknown as import('@/types').SessionSummaryRecord[]);
                 baselineMetrics = {
                     rmssd_avg: fullMetrics.rmssd_avg,
@@ -120,42 +127,67 @@ export async function GET(request: NextRequest) {
             }
         } catch (calcError) {
             console.error('Weekly API: Error calculating baseline', calcError);
-            // proceed with null baselines
         }
 
-        // Process Data for the Weekly View
-        // 1. Group by Day
-        const dailyMap = new Map<string, { rmssd: number[], hr: number[], score: number[] }>();
+        // Process Data for the Weekly View - Group by Day with all 5 scores
+        const dailyMap = new Map<string, {
+            rmssd: number[];
+            hr: number[];
+            score: number[];
+            energy: number[];
+            stress: number[];
+            health: number[];
+            focus: number[];
+            readiness: number[];
+        }>();
 
         sessions.forEach((s: any) => {
             if (!s.session_date) return;
-            // Use user's timezone for date grouping
             const date = toLocalDateString(s.session_date, userTimezone);
-            // Filter to only include dates within the requested range (exclude expanded boundary days)
             if (date < startLocalDate || date > endLocalDate) {
                 return;
             }
             if (!dailyMap.has(date)) {
-                dailyMap.set(date, { rmssd: [], hr: [], score: [] });
+                dailyMap.set(date, {
+                    rmssd: [],
+                    hr: [],
+                    score: [],
+                    energy: [],
+                    stress: [],
+                    health: [],
+                    focus: [],
+                    readiness: []
+                });
             }
-            if (s.rmssd_session_ms !== null && s.rmssd_session_ms !== undefined) dailyMap.get(date)!.rmssd.push(s.rmssd_session_ms);
-            if (s.session_mean_hr !== null && s.session_mean_hr !== undefined) dailyMap.get(date)!.hr.push(s.session_mean_hr);
-            // HRV Score (prefer hrv_score, fallback to readiness_score)
+            const dayData = dailyMap.get(date)!;
+            if (s.rmssd_session_ms !== null && s.rmssd_session_ms !== undefined) dayData.rmssd.push(s.rmssd_session_ms);
+            if (s.session_mean_hr !== null && s.session_mean_hr !== undefined) dayData.hr.push(s.session_mean_hr);
             const scoreVal = s.hrv_score ?? s.readiness_score;
-            if (scoreVal !== null && scoreVal !== undefined) dailyMap.get(date)!.score.push(scoreVal);
+            if (scoreVal !== null && scoreVal !== undefined) dayData.score.push(scoreVal);
+            if (s.energy_score !== null && s.energy_score !== undefined) dayData.energy.push(s.energy_score);
+            if (s.stress_score !== null && s.stress_score !== undefined) dayData.stress.push(s.stress_score);
+            if (s.health_score !== null && s.health_score !== undefined) dayData.health.push(s.health_score);
+            if (s.focus_score !== null && s.focus_score !== undefined) dayData.focus.push(s.focus_score);
+            const readinessVal = s.readiness_score ?? s.hrv_score ?? s.energy_score;
+            if (readinessVal !== null && readinessVal !== undefined) dayData.readiness.push(readinessVal);
         });
 
-        // 2. Generate Daily Averages + Rolling Averages
+        // Generate Daily Averages + Rolling Averages for Sunday-Saturday week
+        // Get the current week's Sunday-Saturday range
+        const { sunday, saturday } = getCurrentWeekRange(userTimezone, referenceDate);
+        
+        // Generate array of dates from startDate to endDate (or Sunday to Saturday if within week)
         const displayDays = [];
-        // Loop through the last 7 days ending on endDate
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date(endDate);
-            d.setDate(endDate.getDate() - i);
-            const dayStr = formatLocalDate(d);
-            const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
-
-            // Daily Value
+        const currentDate = new Date(startDate);
+        const endDateForLoop = endDate <= saturday ? endDate : saturday;
+        
+        while (currentDate <= endDateForLoop) {
+            const dayStr = formatLocalDate(currentDate);
+            const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'short' });
+            
             const dayData = dailyMap.get(dayStr);
+            
+            // Calculate daily averages
             const rmssdRaw = dayData && dayData.rmssd.length > 0
                 ? Math.round(dayData.rmssd.reduce((a, b) => a + b, 0) / dayData.rmssd.length)
                 : null;
@@ -165,54 +197,82 @@ export async function GET(request: NextRequest) {
             const scoreRaw = dayData && dayData.score.length > 0
                 ? Math.round(dayData.score.reduce((a, b) => a + b, 0) / dayData.score.length)
                 : null;
+            const energyRaw = dayData && dayData.energy.length > 0
+                ? Math.round(dayData.energy.reduce((a, b) => a + b, 0) / dayData.energy.length)
+                : null;
+            const stressRaw = dayData && dayData.stress.length > 0
+                ? Math.round(dayData.stress.reduce((a, b) => a + b, 0) / dayData.stress.length)
+                : null;
+            const healthRaw = dayData && dayData.health.length > 0
+                ? Math.round(dayData.health.reduce((a, b) => a + b, 0) / dayData.health.length)
+                : null;
+            const focusRaw = dayData && dayData.focus.length > 0
+                ? Math.round(dayData.focus.reduce((a, b) => a + b, 0) / dayData.focus.length)
+                : null;
+            const readinessRaw = dayData && dayData.readiness.length > 0
+                ? Math.round(dayData.readiness.reduce((a, b) => a + b, 0) / dayData.readiness.length)
+                : null;
 
-            // 7-Day Rolling Average
-            let rmssdSum = 0;
-            let rmssdCount = 0;
-            let hrSum = 0;
-            let hrCount = 0;
-            let scoreSum = 0;
-            let scoreCount = 0;
+            // Calculate 7-Day Rolling Averages
+            let rmssdSum = 0, rmssdCount = 0;
+            let hrSum = 0, hrCount = 0;
+            let scoreSum = 0, scoreCount = 0;
+            let energySum = 0, energyCount = 0;
+            let stressSum = 0, stressCount = 0;
+            let healthSum = 0, healthCount = 0;
+            let focusSum = 0, focusCount = 0;
 
             for (let j = 0; j < 7; j++) {
-                const lookback = new Date(d);
-                lookback.setDate(d.getDate() - j);
+                const lookback = new Date(currentDate);
+                lookback.setDate(currentDate.getDate() - j);
                 const lbStr = formatLocalDate(lookback);
                 const lbData = dailyMap.get(lbStr);
 
                 if (lbData) {
                     if (lbData.rmssd.length > 0) {
-                        const val = lbData.rmssd.reduce((a, b) => a + b, 0) / lbData.rmssd.length;
-                        rmssdSum += val;
+                        rmssdSum += lbData.rmssd.reduce((a, b) => a + b, 0) / lbData.rmssd.length;
                         rmssdCount++;
                     }
                     if (lbData.hr.length > 0) {
-                        const val = lbData.hr.reduce((a, b) => a + b, 0) / lbData.hr.length;
-                        hrSum += val;
+                        hrSum += lbData.hr.reduce((a, b) => a + b, 0) / lbData.hr.length;
                         hrCount++;
                     }
                     if (lbData.score.length > 0) {
-                        const val = lbData.score.reduce((a, b) => a + b, 0) / lbData.score.length;
-                        scoreSum += val;
+                        scoreSum += lbData.score.reduce((a, b) => a + b, 0) / lbData.score.length;
                         scoreCount++;
+                    }
+                    if (lbData.energy.length > 0) {
+                        energySum += lbData.energy.reduce((a, b) => a + b, 0) / lbData.energy.length;
+                        energyCount++;
+                    }
+                    if (lbData.stress.length > 0) {
+                        stressSum += lbData.stress.reduce((a, b) => a + b, 0) / lbData.stress.length;
+                        stressCount++;
+                    }
+                    if (lbData.health.length > 0) {
+                        healthSum += lbData.health.reduce((a, b) => a + b, 0) / lbData.health.length;
+                        healthCount++;
+                    }
+                    if (lbData.focus.length > 0) {
+                        focusSum += lbData.focus.reduce((a, b) => a + b, 0) / lbData.focus.length;
+                        focusCount++;
                     }
                 }
             }
 
-            const rmssdAvg = rmssdCount > 0 ? Math.round(rmssdSum / rmssdCount) : null;
-            const hrAvg = hrCount > 0 ? Math.round(hrSum / hrCount) : null;
-            const scoreAvg = scoreCount > 0 ? Math.round(scoreSum / scoreCount) : null;
-
             displayDays.push({
                 date: dayStr,
                 name: dayName,
+                score: scoreRaw,
+                energy: energyRaw,
+                stress: stressRaw,
+                health: healthRaw,
+                focus: focusRaw,
+                readiness: readinessRaw,
                 rmssd: rmssdRaw,
                 hr: hrRaw,
-                score: scoreRaw,
-                rmssdAvg: rmssdAvg,
-                hrAvg: hrAvg,
-                scoreAvg: scoreAvg,
-                // Normal Ranges from Baseline (handle nulls safely)
+                rmssdAvg: rmssdCount > 0 ? Math.round(rmssdSum / rmssdCount) : null,
+                hrAvg: hrCount > 0 ? Math.round(hrSum / hrCount) : null,
                 rmssdMin: (baselineMetrics.rmssd_avg !== null && baselineMetrics.rmssd_stdev !== null)
                     ? Math.round(baselineMetrics.rmssd_avg - (0.5 * baselineMetrics.rmssd_stdev))
                     : null,
@@ -226,44 +286,168 @@ export async function GET(request: NextRequest) {
                     ? Math.round(baselineMetrics.hr_avg + (0.5 * baselineMetrics.hr_stdev))
                     : null,
             });
+
+            // Move to next day
+            currentDate.setDate(currentDate.getDate() + 1);
         }
 
-        // 3. Calculate Stability (CV)
+        // Calculate Statistics
+        // Averages for the 5 Scores
+        const validScores = displayDays.map(d => d.score).filter((v): v is number => v !== null && v > 0);
+        const validEnergy = displayDays.map(d => d.energy).filter((v): v is number => v !== null && v > 0);
+        const validStress = displayDays.map(d => d.stress).filter((v): v is number => v !== null && v > 0);
+        const validHealth = displayDays.map(d => d.health).filter((v): v is number => v !== null && v > 0);
+        const validFocus = displayDays.map(d => d.focus).filter((v): v is number => v !== null && v > 0);
+        const validReadiness = displayDays.map(d => d.readiness).filter((v): v is number => v !== null && v > 0);
+
+        const avgScore = validScores.length > 0 ? Math.round(validScores.reduce((a, b) => a + b, 0) / validScores.length) : 0;
+        const avgEnergy = validEnergy.length > 0 ? Math.round(validEnergy.reduce((a, b) => a + b, 0) / validEnergy.length) : 0;
+        const avgStress = validStress.length > 0 ? Math.round(validStress.reduce((a, b) => a + b, 0) / validStress.length) : 0;
+        const avgHealth = validHealth.length > 0 ? Math.round(validHealth.reduce((a, b) => a + b, 0) / validHealth.length) : 0;
+        const avgFocus = validFocus.length > 0 ? Math.round(validFocus.reduce((a, b) => a + b, 0) / validFocus.length) : 0;
+        const avgReadiness = validReadiness.length > 0 ? Math.round(validReadiness.reduce((a, b) => a + b, 0) / validReadiness.length) : 0;
+
+        // Calculate Changes (vs first day or previous week if available)
+        // For now, calculate vs first day
+        const firstDayScore = validScores.length > 0 ? validScores[0] : null;
+        const firstDayEnergy = validEnergy.length > 0 ? validEnergy[0] : null;
+        const firstDayStress = validStress.length > 0 ? validStress[0] : null;
+        const firstDayHealth = validHealth.length > 0 ? validHealth[0] : null;
+        const firstDayFocus = validFocus.length > 0 ? validFocus[0] : null;
+        const firstDayReadiness = validReadiness.length > 0 ? validReadiness[0] : null;
+
+        const lastDayScore = validScores.length > 0 ? validScores[validScores.length - 1] : null;
+        const lastDayEnergy = validEnergy.length > 0 ? validEnergy[validEnergy.length - 1] : null;
+        const lastDayStress = validStress.length > 0 ? validStress[validStress.length - 1] : null;
+        const lastDayHealth = validHealth.length > 0 ? validHealth[validHealth.length - 1] : null;
+        const lastDayFocus = validFocus.length > 0 ? validFocus[validFocus.length - 1] : null;
+        const lastDayReadiness = validReadiness.length > 0 ? validReadiness[validReadiness.length - 1] : null;
+
+        const changeScore = firstDayScore && lastDayScore ? Number(((lastDayScore - firstDayScore) / firstDayScore * 100).toFixed(1)) : 0;
+        const changeEnergy = firstDayEnergy && lastDayEnergy ? Number(((lastDayEnergy - firstDayEnergy) / firstDayEnergy * 100).toFixed(1)) : 0;
+        const changeStress = firstDayStress && lastDayStress ? Number(((lastDayStress - firstDayStress) / firstDayStress * 100).toFixed(1)) : 0;
+        const changeHealth = firstDayHealth && lastDayHealth ? Number(((lastDayHealth - firstDayHealth) / firstDayHealth * 100).toFixed(1)) : 0;
+        const changeFocus = firstDayFocus && lastDayFocus ? Number(((lastDayFocus - firstDayFocus) / firstDayFocus * 100).toFixed(1)) : 0;
+        const changeReadiness = firstDayReadiness && lastDayReadiness ? Number(((lastDayReadiness - firstDayReadiness) / firstDayReadiness * 100).toFixed(1)) : 0;
+
+        // Calculate Stability (CV) for RMSSD
         const validRmssd = displayDays.map(d => d.rmssd).filter((v): v is number => v !== null && v > 0);
         let weeklyCV = 0;
+        let changeCV = 0;
         if (validRmssd.length > 1) {
             const mean = validRmssd.reduce((a, b) => a + b, 0) / validRmssd.length;
             const squaredDiffs = validRmssd.map(v => Math.pow(v - mean, 2));
             const variance = squaredDiffs.reduce((a, b) => a + b, 0) / validRmssd.length;
             const sd = Math.sqrt(variance);
             weeklyCV = mean > 0 ? Number(((sd / mean) * 100).toFixed(1)) : 0;
+            // For changeCV, compare first half vs second half (simplified)
+            if (validRmssd.length >= 4) {
+                const mid = Math.floor(validRmssd.length / 2);
+                const firstHalf = validRmssd.slice(0, mid);
+                const secondHalf = validRmssd.slice(mid);
+                const firstMean = firstHalf.reduce((a, b) => a + b, 0) / firstHalf.length;
+                const secondMean = secondHalf.reduce((a, b) => a + b, 0) / secondHalf.length;
+                const firstSd = Math.sqrt(firstHalf.map(v => Math.pow(v - firstMean, 2)).reduce((a, b) => a + b, 0) / firstHalf.length);
+                const secondSd = Math.sqrt(secondHalf.map(v => Math.pow(v - secondMean, 2)).reduce((a, b) => a + b, 0) / secondHalf.length);
+                const firstCV = firstMean > 0 ? (firstSd / firstMean) * 100 : 0;
+                const secondCV = secondMean > 0 ? (secondSd / secondMean) * 100 : 0;
+                changeCV = Number((secondCV - firstCV).toFixed(1));
+            }
         }
 
-        // 4. Calculate Readiness / Stats (Safe Access)
-        const latestSession = sessions.length > 0 ? sessions[sessions.length - 1] : null;
-        const readiness = latestSession
-            ? (latestSession.readiness_score || latestSession.energy_score || latestSession.hrv_score || 0)
-            : 0;
+        // Calculate Trend
+        let trend: 'improving' | 'declining' | 'stable' = 'stable';
+        if (validScores.length >= 3) {
+            const firstThird = validScores.slice(0, Math.ceil(validScores.length / 3));
+            const lastThird = validScores.slice(-Math.ceil(validScores.length / 3));
+            const firstAvg = firstThird.reduce((a, b) => a + b, 0) / firstThird.length;
+            const lastAvg = lastThird.reduce((a, b) => a + b, 0) / lastThird.length;
+            const diff = lastAvg - firstAvg;
+            if (diff > 5) trend = 'improving';
+            else if (diff < -5) trend = 'declining';
+        }
 
-        const avgHR = baselineMetrics.hr_avg || (displayDays.find(d => d.hrAvg !== null)?.hrAvg) || 0;
-        const avgHRV = baselineMetrics.rmssd_avg || (displayDays.find(d => d.rmssdAvg !== null)?.rmssdAvg) || 0;
+        // Generate Insight
+        let insightTitle = 'Data Processing...';
+        let insightText = 'Gathering sufficient biometric data to generate actionable insights.';
+
+        if (validScores.length > 0 && validRmssd.length > 0) {
+            const avgRMSSD = validRmssd.reduce((a, b) => a + b, 0) / validRmssd.length;
+            const avgHR = displayDays.filter(d => d.hr !== null).length > 0
+                ? displayDays.filter(d => d.hr !== null).map(d => d.hr!).reduce((a, b) => a + b, 0) / displayDays.filter(d => d.hr !== null).length
+                : baselineMetrics.hr_avg || 60;
+
+            if (trend === 'improving' && weeklyCV < 10) {
+                insightTitle = 'Peak Adaptation Phase';
+                insightText = 'Your parasympathetic activity (HRV) is trending upward while your Resting HR remains stable within your optimal range. This indicates your body is adapting positively to recent training loads. It is a great time to push for higher intensity sessions.';
+            } else if (trend === 'declining' || weeklyCV > 15) {
+                insightTitle = 'Recovery Priority';
+                insightText = 'Your HRV stability is showing signs of stress accumulation. Consider prioritizing sleep, light movement, and stress management techniques to support recovery.';
+            } else if (trend === 'stable' && weeklyCV < 10) {
+                insightTitle = 'Maintained Stability';
+                insightText = 'Your biometrics show consistent patterns, indicating good adaptation to your current routine. Continue monitoring for optimal performance windows.';
+            }
+        }
+
+        const avgHR = baselineMetrics.hr_avg || (displayDays.find(d => d.hr !== null)?.hr) || 0;
+        const avgHRV = baselineMetrics.rmssd_avg || (displayDays.find(d => d.rmssd !== null)?.rmssd) || 0;
 
         return NextResponse.json({
             data: displayDays,
             stats: {
-                readiness: Math.round(readiness),
+                avgScore,
+                avgEnergy,
+                avgStress,
+                avgHealth,
+                avgFocus,
+                changeScore,
+                changeEnergy,
+                changeStress,
+                changeHealth,
+                changeFocus,
+                avgReadiness,
+                changeReadiness,
                 weeklyCV,
+                changeCV,
                 avgHR: Math.round(avgHR),
-                avgHRV: Math.round(avgHRV)
+                avgRMSSD: Math.round(avgHRV),
+                trend,
+                insightTitle,
+                insightText
+            },
+            usage_phase: usagePhase,
+            weekRange: {
+                start: startLocalDate,
+                end: endLocalDate
             }
         });
 
     } catch (error) {
         console.error('Weekly trend API error (Fatal):', error);
-        // Return a valid empty structure instead of 500 so UI can show "No Data" state
         return NextResponse.json({
             data: [],
-            stats: { readiness: 0, weeklyCV: 0, avgHR: 0, avgHRV: 0 },
+            stats: {
+                avgScore: 0,
+                avgEnergy: 0,
+                avgStress: 0,
+                avgHealth: 0,
+                avgFocus: 0,
+                changeScore: 0,
+                changeEnergy: 0,
+                changeStress: 0,
+                changeHealth: 0,
+                changeFocus: 0,
+                avgReadiness: 0,
+                changeReadiness: 0,
+                weeklyCV: 0,
+                changeCV: 0,
+                avgHR: 0,
+                avgRMSSD: 0,
+                trend: 'stable' as const,
+                insightTitle: 'Data Processing...',
+                insightText: 'Gathering sufficient biometric data to generate actionable insights.'
+            },
+            usage_phase: null,
             error: 'Not enough data available'
         });
     }
