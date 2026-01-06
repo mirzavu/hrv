@@ -6,10 +6,11 @@ import Header from '@/components/ui/Header';
 import LoginModal from '@/components/auth/LoginModal';
 import UserOnboardingModal from '@/components/UserOnboardingModal';
 import { useState } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 
 export default function CalendarPage() {
   const [toasts, setToasts] = useState<Array<{ id: number; message: string }>>([]);
-  const [darkMode, setDarkMode] = useState(false);
+  const { darkMode, toggleDarkMode } = useTheme();
 
   const addToast = (message: string) => {
     const id = Date.now();
@@ -43,7 +44,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col">
+    <div className={`min-h-screen flex flex-col transition-colors duration-300 ${darkMode ? 'bg-gray-900' : 'bg-gray-100'}`}>
       {showLoginModal && (
         <LoginModal
           darkMode={darkMode}
@@ -62,7 +63,7 @@ export default function CalendarPage() {
       <Header
         user={user}
         handleLogout={handleLogout}
-        toggleDarkMode={() => setDarkMode(!darkMode)}
+        toggleDarkMode={toggleDarkMode}
         darkMode={darkMode}
         onLoginClick={() => setShowLoginModal(true)}
       />

@@ -297,11 +297,11 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   return (
     <div className="w-full max-w-7xl mx-auto font-sans">
       {/* Top Bar */}
-      <div className="bg-white p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg mb-4">
+      <div className={`p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg mb-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex justify-between items-center">
           <button
             onClick={clearCache}
-            className="px-3 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg shadow-sm hover:bg-gray-50 transition-colors duration-200 flex items-center gap-2"
+            className={`px-3 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 ${darkMode ? 'text-gray-200 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'}`}
             title="Clear cache"
           >
             <TrashIcon />
@@ -336,18 +336,18 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       </div>
 
       {/* Calendar Container */}
-      <div className="bg-white p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg">
+      <div className={`p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         {/* Calendar Header */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3 sm:gap-0">
-          <h2 className="text-lg sm:text-xl font-bold text-gray-800">{viewMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' })}</h2>
+          <h2 className={`text-lg sm:text-xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{viewMonth.toLocaleString(undefined, { month: 'long', year: 'numeric' })}</h2>
           <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
-            <button onClick={prevMonth} aria-label="Previous month" className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors">
+            <button onClick={prevMonth} aria-label="Previous month" className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-800'}`}>
               <ChevronLeft className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
-            <button onClick={goToday} className="px-3 py-2 text-xs sm:text-sm font-semibold text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 transition-colors">
+            <button onClick={goToday} className={`px-3 py-2 text-xs sm:text-sm font-semibold rounded-md shadow-sm transition-colors ${darkMode ? 'text-gray-200 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'}`}>
               Today
             </button>
-            <button onClick={nextMonth} aria-label="Next month" className="p-2 rounded-full hover:bg-gray-100 text-gray-500 hover:text-gray-800 transition-colors">
+            <button onClick={nextMonth} aria-label="Next month" className={`p-2 rounded-full transition-colors ${darkMode ? 'hover:bg-gray-700 text-gray-400 hover:text-gray-200' : 'hover:bg-gray-100 text-gray-500 hover:text-gray-800'}`}>
               <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
@@ -358,7 +358,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
           <div className="flex flex-col xl:flex-row gap-4 xl:gap-8 w-full">
             {/* Calendar Grid */}
             <div className="flex-1 min-w-0" id="calendar-wrapper">
-              <div className="grid grid-cols-7 gap-1 text-center text-xs font-semibold text-gray-500 mb-2">
+              <div className={`grid grid-cols-7 gap-1 text-center text-xs font-semibold mb-2 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
                 {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(d => <div key={d}>{d}</div>)}
               </div>
               <div className="grid grid-cols-7 gap-1 w-full mx-auto xl:mx-0" id="calendar-grid">
@@ -376,17 +376,19 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                     return (
                       <button
                         key={d.key}
-                        className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors ${selectedDay === d.key ? 'bg-blue-100 border-blue-400' : 'bg-white border-gray-200 hover:bg-gray-50'
+                        className={`aspect-square p-1 sm:p-2 text-left flex flex-col justify-start gap-1 rounded-lg border transition-colors ${selectedDay === d.key
+                          ? (darkMode ? 'bg-blue-900/50 border-blue-500' : 'bg-blue-100 border-blue-400')
+                          : (darkMode ? 'bg-gray-700 border-gray-600 hover:bg-gray-600' : 'bg-white border-gray-200 hover:bg-gray-50')
                           }`}
                         onClick={() => selectDay(d.key)}
                       >
-                        <div className={`text-xs sm:text-sm font-medium ${selectedDay === d.key ? 'text-blue-700' : 'text-gray-700'}`}>{d.dateObj.getDate()}</div>
+                        <div className={`text-xs sm:text-sm font-medium ${selectedDay === d.key ? (darkMode ? 'text-blue-300' : 'text-blue-700') : (darkMode ? 'text-gray-200' : 'text-gray-700')}`}>{d.dateObj.getDate()}</div>
                         <div className="flex flex-wrap gap-1 items-center">
                           {sessions.slice(0, 3).map(s => {
                             const colorClass = s.rmssd >= 60 ? 'bg-green-500' : s.rmssd >= 40 ? 'bg-yellow-500' : 'bg-red-500';
                             return <span key={s.id} className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${colorClass}`} />;
                           })}
-                          {sessionCount > 3 && <span className="text-[8px] sm:text-[10px] text-gray-500 font-semibold">+{sessionCount - 3}</span>}
+                          {sessionCount > 3 && <span className={`text-[8px] sm:text-[10px] font-semibold ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>+{sessionCount - 3}</span>}
                         </div>
                       </button>
                     );
@@ -397,8 +399,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
             </div>
 
             {/* Sessions View */}
-            <div className="w-full xl:w-80 xl:border-l xl:border-gray-200 xl:pl-8 flex flex-col" id="session-column">
-              <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">
+            <div className={`w-full xl:w-80 xl:border-l xl:pl-8 flex flex-col ${darkMode ? 'xl:border-gray-700' : 'xl:border-gray-200'}`} id="session-column">
+              <h3 className={`text-base sm:text-lg font-semibold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                 Sessions {selectedDay ? `— ${new Date(selectedDay + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}` : ''}
               </h3>
 
@@ -407,8 +409,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                   onClick={() => baselineEstablished && setShowMonthlyReport(true)}
                   disabled={!baselineEstablished}
                   className={`w-full px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold rounded-lg shadow-sm border transition-colors duration-200 flex items-center justify-center gap-2 ${baselineEstablished
-                    ? 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400'
-                    : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed'
+                    ? (darkMode ? 'text-gray-200 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400')
+                    : (darkMode ? 'text-gray-500 bg-gray-800 border-gray-700 cursor-not-allowed' : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed')
                     }`}
                   title={!baselineEstablished ? "Establish a baseline first" : "View Monthly Trends"}
                 >
@@ -430,26 +432,26 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                     {daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
                       return (
                         <div
-                          className="bg-white border border-gray-200 rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 hover:border-gray-300 transition-colors"
+                          className={`rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${darkMode ? 'bg-gray-700 border border-gray-600 hover:bg-gray-600' : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
                           key={s.id}
                           onClick={() => handleSessionClick(s.id)}
                         >
                           <div className="flex flex-col gap-1">
-                            <span className="text-base font-semibold text-gray-800">{s.time}</span>
-                            <span className="text-xs font-medium text-gray-400">{s.durationMin} min • ID: {s.id.slice(-8)}</span>
+                            <span className={`text-base font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>{s.time}</span>
+                            <span className={`text-xs font-medium ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>{s.durationMin} min • ID: {s.id.slice(-8)}</span>
                           </div>
                           <div className="flex items-center gap-5 text-right">
                             <div className="flex flex-col">
-                              <span className="text-2xl font-bold text-gray-800 leading-tight">
-                                {s.hrvScore ?? 'N/A'}<span className="text-sm font-medium text-gray-400 ml-0.5">/100</span>
+                              <span className={`text-2xl font-bold leading-tight ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+                                {s.hrvScore ?? 'N/A'}<span className={`text-sm font-medium ml-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>/100</span>
                               </span>
-                              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">HRV Score</span>
+                              <span className={`text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>HRV Score</span>
                             </div>
                             <div className="flex flex-col">
-                              <span className="text-2xl font-bold text-gray-800 leading-tight">
-                                {s.rmssd}<span className="text-sm font-medium text-gray-400 ml-0.5">ms</span>
+                              <span className={`text-2xl font-bold leading-tight ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
+                                {s.rmssd}<span className={`text-sm font-medium ml-0.5 ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>ms</span>
                               </span>
-                              <span className="text-xs font-medium uppercase tracking-wider text-gray-400">RMSSD</span>
+                              <span className={`text-xs font-medium uppercase tracking-wider ${darkMode ? 'text-gray-500' : 'text-gray-400'}`}>RMSSD</span>
                             </div>
                           </div>
                         </div>
@@ -457,7 +459,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                     })}
                   </div>
                 ) : (
-                  <div className="text-xs sm:text-sm text-gray-500 p-4 text-center bg-white rounded-lg border border-dashed flex items-center justify-center h-full">Select a day to see sessions</div>
+                  <div className={`text-xs sm:text-sm p-4 text-center rounded-lg border border-dashed flex items-center justify-center h-full ${darkMode ? 'text-gray-400 bg-gray-700 border-gray-600' : 'text-gray-500 bg-white'}`}>Select a day to see sessions</div>
                 )}
               </div>
             </div>

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthContext } from '@/contexts/AuthContext';
 import { useHrvSession } from '@/hooks/useHrvSession';
 import { useBluetooth } from '@/hooks/useBluetooth';
@@ -22,7 +23,7 @@ import Toast from '@/components/ui/Toast';
 import { RawHeartData, User } from '@/types';
 
 const AppContent = () => {
-    const [darkMode, setDarkMode] = useState(false);
+    const { darkMode, toggleDarkMode } = useTheme();
 
     const {
         user,
@@ -317,9 +318,7 @@ const AppContent = () => {
     }, [sessionActive, getRRQuality, addToast, poorQualityWarningShown]);
 
 
-    useEffect(() => {
-        document.body.className = darkMode ? 'bg-gray-900' : 'bg-gray-100';
-    }, [darkMode]);
+
 
     // Show calibration modal only on the very first session (Day 1, first session)
     useEffect(() => {
@@ -382,7 +381,7 @@ const AppContent = () => {
             <Header
                 user={user}
                 handleLogout={handleLogout}
-                toggleDarkMode={() => setDarkMode(!darkMode)}
+                toggleDarkMode={toggleDarkMode}
                 darkMode={darkMode}
                 onLoginClick={() => setShowLoginModal(true)}
             />

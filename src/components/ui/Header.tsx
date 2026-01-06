@@ -198,7 +198,7 @@ const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className={`border-b shadow-sm transition-colors duration-300 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
-      <div className="max-w-7xl mx-auto py-3 px-4 sm:px-6 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto py-3 flex items-center justify-between">
         {/* Logo */}
         <a href="/" onClick={(e) => { e.preventDefault(); router.push('/'); }} className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="bg-gradient-to-br from-teal-500 to-cyan-600 p-2.5 rounded-xl shadow-lg">
@@ -212,12 +212,12 @@ const Header: React.FC<HeaderProps> = ({
           {user ? (
             <>
               {/* Desktop Navigation (Segmented Control) */}
-              <nav className="hidden md:flex items-center p-1 bg-slate-100/80 rounded-xl border border-slate-200/50">
+              <nav className={`hidden md:flex items-center p-1 rounded-xl border ${darkMode ? 'bg-gray-700/80 border-gray-600/50' : 'bg-slate-100/80 border-slate-200/50'}`}>
                 <button
                   onClick={() => handleTabClick('dashboard')}
                   className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${activeTab === 'dashboard'
-                    ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? (darkMode ? 'bg-gray-600 text-gray-100 shadow-sm ring-1 ring-gray-500' : 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200')
+                    : (darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-slate-500 hover:text-slate-700')
                     }`}
                 >
                   Dashboard
@@ -225,28 +225,28 @@ const Header: React.FC<HeaderProps> = ({
                 <button
                   onClick={() => handleTabClick('calendar')}
                   className={`px-4 py-1.5 text-sm font-semibold rounded-lg transition-all duration-200 cursor-pointer ${activeTab === 'calendar'
-                    ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200'
-                    : 'text-slate-500 hover:text-slate-700'
+                    ? (darkMode ? 'bg-gray-600 text-gray-100 shadow-sm ring-1 ring-gray-500' : 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200')
+                    : (darkMode ? 'text-gray-400 hover:text-gray-200' : 'text-slate-500 hover:text-slate-700')
                     }`}
                 >
                   Calendar
                 </button>
               </nav>
 
-              <div className="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
+
 
               {/* Notification Bell with Dropdown */}
               <div className="relative" ref={notificationRef}>
                 <button
                   onClick={toggleNotification}
                   className={`p-2 rounded-full transition-colors relative cursor-pointer ${isNotificationOpen
-                    ? 'text-slate-700 bg-slate-100'
-                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+                    ? (darkMode ? 'text-gray-200 bg-gray-700' : 'text-slate-700 bg-slate-100')
+                    : (darkMode ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-700' : 'text-slate-500 hover:text-slate-700 hover:bg-slate-100')
                     }`}
                 >
                   <Bell size={20} />
                   {unreadCount > 0 && (
-                    <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ring-white">
+                    <span className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white ring-2 ${darkMode ? 'ring-gray-800' : 'ring-white'}`}>
                       {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                   )}
@@ -266,23 +266,19 @@ const Header: React.FC<HeaderProps> = ({
                 )}
               </div>
 
-              <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
 
               {/* Profile Dropdown Container */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   onClick={toggleDropdown}
-                  className={`flex items-center space-x-3 p-1 pr-3 rounded-full transition-all border cursor-pointer ${isDropdownOpen
-                    ? 'bg-slate-50 border-teal-500 ring-2 ring-teal-100'
-                    : 'hover:bg-slate-50 border-transparent hover:border-slate-200'
+                  className={`p-1.5 rounded-full transition-all border cursor-pointer ${isDropdownOpen
+                    ? (darkMode ? 'bg-gray-700 border-teal-500 ring-2 ring-teal-900' : 'bg-slate-50 border-teal-500 ring-2 ring-teal-100')
+                    : (darkMode ? 'hover:bg-gray-700 border-transparent hover:border-gray-600' : 'hover:bg-slate-50 border-transparent hover:border-slate-200')
                     }`}
                 >
                   <div className="h-9 w-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white font-semibold text-sm shadow-md">
                     {getUserInitials()}
-                  </div>
-                  <div className="hidden sm:block text-left">
-                    <p className="text-sm font-semibold text-slate-700 leading-none">{getUserDisplayName()}</p>
-                    <p className="text-xs text-slate-500 leading-none mt-1">Pro Member</p>
                   </div>
                 </button>
 
