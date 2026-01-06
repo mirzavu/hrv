@@ -132,10 +132,11 @@ export async function GET(request: NextRequest) {
           hrvScore: hrvScore !== null ? Math.round(hrvScore) : undefined,
           notes: summary ? `Session ${session.id.slice(-4)}` : `Session ${session.id.slice(-4)} (No data)`
         };
-        return calendarSession;
+        return { ...calendarSession, _startTimeMs: startTime.getTime() };
       })
-      .filter((s): s is CalendarSession => s !== null)
-      .sort((a, b) => b.time.localeCompare(a.time)); // Sort by time descending (most recent first)
+      .filter((s): s is any => s !== null)
+      .sort((a, b) => b._startTimeMs - a._startTimeMs) // Sort by actual timestamp descending
+      .map(({ _startTimeMs, ...session }) => session); // Remove temp field
 
     return NextResponse.json({ sessions: calendarSessions });
 
