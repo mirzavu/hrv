@@ -54,13 +54,6 @@ async function fetchWithRetry(payload: any, maxRetries = 1) {
 }
 
 export async function POST(request: NextRequest) {
-    // TEMPORARY: Disable Gemini API calls completely to preserve quota
-    return NextResponse.json({
-        title: 'Insight Unavailable',
-        interpretation: 'AI insights are temporarily disabled.'
-    });
-
-    // --- ALL CODE BELOW IS UNREACHABLE WHILE DISABLED ---
     console.log('[API/AI-Insight] ===== REQUEST RECEIVED =====');
     console.log('[API/AI-Insight] Request URL:', request.url);
     console.log('[API/AI-Insight] Request Method:', request.method);

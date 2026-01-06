@@ -88,207 +88,189 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
   const [aiInsight, setAiInsight] = useState<{ title: string; interpretation: string } | null>(null);
   const [isLoadingInsight, setIsLoadingInsight] = useState(false);
 
+  const [isError, setIsError] = useState(false);
+
   // Track which sessionId has already had AI insight generated to prevent duplicate calls
   const generatedForSessionRef = React.useRef<string | null>(null);
 
-  // Determine if valid for AI generation
-  useEffect(() => {
-    const generateInsight = async () => {
+  const generateInsight = async (isRetry = false) => {
+    // Logic inside effect handles the null checks safely
+    if (!interpretation || !summary || (isLoading && !isRetry)) {
+      return;
+    }
 
+    // 1. Check if we already have persisted AI insight - display stored data
+    // If retrying, we ignore this check to force a new fetch
+    if (!isRetry && summary.ai_title && summary.ai_interpretation) {
+      setAiInsight({
+        title: summary.ai_title,
+        interpretation: summary.ai_interpretation
+      });
+      return;
+    }
 
-      // Logic inside effect handles the null checks safely
-      if (!interpretation || !summary || isLoading) {
+    // 2. Check if we already generated insight for this session (prevents duplicate calls)
+    // If retrying, we bypass this check
+    if (!isRetry && sessionId && generatedForSessionRef.current === sessionId) {
+      return;
+    }
 
-        return;
-      }
+    setIsError(false);
+    setIsLoadingInsight(true);
 
-      // 1. Check if we already have persisted AI insight - display stored data
+    // Mark this session as being processed
+    if (sessionId) {
+      generatedForSessionRef.current = sessionId;
+    }
 
+    try {
+      // Check if baseline is established (per plan requirement)
+      const baselineEstablished = baseline?.established ?? false;
+      let payload = {};
+      let mode = '';
 
-      if (summary.ai_title && summary.ai_interpretation) {
+      if (!baselineEstablished) {
+        // Calibration phase - use analysis mode
+        mode = 'analysis';
 
-        setAiInsight({
-          title: summary.ai_title,
-          interpretation: summary.ai_interpretation
-        });
+        // Get metric changes from baselineDetails (comparison to previous session)
+        const getMetricChange = (metricKey: string) => {
+          const detail = interpretation.baselineDetails?.find(d => d.metric === metricKey);
+          if (!detail) return 0;
+          // Return signed change: positive for up, negative for down
+          return detail.direction === 'up' ? detail.percentChange :
+            detail.direction === 'down' ? -detail.percentChange : 0;
+        };
 
-        return;
-      }
+        // Extract comparison context from interpretation
+        let timeContext = "this session"; // Default fallback
 
-      // 2. Check if we already generated insight for this session (prevents duplicate calls)
-      if (sessionId && generatedForSessionRef.current === sessionId) {
-        return;
-      }
-
-      // Prevent redundant calls if we already have an insight for this exact interpretation
-      setIsLoadingInsight(true);
-
-      // Mark this session as being processed
-      if (sessionId) {
-        generatedForSessionRef.current = sessionId;
-      }
-
-      try {
-        // Check if baseline is established (per plan requirement)
-        const baselineEstablished = baseline?.established ?? false;
-        let payload = {};
-        let mode = '';
-
-        if (!baselineEstablished) {
-          // Calibration phase - use analysis mode
-          mode = 'analysis';
-
-          // Get metric changes from baselineDetails (comparison to previous session)
-          const getMetricChange = (metricKey: string) => {
-            const detail = interpretation.baselineDetails?.find(d => d.metric === metricKey);
-            if (!detail) return 0;
-            // Return signed change: positive for up, negative for down
-            return detail.direction === 'up' ? detail.percentChange :
-              detail.direction === 'down' ? -detail.percentChange : 0;
-          };
-
-          // Extract comparison context from interpretation
-          // The relativeInterpretation starts with the insightText like:
-          // - "Compared to your state roughly 1 day ago, ..."
-          // - "Since your earlier session in this cycle, ..."
-          // Extract it by taking everything before the first comma
-          let timeContext = "this session"; // Default fallback
-
-          if (interpretation.relativeInterpretation) {
-            const commaIndex = interpretation.relativeInterpretation.indexOf(',');
-            if (commaIndex > 0) {
-              // Extract the comparison text (e.g., "Compared to your state roughly 1 day ago")
-              timeContext = interpretation.relativeInterpretation.substring(0, commaIndex).trim();
-            } else {
-              // If no comma, check if it's a comparison statement
-              const lowerText = interpretation.relativeInterpretation.toLowerCase();
-              if (lowerText.includes('compared') || lowerText.includes('since your')) {
-                timeContext = interpretation.relativeInterpretation.trim();
-              }
-            }
-          } else if (interpretation.title) {
-            // Fallback: extract from title like "HRV Changes Since Yesterday"
-            const titleMatch = interpretation.title.match(/Since (.+)$/i);
-            if (titleMatch) {
-              const timeRef = titleMatch[1].toLowerCase();
-              // Convert title format to comparison format
-              if (timeRef.includes('yesterday')) {
-                timeContext = "Compared to your state roughly 1 day ago";
-              } else if (timeRef.includes('2 days')) {
-                timeContext = "Compared to your state roughly 2 days ago";
-              } else if (timeRef.includes('last week')) {
-                timeContext = "Compared to your state last week";
-              } else if (timeRef.includes('last session')) {
-                timeContext = "Since your earlier session in this cycle";
-              } else {
-                timeContext = `Compared to your state ${timeRef}`;
-              }
+        if (interpretation.relativeInterpretation) {
+          const commaIndex = interpretation.relativeInterpretation.indexOf(',');
+          if (commaIndex > 0) {
+            // Extract the comparison text (e.g., "Compared to your state roughly 1 day ago")
+            timeContext = interpretation.relativeInterpretation.substring(0, commaIndex).trim();
+          } else {
+            // If no comma, check if it's a comparison statement
+            const lowerText = interpretation.relativeInterpretation.toLowerCase();
+            if (lowerText.includes('compared') || lowerText.includes('since your')) {
+              timeContext = interpretation.relativeInterpretation.trim();
             }
           }
-
-          payload = {
-            metricData: {
-              rmssd: {
-                value: summary.sessionRMSSD.value || 0,
-                change: getMetricChange('RMSSD')
-              },
-              sdnn: {
-                value: summary.sdnn?.value || 0,
-                change: getMetricChange('SDNN')
-              },
-              lf: {
-                value: summary.lfPower.value || 0,
-                change: getMetricChange('LF')
-              },
-              hf: {
-                value: summary.hfPower.value || 0,
-                change: getMetricChange('HF')
-              },
-              amo50: {
-                value: summary.amode50 || 0
-              }
-            },
-            context: {
-              timeContext: timeContext,
-              phaseContext: "calibration phase"
+        } else if (interpretation.title) {
+          // Fallback: extract from title like "HRV Changes Since Yesterday"
+          const titleMatch = interpretation.title.match(/Since (.+)$/i);
+          if (titleMatch) {
+            const timeRef = titleMatch[1].toLowerCase();
+            // Convert title format to comparison format
+            if (timeRef.includes('yesterday')) {
+              timeContext = "Compared to your state roughly 1 day ago";
+            } else if (timeRef.includes('2 days')) {
+              timeContext = "Compared to your state roughly 2 days ago";
+            } else if (timeRef.includes('last week')) {
+              timeContext = "Compared to your state last week";
+            } else if (timeRef.includes('last session')) {
+              timeContext = "Since your earlier session in this cycle";
+            } else {
+              timeContext = `Compared to your state ${timeRef}`;
             }
-          };
-        } else {
-          // Baseline established - use rewording mode
-          mode = 'rewording';
-          payload = {
-            existingInterpretation: {
-              title: interpretation.title,
-              physiologicalState: interpretation.physiologicalState,
-              recommendedAction: interpretation.recommendedAction,
-              combinedAdvice: interpretation.combinedAdvice
-            }
-          };
+          }
         }
 
+        payload = {
+          metricData: {
+            rmssd: {
+              value: summary.sessionRMSSD.value || 0,
+              change: getMetricChange('RMSSD')
+            },
+            sdnn: {
+              value: summary.sdnn?.value || 0,
+              change: getMetricChange('SDNN')
+            },
+            lf: {
+              value: summary.lfPower.value || 0,
+              change: getMetricChange('LF')
+            },
+            hf: {
+              value: summary.hfPower.value || 0,
+              change: getMetricChange('HF')
+            },
+            amo50: {
+              value: summary.amode50 || 0
+            }
+          },
+          context: {
+            timeContext: timeContext,
+            phaseContext: "calibration phase"
+          }
+        };
+      } else {
+        // Baseline established - use rewording mode
+        mode = 'rewording';
+        payload = {
+          existingInterpretation: {
+            title: interpretation.title,
+            physiologicalState: interpretation.physiologicalState,
+            recommendedAction: interpretation.recommendedAction,
+            combinedAdvice: interpretation.combinedAdvice
+          }
+        };
+      }
 
+      const response = await fetch('/api/ai-insight', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, data: payload })
+      });
 
-        const response = await fetch('/api/ai-insight', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mode, data: payload })
-        });
+      if (response.ok) {
+        const data = await response.json();
 
+        if (data.title && data.interpretation) {
+          setAiInsight(data);
 
+          if (sessionId) {
+            const updatePayload = {
+              sessionId,
+              ai_title: data.title,
+              ai_interpretation: data.interpretation
+            };
 
-        if (response.ok) {
-          const data = await response.json();
+            const updateResponse = await fetch('/api/sessions/update-insight', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(updatePayload)
+            });
 
-
-          if (data.title && data.interpretation) {
-            setAiInsight(data);
-
-            if (sessionId) {
-              const updatePayload = {
-                sessionId,
-                ai_title: data.title,
-                ai_interpretation: data.interpretation
-              };
-
-
-
-              const updateResponse = await fetch('/api/sessions/update-insight', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(updatePayload)
-              });
-
-
-
-              if (updateResponse.ok) {
-                const updateResult = await updateResponse.json();
-
-              } else {
-                const errorText = await updateResponse.text();
-                console.error('[AutonomicInterpretation] ❌ Failed to store AI insight to DB');
-                console.error('[AutonomicInterpretation] Error response:', errorText);
-              }
-            } else {
-              console.warn('[AutonomicInterpretation] ⚠️ No sessionId available - cannot store to DB');
+            if (!updateResponse.ok) {
+              const errorText = await updateResponse.text();
+              console.error('[AutonomicInterpretation] ❌ Failed to store AI insight to DB');
+              // console.error('[AutonomicInterpretation] Error response:', errorText);
             }
           } else {
-            console.error('[AutonomicInterpretation] ❌ API response missing title or interpretation:', data);
+            console.warn('[AutonomicInterpretation] ⚠️ No sessionId available - cannot store to DB');
           }
         } else {
-          const errorText = await response.text();
-          console.error('[AutonomicInterpretation] ❌ API call failed:', response.status, errorText);
+          console.error('[AutonomicInterpretation] ❌ API response missing title or interpretation:', data);
+          setIsError(true);
         }
-      } catch (e) {
-        console.error('[AutonomicInterpretation] ❌ Exception in generateInsight:', e);
-        console.error('[AutonomicInterpretation] Error stack:', e instanceof Error ? e.stack : 'No stack');
-      } finally {
-        setIsLoadingInsight(false);
-
+      } else {
+        const errorText = await response.text();
+        console.error('[AutonomicInterpretation] ❌ API call failed:', response.status, errorText);
+        setIsError(true);
       }
-    };
+    } catch (e) {
+      console.error('[AutonomicInterpretation] ❌ Exception in generateInsight:', e);
+      setIsError(true);
+    } finally {
+      setIsLoadingInsight(false);
+    }
+  };
 
+  // Determine if valid for AI generation
+  useEffect(() => {
     generateInsight();
-  }, [interpretation, summary, firstSessionDate, baseline, isLoading, sessionId]);
+  }, [sessionId, summary?.ai_title, isLoading]); // Reduced dependencies to prevent loops
 
 
   if (isLoading) {
@@ -454,6 +436,16 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
                 <div className="w-full max-w-2xl flex flex-col items-center gap-4 mb-3">
                   <div className="h-8 bg-slate-200 rounded w-3/4 animate-pulse"></div>
                 </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center gap-2 mb-3">
+                  <p className="text-slate-400 text-sm">Unavailable</p>
+                  <button
+                    onClick={() => generateInsight(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-xs font-bold transition-colors"
+                  >
+                    <Wind size={14} /> Retry Analysis
+                  </button>
+                </div>
               ) : aiInsight?.title ? (
                 <p className="text-slate-900 text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl">
                   {aiInsight.title}
@@ -478,6 +470,16 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
               {isLoadingInsight ? (
                 <div className="w-full max-w-2xl flex flex-col items-center gap-4 mb-3">
                   <div className="h-8 bg-slate-200 rounded w-3/4 animate-pulse"></div>
+                </div>
+              ) : isError ? (
+                <div className="flex flex-col items-center gap-2 mb-3">
+                  <p className="text-slate-400 text-sm">Unavailable</p>
+                  <button
+                    onClick={() => generateInsight(true)}
+                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-xs font-bold transition-colors"
+                  >
+                    <Activity size={14} /> Retry Analysis
+                  </button>
                 </div>
               ) : aiInsight?.title ? (
                 <p className="text-slate-900 text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl">
