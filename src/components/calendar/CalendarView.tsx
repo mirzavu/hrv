@@ -429,7 +429,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                   </div>
                 ) : selectedDay && daySessions.length > 0 ? (
                   <div key={selectedDay} className="animate-fade-in space-y-3">
-                    {daySessions.sort((a, b) => a.time.localeCompare(b.time)).map(s => {
+                    {daySessions.map(s => {
                       return (
                         <div
                           className={`rounded-[10px] px-4 py-3 flex items-center justify-between cursor-pointer transition-colors ${darkMode ? 'bg-gray-700 border border-gray-600 hover:bg-gray-600' : 'bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300'}`}
