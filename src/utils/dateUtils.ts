@@ -167,3 +167,18 @@ export function countUniqueDays(utcDates: (Date | string)[], timezone: string): 
 
     return uniqueDates.size;
 }
+
+/**
+ * Format a date for PocketBase queries
+ * PocketBase stores and expects dates with space separator (not T)
+ * This converts ISO format (with T) to PocketBase format (with space)
+ * 
+ * @param date - Date object or ISO string
+ * @returns Date string formatted for PocketBase: "YYYY-MM-DD HH:MM:SS.mmmZ"
+ */
+export function formatDateForPocketBase(date: Date | string): string {
+    const dateObj = typeof date === 'string' ? new Date(date) : date;
+    // toISOString() produces "2024-01-15T10:30:00.000Z"
+    // Replace T with space to match PocketBase format: "2024-01-15 10:30:00.000Z"
+    return dateObj.toISOString().replace('T', ' ');
+}

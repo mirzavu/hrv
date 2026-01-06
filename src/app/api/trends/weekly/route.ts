@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics } from '@/utils/baselineCalculations';
-import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
+import { toLocalDateString, DEFAULT_TIMEZONE, formatDateForPocketBase } from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,8 +56,8 @@ export async function GET(request: NextRequest) {
         const startUTC = getLocalDayStartUTC(expandedStartLocalDate, userTimezone);
         const endUTC = getLocalDayEndUTC(expandedEndLocalDate, userTimezone);
 
-        const startStr = startUTC.toISOString();
-        const endStr = endUTC.toISOString();
+        const startStr = formatDateForPocketBase(startUTC);
+        const endStr = formatDateForPocketBase(endUTC);
 
         console.log(`[Weekly API] User timezone: ${userTimezone}, Local range: ${startLocalDate} to ${endLocalDate}, UTC range: ${startStr} to ${endStr}`);
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
 
         // Convert to UTC boundaries
         const baselineStartUTC = getLocalDayStartUTC(expandedBaselineStartLocal, userTimezone);
-        const baselineStartStr = baselineStartUTC.toISOString();
+        const baselineStartStr = formatDateForPocketBase(baselineStartUTC);
 
         let baselineSessions: any[] = [];
         try {

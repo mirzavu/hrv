@@ -164,18 +164,29 @@ export function compareMetricsToPrevious(
   const changes: MetricChange[] = [];
 
   // Helper to add metric change
+  // isRatio: if true, uses absolute difference scaled instead of percentage (for ratio metrics like NS Balance)
   const addChange = (
     metric: string,
     label: string,
     currentVal: number | null | undefined,
-    previousVal: number | null | undefined
+    previousVal: number | null | undefined,
+    isRatio: boolean = false
   ) => {
     if (currentVal === null || currentVal === undefined || previousVal === null || previousVal === undefined) {
       return;
     }
 
     const absoluteChange = Math.abs(currentVal - previousVal);
-    const percentChange = previousVal !== 0 ? Math.abs((currentVal - previousVal) / previousVal) * 100 : 0;
+    let percentChange: number;
+
+    if (isRatio) {
+      // For ratio metrics, use absolute difference scaled (e.g., 0.5 diff -> 50% display)
+      percentChange = absoluteChange * 100;
+    } else {
+      // Standard percentage calculation
+      percentChange = previousVal !== 0 ? Math.abs((currentVal - previousVal) / previousVal) * 100 : 0;
+    }
+
     const direction = compareMetricWithFloor(currentVal, previousVal, metric);
 
     if (direction) {
@@ -243,8 +254,9 @@ export function compareMetricsToPrevious(
   }
 
   // 8. Nervous System Balance (SD2/SD1 ratio)
+  // Use isRatio=true to calculate absolute difference scaled instead of percentage
   if (currentSummary.sd2_sd1_ratio !== null && currentSummary.sd2_sd1_ratio !== undefined && previousSummary.sd2_sd1_ratio !== null) {
-    addChange('NS Balance', 'NS Balance', currentSummary.sd2_sd1_ratio, previousSummary.sd2_sd1_ratio);
+    addChange('NS Balance', 'NS Balance', currentSummary.sd2_sd1_ratio, previousSummary.sd2_sd1_ratio, true);
   }
 
   return changes;

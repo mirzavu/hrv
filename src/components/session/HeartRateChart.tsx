@@ -43,9 +43,10 @@ interface HeartRateTooltipProps {
 interface HeartRateChartProps {
   data: HeartRateDataPoint[];
   stabilizationTime?: number | null;
+  darkMode?: boolean;
 }
 
-const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime }) => {
+const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime, darkMode = false }) => {
   const [minBpm, maxBpm] = useMemo(() => {
     if (!data.length) {
       return [50, 110];
@@ -141,12 +142,12 @@ const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime
   };
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200">
-      <div className="bg-white rounded-[15px] p-6">
+    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
-            <h3 className="font-semibold text-slate-700">Heart Rate Chart</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className={`font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>HeartRate Chart</h3>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               Beat-to-beat heart rate throughout the session.
             </p>
           </div>
@@ -171,20 +172,20 @@ const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime
                     </linearGradient>
                   </defs>
                 )}
-                <CartesianGrid stroke="#e2e8f0" strokeDasharray="4 4" />
+                <CartesianGrid stroke={darkMode ? '#374151' : '#e2e8f0'} strokeDasharray="4 4" />
                 <XAxis
                   dataKey="time"
                   type="number"
                   domain={[0, data[data.length - 1].time]}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#64748b' }}
                   tickFormatter={(value) => `${value}s`}
-                  stroke="#cbd5f5"
+                  stroke={darkMode ? '#4b5563' : '#cbd5f5'}
                 />
                 <YAxis
                   domain={[minBpm, maxBpm]}
-                  tick={{ fontSize: 12, fill: '#64748b' }}
+                  tick={{ fontSize: 12, fill: darkMode ? '#9ca3af' : '#64748b' }}
                   tickFormatter={(value) => `${value} bpm`}
-                  stroke="#cbd5f5"
+                  stroke={darkMode ? '#4b5563' : '#cbd5f5'}
                 />
                 <RechartsTooltip
                   content={renderTooltip}
@@ -227,18 +228,18 @@ const HeartRateChart: React.FC<HeartRateChartProps> = ({ data, stabilizationTime
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="h-56 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-500">
-            <p className="font-medium text-slate-600">
+          <div className={`h-56 flex flex-col items-center justify-center rounded-xl border border-dashed text-center text-sm ${darkMode ? 'border-gray-700 bg-gray-800 text-gray-400' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+            <p className={`font-medium ${darkMode ? 'text-gray-300' : 'text-slate-600'}`}>
               Not enough heart rate data yet
             </p>
-            <p className="mt-1 max-w-xs text-xs text-slate-500">
+            <p className={`mt-1 max-w-xs text-xs ${darkMode ? 'text-gray-500' : 'text-slate-500'}`}>
               Complete a full session to unlock the heart rate chart
               visualization.
             </p>
           </div>
         )}
 
-        <div className="mt-4 flex flex-wrap items-center gap-4 text-xs text-slate-500">
+        <div className={`mt-4 flex flex-wrap items-center gap-4 text-xs ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
           <div className="flex items-center gap-2">
             <span
               className="inline-flex h-2 w-8 rounded-full"

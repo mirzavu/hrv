@@ -651,15 +651,31 @@ export function interpretHRVSession(
   const baselineDetails: NonNullable<InterpretationResult['baselineDetails']> = [];
 
   // Helper to calculate and store diff
+  // isRatio: if true, uses absolute difference instead of percentage (for ratio metrics like NS Balance)
   const addDiff = (
     metricKey: string,
     label: string,
     currentVal: number | null | undefined,
-    baselineVal: number | null | undefined
+    baselineVal: number | null | undefined,
+    isRatio: boolean = false
   ) => {
     if (currentVal !== null && currentVal !== undefined && baselineVal !== null && baselineVal !== undefined && baselineVal !== 0) {
-      const change = ((currentVal - baselineVal) / baselineVal) * 100;
-      const absChange = Math.abs(change);
+      let change: number;
+      let absChange: number;
+
+      if (isRatio) {
+        // For ratio metrics, use absolute difference scaled to a percentage-like display
+        // The absolute diff is more meaningful than percentage for ratios
+        const absoluteDiff = currentVal - baselineVal;
+        // Scale to make it more readable (e.g., 0.5 diff -> 50% display)
+        change = absoluteDiff * 100;
+        absChange = Math.abs(change);
+      } else {
+        // Standard percentage calculation for regular metrics
+        change = ((currentVal - baselineVal) / baselineVal) * 100;
+        absChange = Math.abs(change);
+      }
+
       // Small semantic direction for the data object
       const direction = change > 0 ? 'up' : (change < 0 ? 'down' : 'stable');
 
@@ -725,8 +741,9 @@ export function interpretHRVSession(
   }
 
   // 8. Nervous System Balance (SD2/SD1 ratio - lower means more parasympathetic dominant)
+  // Use isRatio=true to calculate absolute difference instead of percentage
   if (summary.sd2_sd1_ratio !== null && summary.sd2_sd1_ratio !== undefined && baseline.sd1_sd2_ratio_avg) {
-    addDiff('NS Balance', 'NS Balance', summary.sd2_sd1_ratio, baseline.sd1_sd2_ratio_avg);
+    addDiff('NS Balance', 'NS Balance', summary.sd2_sd1_ratio, baseline.sd1_sd2_ratio_avg, true);
   }
 
   interpretation.baselineDetails = baselineDetails;

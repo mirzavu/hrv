@@ -7,7 +7,7 @@ import { getAdminPb } from '@/lib/pbAdmin';
 import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline, countUniqueMorningSessions, calculateBaselineProgress } from './baselineCalculations';
 import { createBaselineSnapshot } from './baselineHistory';
 import { createStreakNotification, createBaselineUpdatedNotification } from './notifications';
-import { toLocalDateString, getLocalDayStartUTC, getLocalDayEndUTC, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
+import { toLocalDateString, getLocalDayStartUTC, getLocalDayEndUTC, DEFAULT_TIMEZONE, formatDateForPocketBase } from '@/utils/dateUtils';
 
 /**
  * Check if user has any session for today (in user's local timezone), excluding the current session
@@ -48,8 +48,8 @@ const hasSessionToday = async (userId: string, currentSessionId: string): Promis
     const todayEndUTC = getLocalDayEndUTC(expandedEndLocal, userTimezone);
 
     // Format for PocketBase: "YYYY-MM-DD HH:MM:SS.mmmZ" (replace T with space)
-    const todayStartPB = todayStartUTC.toISOString().replace('T', ' ');
-    const todayEndPB = todayEndUTC.toISOString().replace('T', ' ');
+    const todayStartPB = formatDateForPocketBase(todayStartUTC);
+    const todayEndPB = formatDateForPocketBase(todayEndUTC);
 
     const filterQuery = `userId = "${userId}" && startTime >= "${todayStartPB}" && startTime <= "${todayEndPB}" && id != "${currentSessionId}"`;
     // Check if any OTHER session exists for today (excluding current session)

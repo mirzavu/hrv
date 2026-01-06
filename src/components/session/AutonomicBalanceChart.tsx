@@ -37,6 +37,7 @@ interface AutonomicBalanceChartProps {
     totalPower: number | null | undefined;
     date?: string;
   }>;
+  darkMode?: boolean;
 }
 
 interface TooltipPayloadValue {
@@ -85,21 +86,21 @@ const CustomXAxisTick = (props: any) => {
 };
 
 // === StatusCard Component ===
-const StatusCard: React.FC<{ zone: ReturnType<typeof classifyAutonomicZone> }> = ({ zone }) => {
+const StatusCard: React.FC<{ zone: ReturnType<typeof classifyAutonomicZone>; darkMode?: boolean }> = ({ zone, darkMode = false }) => {
   const icon = (
     <Target className="w-5 h-5" />
   );
 
   return (
-    <div className={`rounded-lg border border-slate-200 p-4 bg-white`}>
+    <div className={`rounded-lg border p-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
       <div className="flex items-center space-x-2 mb-2">
         <span style={{ color: zone.color }}>{icon}</span>
-        <h5 className="text-sm font-semibold text-slate-700">Your Status</h5>
+        <h5 className={`text-sm font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Your Status</h5>
       </div>
       <p className="text-xl font-bold" style={{ color: zone.color }}>
         {zone.name}
       </p>
-      <p className="text-sm text-slate-600 mt-1">
+      <p className={`text-sm mt-1 ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>
         {zone.description}
       </p>
     </div>
@@ -113,16 +114,18 @@ const MetricCard: React.FC<{
   unit?: string;
   icon: React.ReactNode;
   borderColor?: string;
-}> = ({ title, value, unit, icon, borderColor = 'border-slate-200' }) => {
+  darkMode?: boolean;
+}> = ({ title, value, unit, icon, borderColor = 'border-slate-200', darkMode = false }) => {
+  const actualBorderColor = darkMode ? 'border-gray-700' : borderColor;
   return (
-    <div className={`rounded-lg border ${borderColor} p-4 bg-white`}>
+    <div className={`rounded-lg border p-4 ${darkMode ? 'bg-gray-800' : 'bg-white'} ${actualBorderColor}`}>
       <div className="flex items-center space-x-2 mb-3">
-        <span className="text-slate-500">{icon}</span>
-        <h5 className="text-sm font-semibold text-slate-700">{title}</h5>
+        <span className={darkMode ? 'text-gray-500' : 'text-slate-500'}>{icon}</span>
+        <h5 className={`text-sm font-semibold ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>{title}</h5>
       </div>
       <div className="flex items-baseline">
-        <p className="text-3xl font-bold text-slate-800">{value}</p>
-        {unit && <p className="text-sm text-slate-500 ml-1.5">{unit}</p>}
+        <p className={`text-3xl font-bold ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>{value}</p>
+        {unit && <p className={`text-sm ml-1.5 ${darkMode ? 'text-gray-500' : 'text-slate-500'}`}>{unit}</p>}
       </div>
     </div>
   );
@@ -148,6 +151,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
   currentRatio,
   currentTotalPower,
   historicalSessions = [],
+  darkMode = false,
 }) => {
   const currentPoint = useMemo<AutonomicBalancePoint | null>(() => {
     const balance = computeAutonomicBalance(currentRatio ?? null);
@@ -252,10 +256,10 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
   };
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200">
-      <div className="bg-white rounded-[15px] p-6">
+    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">
+          <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>
             Autonomic Activity Diagram
           </h3>
         </div>
@@ -454,15 +458,15 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
 
             {/* --- Section 1: Session Analysis --- */}
             <div>
-              <h4 className="text-base font-semibold text-slate-700 mb-3">
+              <h4 className={`text-base font-semibold mb-3 ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>
                 Session Analysis
               </h4>
-              <StatusCard zone={zone} />
+              <StatusCard zone={zone} darkMode={darkMode} />
             </div>
 
             {/* --- Section 2: Key Metrics --- */}
             <div>
-              <h4 className="text-base font-semibold text-slate-700 mb-3">
+              <h4 className={`text-base font-semibold mb-3 ${darkMode ? 'text-gray-300' : 'text-slate-700'}`}>
                 Key Metrics
               </h4>
               <div className="grid grid-cols-2 gap-4">
@@ -471,12 +475,14 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
                   value={currentPoint?.balance ?? 'N/A'}
                   unit="Index"
                   icon={Icons.Balance}
+                  darkMode={darkMode}
                 />
                 <MetricCard
                   title="Activity Index (Y)"
                   value={currentPoint?.activity ?? 'N/A'}
                   unit="Index"
                   icon={Icons.Activity}
+                  darkMode={darkMode}
                 />
                 <MetricCard
                   title="Raw SD2/SD1 Ratio"
@@ -484,6 +490,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
                   unit=""
                   icon={Icons.Ratio}
                   borderColor="border-slate-200"
+                  darkMode={darkMode}
                 />
                 <MetricCard
                   title="Raw Total Power"
@@ -491,6 +498,7 @@ const AutonomicBalanceChart: React.FC<AutonomicBalanceChartProps> = ({
                   unit={formatTotalPowerUnit(currentPoint?.totalPower)}
                   icon={Icons.Power}
                   borderColor="border-slate-200"
+                  darkMode={darkMode}
                 />
               </div>
             </div>

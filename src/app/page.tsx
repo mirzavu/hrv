@@ -588,39 +588,39 @@ const AppContent = () => {
                                 <ol className={`relative border-l-2 ml-4 flex flex-col flex-1 ${darkMode ? 'border-gray-600' : 'border-gray-200'}`}>
                                     {/* Step 1: Start */}
                                     <li className="flex-1 ml-8 flex flex-col justify-center">
-                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep >= 0 ? 'bg-teal-500' : 'bg-gray-200'
+                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep >= 0 ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
                                             }`}>
                                             {currentStep >= 0 ? (
                                                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <span className="font-bold text-gray-500 text-sm">1</span>
+                                                <span className={`font-bold text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>1</span>
                                             )}
                                         </span>
-                                        <h4 className={`font-medium ${currentStep >= 0 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Start</h4>
+                                        <h4 className={`font-medium ${currentStep >= 0 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>Start</h4>
                                         {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Session initialized</p>}
                                     </li>
 
                                     {/* Step 2: Quick Check */}
                                     <li className="flex-1 ml-8 flex flex-col justify-center">
-                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep >= 1 ? 'bg-teal-500' : 'bg-gray-200'
+                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep >= 1 ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
                                             }`}>
                                             {currentStep >= 1 ? (
                                                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <span className="font-bold text-gray-500 text-sm">2</span>
+                                                <span className={`font-bold text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>2</span>
                                             )}
                                         </span>
-                                        <h4 className={`font-medium ${currentStep >= 1 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Quick Check</h4>
+                                        <h4 className={`font-medium ${currentStep >= 1 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>Quick Check</h4>
                                         {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep >= 1 ? 'Baseline established' : 'Pending'}</p>}
                                     </li>
 
                                     {/* Step 3: Standard Analysis */}
                                     <li className="flex-1 ml-8 flex flex-col justify-center">
-                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 2 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 2 ? 'bg-teal-500' : 'bg-gray-200'
+                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 2 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 2 ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
                                             }`}>
                                             {currentStep === 2 ? (
                                                 <span className="font-bold text-teal-600 text-sm">3</span>
@@ -629,16 +629,16 @@ const AppContent = () => {
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <span className="font-bold text-gray-500 text-sm">3</span>
+                                                <span className={`font-bold text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>3</span>
                                             )}
                                         </span>
-                                        <h4 className={`font-medium ${currentStep === 2 ? 'text-teal-600' : currentStep >= 2 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Standard Analysis</h4>
+                                        <h4 className={`font-medium ${currentStep === 2 ? 'text-teal-600' : currentStep >= 2 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>Standard Analysis</h4>
                                         {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 2 ? 'Currently analyzing...' : currentStep >= 2 ? 'Analysis complete' : 'Pending'}</p>}
                                     </li>
 
                                     {/* Step 4: Deep Insight */}
                                     <li className="flex-1 ml-8 flex flex-col justify-center">
-                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 3 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 3 ? 'bg-teal-500' : 'bg-gray-200'
+                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 3 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 3 ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
                                             }`}>
                                             {currentStep === 3 ? (
                                                 <span className="font-bold text-teal-600 text-sm">4</span>
@@ -647,16 +647,16 @@ const AppContent = () => {
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <span className="font-bold text-gray-500 text-sm">4</span>
+                                                <span className={`font-bold text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>4</span>
                                             )}
                                         </span>
-                                        <h4 className={`font-medium ${currentStep === 3 ? 'text-teal-600' : currentStep >= 3 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Deep Insight</h4>
+                                        <h4 className={`font-medium ${currentStep === 3 ? 'text-teal-600' : currentStep >= 3 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>Deep Insight</h4>
                                         {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 3 ? 'Deep analysis in progress...' : currentStep >= 3 ? 'Insights generated' : 'Pending'}</p>}
                                     </li>
 
                                     {/* Step 5: Full Analysis */}
                                     <li className="flex-1 ml-8 flex flex-col justify-center">
-                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 4 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 4 ? 'bg-teal-500' : 'bg-gray-200'
+                                        <span className={`absolute flex items-center justify-center w-8 h-8 rounded-full -left-4 ${currentStep === 4 ? 'bg-teal-100 ring-4 ring-white' : currentStep >= 4 ? 'bg-teal-500' : (darkMode ? 'bg-gray-600' : 'bg-gray-200')
                                             }`}>
                                             {currentStep === 4 ? (
                                                 <span className="font-bold text-teal-600 text-sm">5</span>
@@ -665,10 +665,10 @@ const AppContent = () => {
                                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                 </svg>
                                             ) : (
-                                                <span className="font-bold text-gray-500 text-sm">5</span>
+                                                <span className={`font-bold text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>5</span>
                                             )}
                                         </span>
-                                        <h4 className={`font-medium ${currentStep === 4 ? 'text-teal-600' : currentStep >= 4 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : 'text-gray-500'}`}>Full Analysis</h4>
+                                        <h4 className={`font-medium ${currentStep === 4 ? 'text-teal-600' : currentStep >= 4 ? (darkMode ? 'text-gray-200' : 'text-gray-800') : (darkMode ? 'text-gray-400' : 'text-gray-500')}`}>Full Analysis</h4>
                                         {currentStep >= 0 && <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>{currentStep === 4 ? 'Comprehensive analysis...' : currentStep >= 4 ? 'Ideal duration achieved ✓' : 'Pending'}</p>}
                                     </li>
 

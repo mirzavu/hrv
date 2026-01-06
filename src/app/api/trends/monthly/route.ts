@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
-import { toLocalDateString, DEFAULT_TIMEZONE, getLocalDayStartUTC, getLocalDayEndUTC } from '@/utils/dateUtils';
+import { toLocalDateString, DEFAULT_TIMEZONE, getLocalDayStartUTC, getLocalDayEndUTC, formatDateForPocketBase } from '@/utils/dateUtils';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,8 +62,8 @@ export async function GET(request: NextRequest) {
         const startUTC = getLocalDayStartUTC(expandedFetchStartLocal, userTimezone);
         const endUTC = getLocalDayEndUTC(expandedMonthEndLocal, userTimezone);
 
-        const startStr = startUTC.toISOString();
-        const endStr = endUTC.toISOString();
+        const startStr = formatDateForPocketBase(startUTC);
+        const endStr = formatDateForPocketBase(endUTC);
 
         console.log(`[Monthly API] User timezone: ${userTimezone}, Local range: ${fetchStartLocal} to ${monthEndLocal}, UTC range: ${startStr} to ${endStr}`);
 

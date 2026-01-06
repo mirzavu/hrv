@@ -153,7 +153,13 @@ export async function GET(
       }
     }
 
+    console.log(`[API] Session ID: ${sessionId}`);
     console.log(`[API] Extracted ${rawData.length} data points from raw file`);
+    if (rawData.length > 0) {
+      console.log(`[API] First timestamp: ${rawData[0].timestamp} (is absolute: ${rawData[0].timestamp > 1600000000000})`);
+      console.log(`[API] Last timestamp: ${rawData[rawData.length - 1].timestamp} (is absolute: ${rawData[rawData.length - 1].timestamp > 1600000000000})`);
+      console.log(`[API] Sample raw data entry:`, rawData[0]);
+    }
 
     // Convert SessionSummaryRecord to SessionSummaryPayload
     const payload: SessionSummaryPayload = {

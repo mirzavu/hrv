@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
+import { formatDateForPocketBase } from '@/utils/dateUtils';
 
 /**
  * GET /api/sessions/comparison
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest) {
     // If referenceDate provided, only get sessions before that date (for historical comparison)
     if (referenceDate) {
       // Format the date for PocketBase comparison (use space instead of T)
-      const pbDate = referenceDate.replace('T', ' ');
+      const pbDate = formatDateForPocketBase(referenceDate);
       filter += ` && session_date < "${pbDate}"`;
       console.log(`[Comparison API] Filtering sessions before ${referenceDate} (PB format: ${pbDate})`);
     }

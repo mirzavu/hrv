@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
-import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
+import { toLocalDateString, DEFAULT_TIMEZONE, formatDateForPocketBase } from '@/utils/dateUtils';
 
 interface MonthDateData {
   date: string; // YYYY-MM-DD format
@@ -54,8 +54,8 @@ export async function GET(request: NextRequest) {
     const startUTC = getLocalDayStartUTC(expandedStartDate, userTimezone);
     const endUTC = getLocalDayEndUTC(expandedEndDate, userTimezone);
 
-    const startDateTime = startUTC.toISOString();
-    const endDateTime = endUTC.toISOString();
+    const startDateTime = formatDateForPocketBase(startUTC);
+    const endDateTime = formatDateForPocketBase(endUTC);
 
     let filter = `user_id = "${userId}" && session_date >= "${startDateTime}" && session_date <= "${endDateTime}"`;
 

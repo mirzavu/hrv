@@ -40,9 +40,10 @@ interface TachogramTooltipProps {
 
 interface TachogramChartProps {
   data: TachogramDataPoint[];
+  darkMode?: boolean;
 }
 
-const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
+const TachogramChart: React.FC<TachogramChartProps> = ({ data, darkMode = false }) => {
   const [minRR, maxRR] = useMemo(() => {
     if (!data.length) {
       return [400, 1200];
@@ -130,12 +131,12 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
   };
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200">
-      <div className="bg-white rounded-[15px] p-6">
+    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="flex flex-wrap items-start justify-between gap-4 mb-4">
           <div>
-            <h3 className="font-semibold text-slate-700">Tachogram</h3>
-            <p className="text-sm text-slate-500">
+            <h3 className={`font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Tachogram</h3>
+            <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
               RR intervals over time showing heart rate variability.
             </p>
           </div>
@@ -185,11 +186,11 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
             </ResponsiveContainer>
           </div>
         ) : (
-          <div className="h-56 flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 text-center text-sm text-slate-500">
-            <p className="font-medium text-slate-600">
+          <div className={`h-56 flex flex-col items-center justify-center rounded-xl border border-dashed text-center text-sm ${darkMode ? 'border-gray-700 bg-gray-900/50 text-gray-400' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+            <p className={`font-medium ${darkMode ? 'text-gray-300' : 'text-slate-600'}`}>
               Not enough RR interval data yet
             </p>
-            <p className="mt-1 max-w-xs text-xs text-slate-500">
+            <p className={`mt-1 max-w-xs text-xs ${darkMode ? 'text-gray-500' : 'text-slate-500'}`}>
               Complete a full session to unlock the tachogram visualization.
             </p>
           </div>
@@ -207,7 +208,7 @@ const TachogramChart: React.FC<TachogramChartProps> = ({ data }) => {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 };
 

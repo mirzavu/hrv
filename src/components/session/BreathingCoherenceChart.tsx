@@ -33,9 +33,10 @@ interface BreathingTooltipProps {
 
 interface BreathingCoherenceChartProps {
   data: HeartRateDataPoint[];
+  darkMode?: boolean;
 }
 
-const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data }) => {
+const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data, darkMode = false }) => {
   // Combine user HR data and the generated breathing pacer wave into a single, unified array
   const combinedData = useMemo(() => {
     if (data.length < 2) {
@@ -93,11 +94,11 @@ const BreathingCoherenceChart: React.FC<BreathingCoherenceChartProps> = ({ data 
   };
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200">
-      <div className="bg-white rounded-[15px] p-6">
+    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">Breathing Coherence</h3>
-          <p className="text-sm text-slate-500">
+          <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Breathing Coherence</h3>
+          <p className={`text-sm ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
             Follow the wave to pace your breathing. Inhale as it rises, exhale as it falls.
           </p>
         </div>

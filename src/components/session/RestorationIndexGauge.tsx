@@ -2,9 +2,10 @@ import React from 'react';
 
 interface RestorationIndexGaugeProps {
   score: number | null | undefined;
+  darkMode?: boolean;
 }
 
-const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) => {
+const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score, darkMode = false }) => {
   const normalizedScore = Math.max(0, Math.min(score ?? 0, 100));
   const rotation = (normalizedScore / 100) * 180 - 90; // -90 to 90 degrees
 
@@ -37,10 +38,10 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
   }
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200">
-      <div className="bg-white rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full">
+    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 text-center flex flex-col items-center justify-between h-full ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div>
-          <h3 className="text-lg font-semibold text-slate-700 mb-1">Restoration Index</h3>
+          <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Restoration Index</h3>
           <p className="text-sm text-slate-500 mb-4">{description}</p>
         </div>
         <div className="relative w-48 h-24 mb-2">
@@ -85,7 +86,7 @@ const RestorationIndexGauge: React.FC<RestorationIndexGaugeProps> = ({ score }) 
           >
             <div className={`${bgColorClass} w-full h-full rounded-t-full`}></div>
           </div>
-          <div className="absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white rounded-full border-2 border-gray-300"></div>
+          <div className={`absolute bottom-[-6px] left-1/2 transform -translate-x-1/2 w-3 h-3 rounded-full border-2 ${darkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-300'}`}></div>
         </div>
         <div className="mt-2">
           <span className={`text-4xl font-bold ${colorClass}`}>

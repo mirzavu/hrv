@@ -1,5 +1,4 @@
 import React from 'react';
-import { TrendingUp, TrendingDown } from 'lucide-react';
 
 interface NervousSystemBalanceGaugeProps {
   // Use SD2/SD1-based percentages
@@ -10,13 +9,15 @@ interface NervousSystemBalanceGaugeProps {
     percentChange: number;
     direction: 'up' | 'down' | 'stable';
   };
+  darkMode?: boolean;
 }
 
 const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
   parasympatheticPercent: propParasympatheticPercent,
   sympatheticPercent: propSympatheticPercent,
   sd2_sd1_ratio,
-  comparison
+  comparison,
+  darkMode = false
 }) => {
   // Use SD2/SD1-based percentages - no fallback
   let parasympatheticPercent: number = 50; // Default neutral
@@ -37,21 +38,11 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
     : { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' }; // Parasympathetic dominant
 
   return (
-    <div className="p-0.5 rounded-2xl bg-slate-200 h-full flex flex-col">
-      <div className="bg-white rounded-[15px] p-6 text-center flex flex-col h-full">
+    <div className={`p-0.5 rounded-2xl h-full flex flex-col ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
+      <div className={`rounded-[15px] p-6 text-center flex flex-col h-full ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="mb-4 flex items-center justify-center gap-2">
-          <h3 className="text-lg font-semibold text-slate-700">Nervous System Balance</h3>
-          {comparison && comparison.direction !== 'stable' && (
-            <span className={`text-[9px] font-black px-1.5 py-0.5 rounded inline-flex items-center ${comparison.direction === 'up' ? 'bg-slate-100 text-slate-600' :
-              comparison.direction === 'down' ? 'bg-emerald-50 text-emerald-600' :
-                'bg-slate-50 text-slate-500'
-              }`}>
-              {/* Note: For NS Balance, "down" (lower ratio) means more parasympathetic = better recovery */}
-              {comparison.direction === 'down' && <TrendingDown size={10} className="mr-1" />}
-              {comparison.direction === 'up' && <TrendingUp size={10} className="mr-1" />}
-              {comparison.percentChange.toFixed(0)}%
-            </span>
-          )}
+          <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Nervous System Balance</h3>
+          {/* Comparison percentage removed - doesn't make sense for ratio metrics, the gauge itself shows the state */}
         </div>
 
         {/* Horizontal Bar Segmented Visualization */}
@@ -81,13 +72,13 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
         {/* Balance Breakdown */}
         <div className="w-full space-y-2 mb-4">
           <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-600">Parasympathetic</span>
+            <span className={darkMode ? 'text-gray-400' : 'text-slate-600'}>Parasympathetic</span>
             <span className="font-semibold text-emerald-600">
               {parasympatheticPercent.toFixed(1)}%
             </span>
           </div>
           <div className="flex justify-between items-center text-sm">
-            <span className="text-slate-600">Sympathetic</span>
+            <span className={darkMode ? 'text-gray-400' : 'text-slate-600'}>Sympathetic</span>
             <span className="font-semibold text-yellow-600">
               {sympatheticPercent.toFixed(1)}%
             </span>

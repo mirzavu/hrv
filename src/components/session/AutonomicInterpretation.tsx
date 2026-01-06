@@ -21,6 +21,8 @@ interface AutonomicInterpretationProps {
   firstSessionDate?: string | null;
   sessionId?: string;
   baseline?: UserBaseline | null;
+  baseline?: UserBaseline | null;
+  darkMode?: boolean;
 }
 
 // Reusable Metric Card matching the requested design
@@ -32,7 +34,8 @@ const MetricCard = ({
   trend,
   unit = "ms",
   borderColor = "border-slate-200",
-  showComparison = true
+  showComparison = true,
+  darkMode = false
 }: {
   label: string,
   value: string,
@@ -41,23 +44,24 @@ const MetricCard = ({
   trend: 'up' | 'down' | 'stable',
   unit?: string,
   borderColor?: string,
-  showComparison?: boolean
+  showComparison?: boolean,
+  darkMode?: boolean
 }) => (
-  <div className={`bg-white border-[2.5px] ${borderColor} ${showComparison ? 'p-4' : 'p-3'} rounded-xl hover:border-indigo-200 transition-all flex flex-col justify-between group flex-1 min-w-[140px]`}>
+  <div className={`border-[2.5px] ${borderColor} ${showComparison ? 'p-4' : 'p-3'} rounded-xl transition-all flex flex-col justify-between group flex-1 min-w-[140px] ${darkMode ? 'bg-gray-800 hover:border-indigo-400/50' : 'bg-white hover:border-indigo-200'}`}>
     <div className="mb-3">
-      <span className="text-base font-bold text-slate-400 uppercase tracking-wider group-hover:text-indigo-500 transition-colors">{label}</span>
+      <span className={`text-base font-bold uppercase tracking-wider transition-colors ${darkMode ? 'text-gray-400 group-hover:text-indigo-400' : 'text-slate-400 group-hover:text-indigo-500'}`}>{label}</span>
     </div>
 
     <div className="flex justify-between items-end">
       <div className="flex items-baseline gap-1">
-        <span className="text-xl font-black text-slate-800 tabular-nums">{value}</span>
-        <span className="text-slate-400 text-[10px] font-bold uppercase">{unit}</span>
+        <span className={`text-xl font-black tabular-nums ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>{value}</span>
+        <span className={`text-[10px] font-bold uppercase ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>{unit}</span>
       </div>
 
       {showComparison && (
-        <span className={`text-[10px] font-black px-2 py-1 rounded-md flex items-center ${trend === 'up' ? 'bg-emerald-50 text-emerald-600' :
-          trend === 'down' ? 'bg-slate-100 text-slate-600' :
-            'bg-emerald-50/50 text-emerald-600/70'
+        <span className={`text-[10px] font-black px-2 py-1 rounded-md flex items-center ${trend === 'up' ? (darkMode ? 'bg-emerald-900/40 text-emerald-400' : 'bg-emerald-50 text-emerald-600') :
+          trend === 'down' ? (darkMode ? 'bg-gray-700 text-gray-400' : 'bg-slate-100 text-slate-600') :
+            (darkMode ? 'bg-emerald-900/30 text-emerald-500/80' : 'bg-emerald-50/50 text-emerald-600/70')
           }`}>
           {trend === 'up' && <TrendingUp size={12} className="mr-1" />}
           {trend === 'down' && <TrendingDown size={12} className="mr-1" />}
@@ -68,8 +72,8 @@ const MetricCard = ({
     </div>
 
     {showComparison && subValue !== undefined && subValue !== '-' && subValue !== '' && (
-      <div className="mt-3 pt-2 border-t border-slate-50 flex justify-center items-center text-[9px]">
-        <span className="text-slate-600 font-bold">{subValue}</span>
+      <div className={`mt-3 pt-2 border-t flex justify-center items-center text-[9px] ${darkMode ? 'border-gray-700' : 'border-slate-50'}`}>
+        <span className={`font-bold ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>{subValue}</span>
       </div>
     )}
   </div>
@@ -83,6 +87,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
   firstSessionDate,
   sessionId,
   baseline,
+  darkMode = false
 }) => {
   // AI Insight State
   const [aiInsight, setAiInsight] = useState<{ title: string; interpretation: string } | null>(null);
@@ -275,12 +280,12 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
 
   if (isLoading) {
     return (
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4">
+      <div className={`border rounded-lg shadow-sm p-4 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
         <div className="animate-pulse flex items-center space-x-4">
-          <div className="h-12 w-12 bg-gray-200 rounded-full"></div>
+          <div className={`h-12 w-12 rounded-full ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
           <div className="space-y-2 flex-1">
-            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className={`h-4 rounded w-3/4 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
+            <div className={`h-4 rounded w-1/2 ${darkMode ? 'bg-gray-700' : 'bg-gray-200'}`}></div>
           </div>
         </div>
       </div>
@@ -322,22 +327,22 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
     theme = {
       headerBg: "bg-slate-900",
       accent: "text-emerald-400",
-      bannerContainer: "bg-emerald-50/40 border-emerald-100/50", // Green for Optimal/Positive
-      bannerIcon: "text-emerald-600",
+      bannerContainer: darkMode ? "bg-emerald-900/20 border-emerald-800/50" : "bg-emerald-50/40 border-emerald-100/50",
+      bannerIcon: darkMode ? "text-emerald-400" : "text-emerald-600",
       pulseColor: "bg-emerald-400",
-      protocolBg: "bg-emerald-600",
-      protocolShadow: "shadow-emerald-100"
+      protocolBg: darkMode ? "bg-emerald-900/40" : "bg-emerald-600",
+      protocolShadow: darkMode ? "shadow-emerald-900/20" : "shadow-emerald-100"
     };
   } else {
     // All other states (Stress, Warning, Neutral) use the 'Grey' (Slate) theme for negative/neutral feedback
     theme = {
       headerBg: "bg-slate-900",
       accent: "text-indigo-400",
-      bannerContainer: "bg-slate-100/50 border-slate-200/50",
-      bannerIcon: "text-slate-500",
-      pulseColor: "bg-slate-400",
-      protocolBg: "bg-slate-700",
-      protocolShadow: "shadow-slate-100"
+      bannerContainer: darkMode ? "bg-gray-800/50 border-gray-700/50" : "bg-slate-100/50 border-slate-200/50",
+      bannerIcon: darkMode ? "text-gray-400" : "text-slate-500",
+      pulseColor: darkMode ? "bg-gray-500" : "bg-slate-400",
+      protocolBg: darkMode ? "bg-gray-800" : "bg-slate-700",
+      protocolShadow: darkMode ? "shadow-gray-900/20" : "shadow-slate-100"
     };
   }
 
@@ -407,7 +412,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
       </div>
 
       {/* Dashboard Body */}
-      <div className="bg-white border-x border-b border-slate-200 rounded-b-2xl p-6">
+      <div className={`border-x border-b rounded-b-2xl p-6 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
 
         {/* Dynamic Title Separator - REMOVED (moved to HRV Analysis section) */}
 
@@ -416,7 +421,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
         {/* Metrics Row - REMOVED (moved to HRV Analysis section in SessionSummaryModal) */}
 
         {/* Protocol Recommendation Section */}
-        <div className="bg-slate-50 rounded-[2.5rem] p-6 lg:p-8 flex flex-col items-center text-center relative overflow-hidden border border-slate-100 mb-6">
+        <div className={`rounded-[2.5rem] p-6 lg:p-8 flex flex-col items-center text-center relative overflow-hidden border mb-6 ${darkMode ? 'bg-gray-900 border-gray-700' : 'bg-slate-50 border-slate-100'}`}>
           {/* Watermark detail */}
           <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none">
             <Wind size={160} />
@@ -426,7 +431,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
           {!isCalibrationPhase && (
             <>
               {/* Pill Header */}
-              <div className="inline-flex items-center gap-2 bg-indigo-600 text-white px-5 py-1.5 rounded-full shadow-lg shadow-indigo-100 mb-8">
+              <div className={`inline-flex items-center gap-2 px-5 py-1.5 rounded-full shadow-lg mb-8 ${darkMode ? 'bg-gray-700 text-gray-200 shadow-gray-900/50' : 'bg-indigo-600 text-white shadow-indigo-100'}`}>
                 <Wind size={16} strokeWidth={2.5} />
                 <span className="text-[11px] font-black uppercase tracking-[0.2em]">Active Recovery Protocol</span>
               </div>
@@ -438,16 +443,16 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
                 </div>
               ) : isError ? (
                 <div className="flex flex-col items-center gap-2 mb-3">
-                  <p className="text-slate-400 text-sm">Unavailable</p>
+                  <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>Unavailable</p>
                   <button
                     onClick={() => generateInsight(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-xs font-bold transition-colors"
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
                   >
                     <Wind size={14} /> Retry Analysis
                   </button>
                 </div>
               ) : aiInsight?.title ? (
-                <p className="text-slate-900 text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl">
+                <p className={`text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl ${darkMode ? 'text-gray-100' : 'text-slate-900'}`}>
                   {aiInsight.title}
                 </p>
               ) : null}
@@ -461,7 +466,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
 
           {isCalibrationPhase && (
             <>
-              <div className="inline-flex items-center gap-2 bg-indigo-600 text-white px-5 py-1.5 rounded-full shadow-lg shadow-indigo-100 mb-8">
+              <div className={`inline-flex items-center gap-2 px-5 py-1.5 rounded-full shadow-lg mb-8 ${darkMode ? 'bg-indigo-900/50 text-indigo-200 shadow-indigo-900/20' : 'bg-indigo-600 text-white shadow-indigo-100'}`}>
                 <Activity size={16} strokeWidth={2.5} />
                 <span className="text-[11px] font-black uppercase tracking-[0.2em]">Calibration Phase</span>
               </div>
@@ -469,20 +474,20 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
               {/* Main Instruction - AI Only (no fallback) */}
               {isLoadingInsight ? (
                 <div className="w-full max-w-2xl flex flex-col items-center gap-4 mb-3">
-                  <div className="h-8 bg-slate-200 rounded w-3/4 animate-pulse"></div>
+                  <div className={`h-8 rounded w-3/4 animate-pulse ${darkMode ? 'bg-gray-800' : 'bg-slate-200'}`}></div>
                 </div>
               ) : isError ? (
                 <div className="flex flex-col items-center gap-2 mb-3">
-                  <p className="text-slate-400 text-sm">Unavailable</p>
+                  <p className={`text-sm ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>Unavailable</p>
                   <button
                     onClick={() => generateInsight(true)}
-                    className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-full text-xs font-bold transition-colors"
+                    className={`flex items-center gap-2 px-4 py-2 rounded-full text-xs font-bold transition-colors ${darkMode ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'}`}
                   >
                     <Activity size={14} /> Retry Analysis
                   </button>
                 </div>
               ) : aiInsight?.title ? (
-                <p className="text-slate-900 text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl">
+                <p className={`text-xl md:text-2xl font-black tracking-tight leading-tight mb-3 max-w-2xl ${darkMode ? 'text-gray-100' : 'text-slate-900'}`}>
                   {aiInsight.title}
                 </p>
               ) : null}
@@ -495,11 +500,11 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
               {/* Secondary Context - AI interpretation only (no fallback) */}
               {isLoadingInsight ? (
                 <div className="w-full max-w-3xl flex flex-col items-center gap-2">
-                  <div className="h-4 bg-slate-200 rounded w-full animate-pulse"></div>
-                  <div className="h-4 bg-slate-200 rounded w-5/6 animate-pulse"></div>
+                  <div className={`h-4 rounded w-full animate-pulse ${darkMode ? 'bg-gray-800' : 'bg-slate-200'}`}></div>
+                  <div className={`h-4 rounded w-5/6 animate-pulse ${darkMode ? 'bg-gray-800' : 'bg-slate-200'}`}></div>
                 </div>
               ) : aiInsight?.interpretation ? (
-                <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed max-w-3xl">
+                <p className={`text-sm md:text-base font-medium leading-relaxed max-w-3xl ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                   {aiInsight.interpretation}
                 </p>
               ) : null}
@@ -510,11 +515,11 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
           {!isCalibrationPhase && (
             isLoadingInsight ? (
               <div className="w-full max-w-3xl flex flex-col items-center gap-2">
-                <div className="h-4 bg-slate-200 rounded w-full animate-pulse"></div>
-                <div className="h-4 bg-slate-200 rounded w-5/6 animate-pulse"></div>
+                <div className={`h-4 rounded w-full animate-pulse ${darkMode ? 'bg-gray-800' : 'bg-slate-200'}`}></div>
+                <div className={`h-4 rounded w-5/6 animate-pulse ${darkMode ? 'bg-gray-800' : 'bg-slate-200'}`}></div>
               </div>
             ) : aiInsight?.interpretation ? (
-              <p className="text-slate-500 text-sm md:text-base font-medium leading-relaxed max-w-3xl">
+              <p className={`text-sm md:text-base font-medium leading-relaxed max-w-3xl ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                 {aiInsight.interpretation}
               </p>
             ) : null
@@ -528,13 +533,13 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
         {/* Interpretation Info Banner - Calibration (Stealth AI Target) */}
         {isCalibrationPhase && (
           <div className={`mb-6 flex items-center gap-4 p-4 border rounded-xl transition-colors duration-500 ${theme.bannerContainer}`}>
-            <div className={`shrink-0 w-8 h-8 bg-white rounded-lg flex items-center justify-center shadow-sm ${theme.bannerIcon}`}>
+            <div className={`shrink-0 w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${theme.bannerIcon} ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
               <Activity size={18} />
             </div>
             <div className="flex-1">
               {/* REMOVED LOADING CHECK HERE to show calibration countdown instantly */}
-              <p className="text-sm font-medium text-slate-600 leading-tight">
-                <span className="font-bold text-slate-900">
+              <p className={`text-sm font-medium leading-tight ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>
+                <span className={`font-bold ${darkMode ? 'text-gray-200' : 'text-slate-900'}`}>
                   {getCalibrationMessage()}
                 </span>
               </p>
@@ -545,15 +550,15 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
       </div>
 
       {/* Footer meta info */}
-      <div className="mt-6 flex flex-col md:flex-row justify-between items-center gap-4 px-2 opacity-40">
-        <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">HRV Analytics • v1.0</p>
+      <div className={`mt-6 flex flex-col md:flex-row justify-between items-center gap-4 px-2 opacity-40 ${darkMode ? 'text-gray-500' : 'text-slate-500'}`}>
+        <p className="text-[10px] font-black uppercase tracking-[0.2em]">HRV Analytics • v1.0</p>
         <div className="flex gap-4 items-center">
           <div className="flex items-center gap-2">
             <div className={`w-1.5 h-1.5 rounded-full ${theme.pulseColor} shadow-sm`}></div>
-            <span className="text-[9px] font-black text-slate-600 uppercase">Analysis Complete</span>
+            <span className={`text-[9px] font-black uppercase ${darkMode ? 'text-gray-400' : 'text-slate-600'}`}>Analysis Complete</span>
           </div>
-          <div className="h-3 w-[1px] bg-slate-300"></div>
-          <CheckCircle2 size={12} className="text-slate-400" />
+          <div className={`h-3 w-[1px] ${darkMode ? 'bg-gray-600' : 'bg-slate-300'}`}></div>
+          <CheckCircle2 size={12} className={darkMode ? 'text-gray-500' : 'text-slate-400'} />
         </div>
       </div>
 

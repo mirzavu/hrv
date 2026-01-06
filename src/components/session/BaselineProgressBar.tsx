@@ -7,27 +7,29 @@ interface BaselineProgressBarProps {
     userProfile?: UserProfile | null;
     phaseData?: PhaseData | null; // Phase data from analyze API (always has uniqueDays)
     isLoading?: boolean;
+    darkMode?: boolean;
 }
 
 const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
     baseline,
     userProfile,
     phaseData,
-    isLoading = false
+    isLoading = false,
+    darkMode = false
 }) => {
     if (isLoading) {
         return (
-            <div className="w-full bg-white rounded-2xl p-4 shadow-sm border border-slate-100 animate-pulse mb-6">
+            <div className={`w-full rounded-2xl p-4 shadow-sm border animate-pulse mb-6 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-100'}`}>
                 <div className="flex justify-between items-center mb-4">
                     <div className="flex gap-3">
-                        <div className="w-10 h-10 bg-slate-200 rounded-lg"></div>
+                        <div className={`w-10 h-10 rounded-lg ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}></div>
                         <div className="space-y-2">
-                            <div className="w-24 h-3 bg-slate-200 rounded"></div>
-                            <div className="w-32 h-2 bg-slate-100 rounded"></div>
+                            <div className={`w-24 h-3 rounded ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}></div>
+                            <div className={`w-32 h-2 rounded ${darkMode ? 'bg-gray-600' : 'bg-slate-100'}`}></div>
                         </div>
                     </div>
                 </div>
-                <div className="h-2.5 bg-slate-100 rounded-full w-full"></div>
+                <div className={`h-2.5 rounded-full w-full ${darkMode ? 'bg-gray-700' : 'bg-slate-100'}`}></div>
             </div>
         );
     }
@@ -53,7 +55,7 @@ const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
                     description: 'Engine optimized for your physiology',
                     icon: <Trophy size={18} className="text-emerald-600" />,
                     color: 'from-emerald-400 to-teal-500',
-                    bgColor: 'bg-emerald-50/40',
+                    bgColor: darkMode ? 'bg-emerald-900/20' : 'bg-emerald-50/40',
                     status: 'full_baseline',
                     percentage: 100
                 };
@@ -63,7 +65,7 @@ const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
                     description: 'Keep tracking to unlock full precision',
                     icon: <TrendingUp size={18} className="text-blue-600" />,
                     color: 'from-blue-400 to-indigo-500',
-                    bgColor: 'bg-blue-50/40',
+                    bgColor: darkMode ? 'bg-blue-900/20' : 'bg-blue-50/40',
                     status: 'early_baseline',
                     percentage: progressPercent
                 };
@@ -74,7 +76,7 @@ const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
                     description: 'Record morning sessions to calibrate',
                     icon: <Zap size={18} className="text-amber-600" />,
                     color: 'from-amber-400 to-orange-500',
-                    bgColor: 'bg-amber-50/40',
+                    bgColor: darkMode ? 'bg-amber-900/20' : 'bg-amber-50/40',
                     status: 'calibration',
                     percentage: progressPercent
                 };
@@ -85,31 +87,31 @@ const BaselineProgressBar: React.FC<BaselineProgressBarProps> = ({
     const sessionCount = uniqueDays;
 
     return (
-        <div className={`w-full p-4 rounded-2xl border border-slate-200/60 shadow-sm transition-all duration-500 mb-6 ${phaseInfo.bgColor}`}>
+        <div className={`w-full p-4 rounded-2xl border shadow-sm transition-all duration-500 mb-6 ${phaseInfo.bgColor} ${darkMode ? 'border-gray-700' : 'border-slate-200/60'}`}>
             <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-xl bg-white shadow-sm border border-slate-100/80">
+                    <div className={`p-2 rounded-xl shadow-sm border ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-100/80'}`}>
                         {phaseInfo.icon}
                     </div>
                     <div>
-                        <h4 className="text-sm font-bold text-slate-800 leading-none flex items-center gap-1.5">
+                        <h4 className={`text-sm font-bold leading-none flex items-center gap-1.5 ${darkMode ? 'text-gray-200' : 'text-slate-800'}`}>
                             {phaseInfo.label}
                             {phaseInfo.status === 'full' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
                         </h4>
-                        <p className="text-[11px] text-slate-500 mt-1 font-medium">
+                        <p className={`text-[11px] mt-1 font-medium ${darkMode ? 'text-gray-400' : 'text-slate-500'}`}>
                             {phaseInfo.description}
                         </p>
                     </div>
                 </div>
                 <div className="text-right">
-                    <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block mb-1">Progress</span>
-                    <span className="text-xs font-bold text-slate-700 bg-white/80 px-2.5 py-1 rounded-md border border-slate-100/50 shadow-sm">
+                    <span className={`text-[10px] uppercase tracking-wider font-bold block mb-1 ${darkMode ? 'text-gray-500' : 'text-slate-400'}`}>Progress</span>
+                    <span className={`text-xs font-bold px-2.5 py-1 rounded-md border shadow-sm ${darkMode ? 'text-gray-300 bg-gray-800/80 border-gray-700/50' : 'text-slate-700 bg-white/80 border-slate-100/50'}`}>
                         Day {sessionCount}
                     </span>
                 </div>
             </div>
 
-            <div className="relative w-full h-2.5 bg-slate-200/50 rounded-full overflow-hidden">
+            <div className={`relative w-full h-2.5 rounded-full overflow-hidden ${darkMode ? 'bg-gray-700' : 'bg-slate-200/50'}`}>
                 <div
                     className={`absolute top-0 left-0 h-full rounded-full bg-gradient-to-r ${phaseInfo.color} transition-all duration-1000 ease-out shadow-sm`}
                     style={{ width: `${Math.max(phaseInfo.percentage, 5)}%` }}
