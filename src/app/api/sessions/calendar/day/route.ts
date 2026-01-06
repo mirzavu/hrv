@@ -135,7 +135,7 @@ export async function GET(request: NextRequest) {
         return calendarSession;
       })
       .filter((s): s is CalendarSession => s !== null)
-      .sort((a, b) => a.time.localeCompare(b.time)); // Sort by time
+      .sort((a, b) => b.time.localeCompare(a.time)); // Sort by time descending (most recent first)
 
     return NextResponse.json({ sessions: calendarSessions });
 
