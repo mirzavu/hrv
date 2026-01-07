@@ -2,10 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
-import { SessionSummaryPayload } from '@/types';
+import { SessionSummaryPayload, SessionSummaryRecord, UserBaseline } from '@/types';
 import * as fflate from 'fflate';
+import { interpretHRVSession, InterpretationResult } from '@/utils/autonomicInterpretation';
+import {
+  generateScoreBasedInterpretation,
+  generateCalibrationInterpretation,
+  findComparisonSession
+} from '@/utils/sessionComparison';
+import { formatDateForPocketBase, toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
 
-// GET /api/sessions/[sessionId] - Fetch full session data with summary
+// GET /api/sessions/[sessionId] - Fetch full session data with summary AND interpretation
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> | { sessionId: string } }
@@ -14,6 +21,9 @@ export async function GET(
     // Handle both sync and async params (Next.js 14 vs 15)
     const resolvedParams = params instanceof Promise ? await params : params;
     const sessionId = resolvedParams.sessionId;
+    const { searchParams } = new URL(request.url);
+    // userId is optional but needed for interpretation
+    const userId = searchParams.get('userId');
 
     if (!sessionId) {
       return NextResponse.json({ error: 'Session ID is required' }, { status: 400 });
@@ -211,10 +221,212 @@ export async function GET(
     const dataPointsCount = rawData.length > 0 ? rawData.length : Math.max(60, durationSeconds);
     const sessionSummary = buildSessionSummary(payload, durationSeconds, dataPointsCount, rawData, sessionId);
 
+    // =========================================================================
+    // START INTERPRETATION LOGIC (Merged from /api/sessions/[id]/interpret)
+    // =========================================================================
+
+    let interpretation: InterpretationResult | null = null;
+    let baseline: UserBaseline | null = null;
+    let baselineDatetime: string | null = null;
+    let comparisonSessionDate: string | null = null;
+    let firstSessionDate: string | null = null;
+    let phaseName: 'calibration' | 'early_baseline' | 'full_baseline' = 'calibration';
+    let progress = 0;
+    let uniqueDays = 0;
+
+    // Only attempt interpretation if userId is present (not Guest)
+    if (userId) {
+      try {
+        // Fetch user profile for timezone
+        let userTimezone = DEFAULT_TIMEZONE;
+        let userProfile = null;
+        try {
+          userProfile = await pb.collection('users').getOne(userId);
+          userTimezone = userProfile.timezone || DEFAULT_TIMEZONE;
+        } catch (error) {
+          console.error('[API] Could not fetch user profile:', error);
+        }
+
+        // Determine session date
+        let sessionDate: Date;
+        if (sessionSummary.rrIntervals?.[0]?.timestamp && sessionSummary.rrIntervals[0].timestamp > 1600000000000) {
+          sessionDate = new Date(sessionSummary.rrIntervals[0].timestamp);
+        } else if (summaryRecord.session_date) {
+          sessionDate = new Date(summaryRecord.session_date);
+        } else {
+          sessionDate = new Date(session.startTime);
+        }
+        const sessionDateISO = sessionDate.toISOString();
+
+        // Fetch comparison sessions to determine phase
+        const compFilter = `user_id = "${userId}" && session_id != "${sessionId}" && session_date < "${formatDateForPocketBase(sessionDateISO)}"`;
+        const previousSessionsResponse = await pb.collection('session_summary').getFullList({
+          filter: compFilter,
+          sort: '-session_date'
+        });
+
+        const previousSessions = previousSessionsResponse
+          .map(s => withDollarId(s))
+          .filter(s => !s.is_crash) as unknown as SessionSummaryRecord[];
+
+        // Calculate phase based on unique days
+        const uniqueDatesSet = new Set<string>();
+        previousSessions.forEach(s => {
+          const d = s.session_date || s.createdAt;
+          if (d) uniqueDatesSet.add(toLocalDateString(d, userTimezone));
+        });
+        uniqueDatesSet.add(toLocalDateString(sessionDate, userTimezone));
+
+        uniqueDays = uniqueDatesSet.size;
+        progress = Math.min(Math.round((uniqueDays / 15) * 100), 100);
+
+        if (uniqueDays >= 15) phaseName = 'full_baseline';
+        else if (uniqueDays >= 4) phaseName = 'early_baseline';
+
+        // Calculate firstSessionDate for calibration countdown
+        if (previousSessions.length > 0) {
+          const allSessions = [...previousSessions];
+          allSessions.sort((a, b) => {
+            const dateA = new Date(a.session_date || a.createdAt).getTime();
+            const dateB = new Date(b.session_date || b.createdAt).getTime();
+            return dateA - dateB;
+          });
+          const firstSession = allSessions[0];
+          firstSessionDate = firstSession.session_date || firstSession.createdAt || null;
+        } else {
+          // This is the first session
+          firstSessionDate = sessionDateISO;
+        }
+
+        // Generate interpretation based on phase
+        if (phaseName === 'calibration') {
+          // Calibration phase: Compare to previous session
+          const comparisonResult = findComparisonSession(sessionDate, previousSessions);
+
+          if (comparisonResult.session) {
+            if (comparisonResult.session.session_date) {
+              comparisonSessionDate = comparisonResult.session.session_date;
+            } else if (comparisonResult.session.createdAt) {
+              comparisonSessionDate = comparisonResult.session.createdAt;
+            }
+
+            interpretation = generateCalibrationInterpretation(
+              sessionSummary,
+              comparisonResult.session,
+              comparisonResult.insightText,
+              comparisonResult.metricTitle
+            );
+          } else {
+            // Fallback to score-based if no valid comparison found
+            interpretation = generateScoreBasedInterpretation(sessionSummary, previousSessions.length === 0);
+          }
+        } else {
+          // Baseline phase: Compare to baseline
+          // Check if session is historical (more than 5 seconds old)
+          const isHistoricalSession = (Date.now() - sessionDate.getTime()) > 5000;
+
+          if (isHistoricalSession) {
+            // For historical sessions, fetch baseline that existed at least 18 hours before the session
+            const cutoffDate = new Date(sessionDate.getTime() - (18 * 60 * 60 * 1000)); // 18 hours
+            const pbCutoffDate = formatDateForPocketBase(cutoffDate);
+
+            const snapshots = await pb.collection('baseline_history').getList(1, 50, {
+              filter: `user_id = "${userId}" && snapshot_date <= "${pbCutoffDate}"`,
+              sort: '-snapshot_date'
+            });
+
+            const validSnapshots = snapshots.items.filter(s => s.established === true);
+
+            if (validSnapshots.length > 0) {
+              const snapshot = withDollarId(validSnapshots[0]);
+              baseline = {
+                $id: snapshot.$id,
+                user_id: snapshot.user_id,
+                rmssd_avg: snapshot.rmssd_avg,
+                rmssd_stdev: snapshot.rmssd_stdev,
+                sdnn_avg: snapshot.sdnn_avg,
+                sdnn_stdev: snapshot.sdnn_stdev,
+                hr_avg: snapshot.hr_avg,
+                hr_stdev: snapshot.hr_stdev,
+                sd1_sd2_ratio_avg: snapshot.sd1_sd2_ratio_avg,
+                sd1_sd2_ratio_stdev: snapshot.sd1_sd2_ratio_stdev,
+                lf_power_avg: snapshot.lf_power_avg ?? null,
+                hf_power_avg: snapshot.hf_power_avg ?? null,
+                lf_hf_avg: snapshot.lf_hf_avg ?? null,
+                amo50_avg: snapshot.amo50_avg ?? null,
+                energy_score_avg: snapshot.energy_score_avg ?? null,
+                energy_score_stdev: snapshot.energy_score_stdev ?? null,
+                stress_score_avg: snapshot.stress_score_avg ?? null,
+                stress_score_stdev: snapshot.stress_score_stdev ?? null,
+                health_score_avg: snapshot.health_score_avg ?? null,
+                health_score_stdev: snapshot.health_score_stdev ?? null,
+                focus_score_avg: snapshot.focus_score_avg ?? null,
+                focus_score_stdev: snapshot.focus_score_stdev ?? null,
+                hrv_score_avg: snapshot.hrv_score_avg ?? null,
+                hrv_score_stdev: snapshot.hrv_score_stdev ?? null,
+                sessions_count: snapshot.sessions_count,
+                established: snapshot.established,
+                unique_morning_sessions_count: undefined,
+                calibration_progress: undefined,
+                last_updated: snapshot.snapshot_date,
+                createdAt: snapshot.createdAt
+              };
+              baselineDatetime = snapshot.snapshot_date;
+            }
+          } else {
+            // For recent sessions, use current baseline
+            try {
+              const baselineRecord = await pb.collection('user_baselines').getFirstListItem(
+                `user_id = "${userId}"`
+              );
+              baseline = withDollarId(baselineRecord) as unknown as UserBaseline;
+            } catch (error: any) {
+              if (error.status !== 404) {
+                console.error('Error fetching current baseline', error);
+              }
+              // Baseline doesn't exist - will fall back to score-based
+            }
+          }
+
+          // Generate interpretation with baseline
+          if (baseline && baseline.established) {
+            interpretation = interpretHRVSession(sessionSummary, baseline);
+          }
+
+          // Fallback to score-based if no baseline or interpretation failed
+          if (!interpretation) {
+            interpretation = generateScoreBasedInterpretation(sessionSummary, false);
+          }
+        }
+      } catch (error) {
+        console.error('[API] Error generating interpretation:', error);
+        // Fallback to safe interpretation
+        interpretation = generateScoreBasedInterpretation(sessionSummary, true);
+      }
+    } else {
+      // Guest user interpretation
+      interpretation = generateScoreBasedInterpretation(sessionSummary, true);
+    }
+
+    // =========================================================================
+    // END INTERPRETATION LOGIC
+    // =========================================================================
+
     return NextResponse.json({
       session: withDollarId(session),
       summary: sessionSummary,
-      summaryRecord: summaryRecord
+      summaryRecord: summaryRecord,
+      // Include interpretation data
+      interpretation,
+      baseline: baseline || null,
+      baselineDatetime: baselineDatetime || null,
+      comparisonSessionDate: comparisonSessionDate || null,
+      firstSessionDate: firstSessionDate || null,
+      phase: {
+        name: phaseName,
+        progress,
+        uniqueDays
+      }
     });
 
   } catch (error: unknown) {

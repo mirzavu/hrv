@@ -7,8 +7,9 @@ import { SessionSummary } from '@/types';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
 import WeeklyRecoveryReport from '@/components/reports/WeeklyRecoveryReport';
 import MonthlyAnalysisReport from '@/components/reports/MonthlyAnalysisReport';
+import { InterpretationResult } from '@/utils/autonomicInterpretation';
+import { UserBaseline } from '@/types';
 
-// SVG Icons
 const ChevronLeft = (props: React.SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
     <path d="m15 18-6-6 6-6" />
@@ -59,7 +60,13 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [dayLoading, setDayLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0); // Force refresh trigger
   const [selectedSessionSummary, setSelectedSessionSummary] = useState<SessionSummary | null>(null);
-  const [_sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
+  const [selectedSessionInterpretation, setSelectedSessionInterpretation] = useState<InterpretationResult | null>(null);
+  const [selectedSessionBaseline, setSelectedSessionBaseline] = useState<UserBaseline | null>(null);
+  const [selectedSessionPhase, setSelectedSessionPhase] = useState<{ name: 'calibration' | 'early_baseline' | 'full_baseline'; progress: number; uniqueDays: number } | null>(null);
+  const [selectedSessionBaselineDatetime, setSelectedSessionBaselineDatetime] = useState<string | null>(null);
+  const [selectedSessionComparisonDate, setSelectedSessionComparisonDate] = useState<string | null>(null);
+  const [selectedSessionFirstSessionDate, setSelectedSessionFirstSessionDate] = useState<string | null>(null);
+  const [sessionSummaryLoading, setSessionSummaryLoading] = useState(false);
   const [showWeeklyReport, setShowWeeklyReport] = useState(false);
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [usagePhase, setUsagePhase] = useState<'calibration' | 'early_baseline' | 'full_baseline' | null>(null);
@@ -348,12 +355,19 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
 
     setSessionSummaryLoading(true);
     try {
-      const response = await fetch(`/api/sessions/${sessionId}`);
+      const response = await fetch(`/api/sessions/${sessionId}${userId ? `?userId=${userId}` : ''}`);
       if (!response.ok) {
         throw new Error(`Failed to fetch session: ${response.status}`);
       }
       const data = await response.json();
       setSelectedSessionSummary(data.summary);
+      // Set interpretation data from response
+      if (data.interpretation) setSelectedSessionInterpretation(data.interpretation);
+      if (data.baseline) setSelectedSessionBaseline(data.baseline);
+      if (data.phase) setSelectedSessionPhase(data.phase);
+      if (data.baselineDatetime) setSelectedSessionBaselineDatetime(data.baselineDatetime);
+      if (data.comparisonSessionDate) setSelectedSessionComparisonDate(data.comparisonSessionDate);
+      if (data.firstSessionDate) setSelectedSessionFirstSessionDate(data.firstSessionDate);
     } catch (error) {
       console.error('Error fetching session summary:', error);
       alert('Failed to load session summary. Please try again.');
@@ -596,8 +610,22 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
             onReset={() => { }}
             isGuest={userId === 'guest' || !userId}
             onGuestLogin={() => { }}
-            onClose={() => setSelectedSessionSummary(null)}
+            onClose={() => {
+              setSelectedSessionSummary(null);
+              setSelectedSessionInterpretation(null);
+              setSelectedSessionBaseline(null);
+              setSelectedSessionPhase(null);
+              setSelectedSessionBaselineDatetime(null);
+              setSelectedSessionComparisonDate(null);
+              setSelectedSessionFirstSessionDate(null);
+            }}
             userId={userId}
+            initialInterpretation={selectedSessionInterpretation}
+            initialBaseline={selectedSessionBaseline}
+            initialPhaseData={selectedSessionPhase}
+            initialBaselineDatetime={selectedSessionBaselineDatetime}
+            initialComparisonSessionDate={selectedSessionComparisonDate}
+            initialFirstSessionDate={selectedSessionFirstSessionDate}
           />
         )
       }
@@ -613,6 +641,15 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         userId={userId}
         currentMonth={viewMonth}
       />
+      {/* Loading Overlay */}
+      {sessionSummaryLoading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/20 backdrop-blur-sm">
+          <div className={`p-6 rounded-2xl shadow-xl flex flex-col items-center gap-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-600'}`}>Loading session...</p>
+          </div>
+        </div>
+      )}
     </div >
   );
 }

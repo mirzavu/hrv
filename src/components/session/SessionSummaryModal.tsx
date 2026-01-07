@@ -11,10 +11,8 @@ import BreathingCoherenceChart from './BreathingCoherenceChart';
 import TachogramChart from './TachogramChart';
 import AutonomicBalanceChart from './AutonomicBalanceChart';
 import AutonomicInterpretation from './AutonomicInterpretation';
-import { toLocalDateString } from '@/utils/dateUtils';
-import { findComparisonSession, generateScoreBasedInterpretation } from '@/utils/sessionComparison';
+import { generateScoreBasedInterpretation } from '@/utils/sessionComparison';
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
-import type { SessionSummaryRecord } from '@/types';
 import AdvancedMetricsToggle from './AdvancedMetricsToggle';
 import BaselineProgressBar from './BaselineProgressBar';
 
@@ -67,6 +65,12 @@ interface SessionSummaryModalProps {
   onClose: () => void;
   rrQuality?: { percentage: number, quality: string, totalNotifications: number, withRR: number, withoutRR: number };
   userId?: string | null;
+  initialInterpretation?: InterpretationResult | null;
+  initialBaseline?: UserBaseline | null;
+  initialPhaseData?: { name: 'calibration' | 'early_baseline' | 'full_baseline'; progress: number; uniqueDays: number } | null;
+  initialBaselineDatetime?: string | null;
+  initialComparisonSessionDate?: string | null;
+  initialFirstSessionDate?: string | null;
 }
 
 const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
@@ -77,22 +81,31 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   onClose,
   rrQuality,
   userId,
-  darkMode = false
+  darkMode = false,
+  initialInterpretation = null,
+  initialBaseline = null,
+  initialPhaseData = null,
+  initialBaselineDatetime = null,
+  initialComparisonSessionDate = null,
+  initialFirstSessionDate = null,
 }) => {
   // Separate states for button animation (instant) and content expansion (deferred)
   const [isToggleExpanded, setIsToggleExpanded] = useState(false);
   const [isContentExpanded, setIsContentExpanded] = useState(false);
   const [chartsReady, setChartsReady] = useState(false);
-  const [baseline, setBaseline] = useState<UserBaseline | null>(null);
-  const [baselineLoading, setBaselineLoading] = useState(true);
+
+  // Use props for initial state
+  const [baseline, setBaseline] = useState<UserBaseline | null>(initialBaseline);
+  const [interpretation, setInterpretation] = useState<InterpretationResult | null>(initialInterpretation);
+  const [computedPhaseData, setComputedPhaseData] = useState<{ name: 'calibration' | 'early_baseline' | 'full_baseline'; progress: number; uniqueDays: number } | null>(initialPhaseData);
+  const [baselineDatetime, setBaselineDatetime] = useState<Date | null>(initialBaselineDatetime ? new Date(initialBaselineDatetime) : null);
+  const [comparisonSessionDate, setComparisonSessionDate] = useState<Date | null>(initialComparisonSessionDate ? new Date(initialComparisonSessionDate) : null);
+  const [firstSessionDate, setFirstSessionDate] = useState<string | null>(initialFirstSessionDate);
+
+  // Loading state (kept for potential future use but defaults to false)
+  const [baselineLoading, setBaselineLoading] = useState(false);
+
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
-  const [interpretation, setInterpretation] = useState<InterpretationResult | null>(null);
-  const [comparisonLoading, setComparisonLoading] = useState(false);
-  const [firstSessionDate, setFirstSessionDate] = useState<string | null>(null);
-  const [computedPhaseData, setComputedPhaseData] = useState<{ name: 'calibration' | 'early_baseline' | 'full_baseline'; progress: number; uniqueDays: number } | null>(null);
-  const [previousSessions, setPreviousSessions] = useState<SessionSummaryRecord[]>([]);
-  const [comparisonSessionDate, setComparisonSessionDate] = useState<Date | null>(null);
-  const [baselineDatetime, setBaselineDatetime] = useState<Date | null>(null);
 
   // Sync content state with toggle state slightly deferred to allow button animation to start
   useEffect(() => {
@@ -106,203 +119,31 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     return () => clearTimeout(timer);
   }, [isToggleExpanded]);
 
-  // --- REFACTORED LOGIC FOR INTERPRETATION FLOW ---
-
-  // 1. Fetch User Profile (for Timezone) & Comparison Data (for Phase)
-  // This runs first when the modal opens or session changes
+  // Fetch User Profile (for Timezone) - Still needed for formatting
   useEffect(() => {
-    const fetchContextData = async () => {
-      if (!userId || isGuest) {
-        setComparisonLoading(false);
-        setBaselineLoading(false);
-        return;
-      }
-
-      setComparisonLoading(true);
-
+    const fetchUserProfile = async () => {
+      if (!userId || isGuest) return;
       try {
-
-
-        // Fetch user profile (needed for Timezone)
         const userResponse = await fetch(`/api/user/profile?userId=${userId}`);
-        let currentProfile: UserProfile | null = null;
-
         if (userResponse.ok) {
           const userData = await userResponse.json();
-          currentProfile = userData.profile;
-          setUserProfile(currentProfile);
-        }
-
-        // Determine session date
-        let sessionDate: Date;
-        if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-          sessionDate = new Date(summary.rrIntervals[0].timestamp);
-        } else {
-          sessionDate = new Date();
-        }
-        const sessionDateISO = sessionDate.toISOString();
-
-
-        // Fetch comparison sessions
-        const compResponse = await fetch(`/api/sessions/comparison?userId=${userId}&referenceDate=${sessionDateISO}`);
-        if (compResponse.ok) {
-          const comparisonData = await compResponse.json();
-          const prevSessions: SessionSummaryRecord[] = comparisonData.previousSessions || [];
-          setPreviousSessions(prevSessions);
-
-          // Use fetched profile for timezone to avoid stale state issues
-          const userTimezone = currentProfile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
-
-
-          const uniqueDatesSet = new Set<string>();
-          prevSessions.forEach(s => {
-            const d = s.session_date || s.createdAt;
-            if (d) uniqueDatesSet.add(toLocalDateString(d, userTimezone));
-          });
-          // Add current session
-          uniqueDatesSet.add(toLocalDateString(sessionDate, userTimezone));
-
-          const uniqueDays = uniqueDatesSet.size;
-          const progress = Math.min(Math.round((uniqueDays / 15) * 100), 100);
-
-          let phaseName: 'calibration' | 'early_baseline' | 'full_baseline' = 'calibration';
-          if (uniqueDays >= 15) phaseName = 'full_baseline';
-          else if (uniqueDays >= 4) phaseName = 'early_baseline';
-
-
-          setComputedPhaseData({ name: phaseName, progress, uniqueDays });
-
-          // Also set first session date for display
-          const allSessions = [...prevSessions];
-          allSessions.sort((a, b) => {
-            const dateA = new Date(a.session_date || a.createdAt).getTime();
-            const dateB = new Date(b.session_date || b.createdAt).getTime();
-            return dateA - dateB;
-          });
-          const firstSession = allSessions[0];
-          setFirstSessionDate(firstSession ? (firstSession.session_date || firstSession.createdAt) : sessionDateISO);
-
-        } else {
-          console.error('Failed to fetch comparison sessions');
+          setUserProfile(userData.profile);
         }
       } catch (error) {
-        console.error('[SessionSummaryModal] Error in Step 1:', error);
-      } finally {
-        setComparisonLoading(false);
+        console.error('[SessionSummaryModal] Error fetching user profile:', error);
       }
     };
+    fetchUserProfile();
+  }, [userId, isGuest]);
 
-    fetchContextData();
-  }, [userId, isGuest, summary.session_id]);
-
-
-  // 2. Fetch Interpretation from Backend API
-  // This replaces the client-side interpretation calculation
+  // Fallback Interpretation Calculation
+  // If no initial interpretation provided (e.g. guest or error), generate basic score-based one
   useEffect(() => {
-    const fetchInterpretation = async () => {
-      if (!summary.session_id) {
-        return;
-      }
-
-      // Guest users - generate score-based interpretation client-side (no API call needed)
-      if (isGuest) {
-        const result = generateScoreBasedInterpretation(summary, true);
-        setInterpretation(result);
-        setBaselineLoading(false);
-        return;
-      }
-
-      if (!userId) {
-        setBaselineLoading(false);
-        return;
-      }
-
-      setBaselineLoading(true);
-      setComparisonSessionDate(null);
-      setBaselineDatetime(null);
-
-      try {
-        const response = await fetch(`/api/sessions/${summary.session_id}/interpret?userId=${userId}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          
-          // Set interpretation
-          if (data.interpretation) {
-            setInterpretation(data.interpretation);
-          }
-
-          // Set baseline if returned
-          if (data.baseline) {
-            setBaseline(data.baseline);
-          }
-
-          // Set baseline datetime if returned
-          if (data.baselineDatetime) {
-            setBaselineDatetime(new Date(data.baselineDatetime));
-          }
-
-          // Update phase data if returned (more accurate than client-side calculation)
-          if (data.phase) {
-            setComputedPhaseData({
-              name: data.phase.name,
-              progress: data.phase.progress,
-              uniqueDays: data.phase.uniqueDays
-            });
-          }
-        } else {
-          console.error('[SessionSummaryModal] Failed to fetch interpretation:', response.status);
-          // Fallback: set a basic interpretation
-          setInterpretation({
-            patternId: 0,
-            physiologicalState: "Analysis Unavailable",
-            coreInterpretation: "Unable to generate interpretation at this time.",
-            recommendedAction: "Please try again later.",
-            technicalChanges: [],
-            relativeInterpretation: "",
-            combinedAdvice: "Continue tracking your sessions.",
-            title: "HRV Analysis"
-          });
-        }
-      } catch (error) {
-        console.error('[SessionSummaryModal] Error fetching interpretation:', error);
-        // Fallback: set a basic interpretation
-        setInterpretation({
-          patternId: 0,
-          physiologicalState: "Analysis Unavailable",
-          coreInterpretation: "Unable to generate interpretation at this time.",
-          recommendedAction: "Please try again later.",
-          technicalChanges: [],
-          relativeInterpretation: "",
-          combinedAdvice: "Continue tracking your sessions.",
-          title: "HRV Analysis"
-        });
-      } finally {
-        setBaselineLoading(false);
-      }
-    };
-
-    fetchInterpretation();
-  }, [summary.session_id, userId, isGuest]);
-
-  // 3. Find comparison session date when phase data and previousSessions are available
-  useEffect(() => {
-    if (computedPhaseData?.name === 'calibration' && previousSessions.length > 0 && summary.session_id) {
-      let sessionDate: Date;
-      if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-        sessionDate = new Date(summary.rrIntervals[0].timestamp);
-      } else {
-        sessionDate = new Date();
-      }
-
-      const comparisonResult = findComparisonSession(sessionDate, previousSessions);
-      if (comparisonResult.session) {
-        if (comparisonResult.session.session_date || comparisonResult.session.createdAt) {
-          setComparisonSessionDate(new Date(comparisonResult.session.session_date || comparisonResult.session.createdAt!));
-        }
-      }
+    if (!initialInterpretation && !interpretation) {
+      const result = generateScoreBasedInterpretation(summary, isGuest);
+      setInterpretation(result);
     }
-  }, [computedPhaseData?.name, previousSessions, summary.session_id, summary.rrIntervals]);
+  }, [summary, isGuest, initialInterpretation, interpretation]);
 
 
   // Defer chart rendering briefly to allow the toggle animation to start

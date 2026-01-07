@@ -123,6 +123,7 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
     useEffect(() => {
         if (isOpen && userId) {
+            console.log(`[WeeklyRecoveryReport] 🔍 Opening report for userId=${userId}`);
             fetchData();
         }
     }, [isOpen, userId]);
@@ -133,6 +134,22 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
         setLoading(true);
         setError(null);
         try {
+            // Check baseline status before fetching data
+            let baselineEstablished = false;
+            try {
+                const baselineResponse = await fetch(`/api/user/baseline?userId=${userId}`);
+                if (baselineResponse.ok) {
+                    const baselineData = await baselineResponse.json();
+                    baselineEstablished = baselineData.baseline?.established === true;
+                    console.log(`[WeeklyRecoveryReport] 🔍 Baseline check: baselineEstablished=${baselineEstablished}, baseline=${JSON.stringify(baselineData.baseline)}`);
+                } else {
+                    console.log(`[WeeklyRecoveryReport] 🔍 Baseline check: API returned ${baselineResponse.status}, baselineEstablished=false`);
+                }
+            } catch (baselineErr) {
+                console.error(`[WeeklyRecoveryReport] 🔍 Baseline check error:`, baselineErr);
+                baselineEstablished = false;
+            }
+
             const response = await fetch(`/api/trends/weekly?userId=${userId}`);
             if (!response.ok) throw new Error('Failed to fetch weekly data');
             const result = await response.json();

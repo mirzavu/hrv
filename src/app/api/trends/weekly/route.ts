@@ -41,6 +41,24 @@ export async function GET(request: NextRequest) {
             console.warn('[Weekly API] Could not fetch user data, using defaults');
         }
 
+        // Check baseline status
+        let baselineEstablished = false;
+        try {
+            const baseline = await pb.collection('user_baselines').getFirstListItem(
+                `user_id = "${userId}"`
+            );
+            baselineEstablished = baseline?.established === true;
+            console.log(`[Weekly API] 🔍 Baseline check for userId=${userId}: baselineEstablished=${baselineEstablished}, baseline.established=${baseline?.established}, baseline.id=${baseline?.id}`);
+        } catch (error: any) {
+            if (error.status === 404) {
+                console.log(`[Weekly API] 🔍 Baseline check for userId=${userId}: No baseline record found (404), baselineEstablished=false`);
+                baselineEstablished = false;
+            } else {
+                console.error(`[Weekly API] 🔍 Baseline check for userId=${userId}: Error fetching baseline:`, error);
+                baselineEstablished = false;
+            }
+        }
+
         // Helper to format date in user's timezone
         const formatLocalDate = (d: Date) => toLocalDateString(d, userTimezone);
 
