@@ -64,7 +64,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [usagePhase, setUsagePhase] = useState<'calibration' | 'early_baseline' | 'full_baseline' | null>(null);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
-  const [weeklyReportViewed, setWeeklyReportViewed] = useState<boolean>(false);
+  const [weeklyReportViewed, setWeeklyReportViewed] = useState<boolean>(true); // Default to true to avoid badge flash
 
   // Fetch user's usage_phase for badge display
   useEffect(() => {
@@ -100,15 +100,15 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
     checkBaseline();
   }, [userId]);
 
-  // Fetch weekly report viewed status
+  // Fetch weekly report viewed status (lightweight check without generating insights)
   useEffect(() => {
     if (!userId) return;
     const fetchWeeklyReportStatus = async () => {
       try {
-        const res = await fetch(`/api/trends/weekly?userId=${userId}`);
+        const res = await fetch(`/api/trends/weekly/status?userId=${userId}`);
         if (res.ok) {
           const data = await res.json();
-          setWeeklyReportViewed(data.stats?.viewed === true);
+          setWeeklyReportViewed(data.viewed === true);
         }
       } catch (e) {
         console.error('Error fetching weekly report status:', e);
@@ -354,7 +354,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       <div className="mb-4">
         {/* Floating Header */}
         <div className={`${darkMode ? 'bg-gray-700' : 'bg-white'} rounded-full p-2 pl-6 pr-2 flex flex-col sm:flex-row justify-between items-center gap-3 w-full`}>
-          
+
           {/* Left: Reset Cache */}
           <div className="flex items-center gap-4">
             <button
@@ -379,15 +379,14 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                   markWeeklyReportAsViewed();
                 }
               }}
-              className={`group flex items-center gap-3 px-5 py-2.5 text-sm font-bold rounded-full transition-all relative shadow-sm ${
-                weeklyReportViewed
-                  ? darkMode
-                    ? 'text-gray-300 bg-gray-700 hover:bg-gray-600'
-                    : 'text-stone-700 bg-stone-100 hover:bg-stone-200'
-                  : darkMode
-                    ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
-                    : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
-              }`}
+              className={`group flex items-center gap-3 px-5 py-2.5 text-sm font-bold rounded-full transition-all relative shadow-sm cursor-pointer ${weeklyReportViewed
+                ? darkMode
+                  ? 'text-gray-300 bg-gray-700 hover:bg-gray-600'
+                  : 'text-stone-700 bg-stone-100 hover:bg-stone-200'
+                : darkMode
+                  ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
+                  : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
+                }`}
             >
               Weekly Report
               {/* Unviewed Indicator */}
