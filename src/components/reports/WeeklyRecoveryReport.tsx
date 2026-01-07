@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     AreaChart,
     Area,
@@ -211,6 +211,10 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
     };
     const ddConfig = getDeepDiveConfig();
 
+    // Check if there are at least 2 days with actual score data for comparison
+    const daysWithScoreData = data.filter(day => day.score !== null && day.score !== undefined).length;
+    const hasEnoughDataForComparison = daysWithScoreData >= 2;
+
     // Format week range for display
     const formatWeekRange = () => {
         if (!weekRange) return '';
@@ -295,6 +299,7 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                         metricKey={item.key as MetricKey}
                                         value={item.val || 0}
                                         change={item.chg || 0}
+                                        showChange={hasEnoughDataForComparison}
                                     />
                                 ))}
                             </div>
@@ -638,46 +643,105 @@ const InfoPopover: React.FC<InfoPopoverProps> = ({
     isAbsolute = true,
     align = 'right'
 }) => {
+    const [showAtBottom, setShowAtBottom] = useState(false);
+    const buttonRef = useRef<HTMLButtonElement>(null);
+    const popoverRef = useRef<HTMLDivElement>(null);
+
     const positionClass = isAbsolute
         ? (className || "top-4 right-4")
         : (className || "");
 
     const wrapperClass = `${isAbsolute ? 'absolute' : 'relative'} ${positionClass} z-50 group/info`;
 
+    useEffect(() => {
+        const checkPosition = () => {
+            if (!buttonRef.current || !popoverRef.current) return;
+
+            const buttonRect = buttonRef.current.getBoundingClientRect();
+            const popoverHeight = 200; // Approximate height of popover (w-64 + padding)
+            const spaceAbove = buttonRect.top;
+            const spaceBelow = window.innerHeight - buttonRect.bottom;
+
+            // If not enough space above but enough space below, show at bottom
+            if (spaceAbove < popoverHeight + 20 && spaceBelow >= popoverHeight + 20) {
+                setShowAtBottom(true);
+            } else {
+                setShowAtBottom(false);
+            }
+        };
+
+        const button = buttonRef.current;
+        if (button) {
+            button.addEventListener('mouseenter', checkPosition);
+            return () => button.removeEventListener('mouseenter', checkPosition);
+        }
+    }, []);
+
     let tooltipPos = "";
     let arrowPos = "";
+    let popoverPosition = "";
+    let arrowPosition = "";
 
     if (align === 'right') {
-        tooltipPos = "right-0 origin-bottom-right";
+        tooltipPos = "right-0";
         arrowPos = "right-3";
+        if (showAtBottom) {
+            popoverPosition = "top-full mt-3 origin-top-right";
+            arrowPosition = "-top-1.5 rotate-45";
+        } else {
+            popoverPosition = "bottom-full mb-3 origin-bottom-right";
+            arrowPosition = "-bottom-1.5 rotate-45";
+        }
     } else if (align === 'left') {
-        tooltipPos = "left-0 origin-bottom-left";
+        tooltipPos = "left-0";
         arrowPos = "left-3";
+        if (showAtBottom) {
+            popoverPosition = "top-full mt-3 origin-top-left";
+            arrowPosition = "-top-1.5 rotate-45";
+        } else {
+            popoverPosition = "bottom-full mb-3 origin-bottom-left";
+            arrowPosition = "-bottom-1.5 rotate-45";
+        }
     } else {
-        tooltipPos = "left-1/2 -translate-x-1/2 origin-bottom";
+        tooltipPos = "left-1/2 -translate-x-1/2";
         arrowPos = "left-1/2 -translate-x-1/2";
+        if (showAtBottom) {
+            popoverPosition = "top-full mt-3 origin-top";
+            arrowPosition = "-top-1.5 rotate-45";
+        } else {
+            popoverPosition = "bottom-full mb-3 origin-bottom";
+            arrowPosition = "-bottom-1.5 rotate-45";
+        }
     }
 
     return (
         <div className={wrapperClass}>
-            <button className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2 rounded-full shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-md ring-1 ring-indigo-100 cursor-pointer pointer-events-auto">
+            <button 
+                ref={buttonRef}
+                className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2 rounded-full shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-md ring-1 ring-indigo-100 cursor-pointer pointer-events-auto"
+            >
                 <Info size={16} strokeWidth={2.5} />
             </button>
 
-            <div className={`absolute bottom-full mb-3 w-64 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 transform scale-95 group-hover/info:scale-100 pointer-events-none ${tooltipPos}`}>
+            <div 
+                ref={popoverRef}
+                className={`absolute ${popoverPosition} ${tooltipPos} w-64 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 transform scale-95 group-hover/info:scale-100 pointer-events-none`}
+            >
                 <div className="font-bold mb-2 text-indigo-300 flex items-center gap-2 border-b border-indigo-500/30 pb-2">
                     <Activity size={14} /> {title}
                 </div>
                 <p className="leading-relaxed text-slate-300">
                     {description}
                 </p>
-                <div className={`absolute -bottom-1.5 w-3 h-3 bg-slate-900 rotate-45 ${arrowPos}`}></div>
+                <div className={`absolute ${arrowPosition} ${arrowPos} w-3 h-3 bg-slate-900`}></div>
             </div>
         </div>
     );
 };
 
-const ChangeBadge: React.FC<{ change: number, inverse?: boolean }> = ({ change, inverse = false }) => {
+const ChangeBadge: React.FC<{ change: number, inverse?: boolean, showChange?: boolean }> = ({ change, inverse = false, showChange = true }) => {
+    if (!showChange) return null;
+
     const isPositive = change > 0;
     const isNeutral = change === 0;
 
@@ -696,7 +760,7 @@ const ChangeBadge: React.FC<{ change: number, inverse?: boolean }> = ({ change, 
     );
 }
 
-const ScoreCard: React.FC<{ metricKey: MetricKey, value: number, change: number }> = ({ metricKey, value, change }) => {
+const ScoreCard: React.FC<{ metricKey: MetricKey, value: number, change: number, showChange?: boolean }> = ({ metricKey, value, change, showChange = true }) => {
     const config = METRICS[metricKey];
     const Icon = config.icon;
 
@@ -712,7 +776,7 @@ const ScoreCard: React.FC<{ metricKey: MetricKey, value: number, change: number 
             </div>
             <div className="flex flex-col z-10">
                 <span className="text-3xl font-black text-slate-800 leading-none mb-2">{value}</span>
-                <ChangeBadge change={change} inverse={isInverse} />
+                <ChangeBadge change={change} inverse={isInverse} showChange={showChange} />
             </div>
             <div className="absolute -bottom-6 -right-6 opacity-[0.03] group-hover:opacity-[0.08] transition-opacity duration-300 transform rotate-12" style={{ color: config.color }}>
                 <Icon size={100} fill="currentColor" />
