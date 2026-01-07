@@ -21,7 +21,6 @@ interface AutonomicInterpretationProps {
   firstSessionDate?: string | null;
   sessionId?: string;
   baseline?: UserBaseline | null;
-  baseline?: UserBaseline | null;
   darkMode?: boolean;
 }
 

@@ -271,7 +271,8 @@ export async function GET(request: NextRequest) {
                                 month_start: monthStartForQuery,
                                 insight_title: insightTitle,
                                 insight_observation: insightObservation,
-                                insight_action: insightAction
+                                insight_action: insightAction,
+                                viewed: true
                             });
                         } catch (saveError: any) {
                             if (saveError.message?.includes('UNIQUE constraint')) {
@@ -284,7 +285,9 @@ export async function GET(request: NextRequest) {
                                         await pb.collection('monthly_insights').update(existing.items[0].id, {
                                             insight_title: insightTitle,
                                             insight_observation: insightObservation,
-                                            insight_action: insightAction
+
+                                            insight_action: insightAction,
+                                            viewed: true
                                         });
                                     }
                                 } catch (updateError) {

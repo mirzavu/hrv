@@ -87,3 +87,47 @@ export const createHRVAlertNotification = async (
         message: `Your HRV is ${Math.abs(percentChange).toFixed(0)}% lower than your baseline. Consider a rest day or light recovery.`,
     });
 };
+
+/**
+ * Create a report availability notification
+ * Called when weekly/monthly reports are ready to view
+ * Checks for existing notification to prevent duplicates
+ */
+export const createReportNotification = async (
+    userId: string,
+    reportType: 'weekly' | 'monthly',
+    reportPeriod: string
+): Promise<boolean> => {
+    try {
+        const pb = await getAdminPb();
+
+        // Check if notification already exists for this report period
+        const existing = await pb.collection('notifications').getList(1, 1, {
+            filter: `user_id = "${userId}" && report_type = "${reportType}" && report_period = "${reportPeriod}"`,
+        });
+
+        if (existing.items.length > 0) {
+            console.log(`[NOTIFICATION] Notification already exists for ${reportType} report ${reportPeriod}`);
+            return false;
+        }
+
+        // Create new notification
+        await pb.collection('notifications').create({
+            user_id: userId,
+            type: 'info',
+            title: reportType === 'weekly' ? 'Weekly Report Ready!' : 'Monthly Report Ready!',
+            message: reportType === 'weekly'
+                ? 'Your weekly recovery analysis is ready. View your progress and insights.'
+                : 'Your monthly analysis is ready. See how you\'ve progressed this month.',
+            read: false,
+            report_type: reportType,
+            report_period: reportPeriod,
+        });
+
+        console.log(`[NOTIFICATION] Created ${reportType} report notification for user ${userId}: ${reportPeriod}`);
+        return true;
+    } catch (error) {
+        console.error('[NOTIFICATION] Failed to create report notification:', error);
+        return false;
+    }
+};

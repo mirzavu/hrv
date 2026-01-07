@@ -65,6 +65,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [usagePhase, setUsagePhase] = useState<'calibration' | 'early_baseline' | 'full_baseline' | null>(null);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
   const [weeklyReportViewed, setWeeklyReportViewed] = useState<boolean>(true); // Default to true to avoid badge flash
+  const [monthlyReportViewed, setMonthlyReportViewed] = useState<boolean>(true); // Default to true
 
   // Fetch user's usage_phase for badge display
   useEffect(() => {
@@ -100,21 +101,35 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
     checkBaseline();
   }, [userId]);
 
-  // Fetch weekly report viewed status (lightweight check without generating insights)
+  // Fetch trends report viewed status (unified check)
   useEffect(() => {
     if (!userId) return;
-    const fetchWeeklyReportStatus = async () => {
+    const fetchTrendsStatus = async () => {
       try {
-        const res = await fetch(`/api/trends/weekly/status?userId=${userId}`);
+        const res = await fetch(`/api/trends/status?userId=${userId}`);
         if (res.ok) {
           const data = await res.json();
-          setWeeklyReportViewed(data.viewed === true);
+          // Logic:
+          // If report exists and viewed=false -> unbadged? No, viewed=false means unviewed (show badge)
+          // Wait, data.viewed = true means it HAS been viewed.
+          // So if viewed=false, show badge.
+          // If report does not exist, badge should ideally be hidden (or shown if we want to prompt generation? User requested badge for unviewed.)
+          // Usually "unviewed" implies it exists but hasn't been seen.
+          // The weekly logic was: setWeeklyReportViewed(data.viewed === true)
+          // So if viewed=false, variable is false, badge shows (!weeklyReportViewed)
+
+          if (data.weekly) {
+            setWeeklyReportViewed(data.weekly.viewed === true);
+          }
+          if (data.monthly) {
+            setMonthlyReportViewed(data.monthly.viewed === true);
+          }
         }
       } catch (e) {
-        console.error('Error fetching weekly report status:', e);
+        console.error('Error fetching trends status:', e);
       }
     };
-    fetchWeeklyReportStatus();
+    fetchTrendsStatus();
   }, [userId, refreshKey]);
 
   // Mark weekly report as viewed
@@ -131,6 +146,23 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       }
     } catch (e) {
       console.error('Error marking weekly report as viewed:', e);
+    }
+  };
+
+  // Mark monthly report as viewed
+  const markMonthlyReportAsViewed = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/trends/monthly/viewed`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        setMonthlyReportViewed(true);
+      }
+    } catch (e) {
+      console.error('Error marking monthly report as viewed:', e);
     }
   };
 
@@ -375,8 +407,8 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
               onClick={() => {
                 setShowWeeklyReport(true);
                 // Mark as viewed when opened
-                if (!weeklyReportViewed && userId) {
-                  markWeeklyReportAsViewed();
+                if (!weeklyReportViewed) {
+                  setWeeklyReportViewed(true);
                 }
               }}
               className={`group flex items-center gap-3 px-5 py-2.5 text-sm font-bold rounded-full transition-all relative shadow-sm cursor-pointer ${weeklyReportViewed
@@ -478,9 +510,17 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
 
               <div className="w-full mb-4">
                 <button
-                  onClick={() => baselineEstablished && setShowMonthlyReport(true)}
+                  onClick={() => {
+                    if (baselineEstablished) {
+                      setShowMonthlyReport(true);
+                      // Mark as viewed when opened
+                      if (!monthlyReportViewed) {
+                        setMonthlyReportViewed(true);
+                      }
+                    }
+                  }}
                   disabled={!baselineEstablished}
-                  className={`w-full px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold rounded-lg shadow-sm border transition-colors duration-200 flex items-center justify-center gap-2 ${baselineEstablished
+                  className={`w-full px-3 py-2 sm:px-4 sm:py-3 text-xs sm:text-sm font-semibold rounded-lg shadow-sm border transition-colors duration-200 flex items-center justify-center gap-2 relative ${baselineEstablished
                     ? (darkMode ? 'text-gray-200 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border-gray-300 hover:bg-gray-50 hover:border-gray-400')
                     : (darkMode ? 'text-gray-500 bg-gray-800 border-gray-700 cursor-not-allowed' : 'text-gray-400 bg-gray-50 border-gray-200 cursor-not-allowed')
                     }`}
@@ -491,6 +531,14 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
                     <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
                   </svg>
                   Month Analysis
+
+                  {/* Unviewed Indicator for Monthly Report */}
+                  {!monthlyReportViewed && baselineEstablished && (
+                    <div className="absolute top-2 right-2 flex items-center justify-center w-2 h-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                    </div>
+                  )}
                 </button>
               </div>
 

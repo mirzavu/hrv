@@ -124,23 +124,10 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
     useEffect(() => {
         if (isOpen && userId) {
             fetchData();
-            // Mark as viewed when opened
-            markAsViewed();
         }
     }, [isOpen, userId]);
 
-    const markAsViewed = async () => {
-        if (!userId) return;
-        try {
-            await fetch(`/api/trends/weekly/viewed`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ userId }),
-            });
-        } catch (e) {
-            console.error('Error marking weekly report as viewed:', e);
-        }
-    };
+
 
     const fetchData = async () => {
         setLoading(true);
@@ -716,14 +703,14 @@ const InfoPopover: React.FC<InfoPopoverProps> = ({
 
     return (
         <div className={wrapperClass}>
-            <button 
+            <button
                 ref={buttonRef}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2 rounded-full shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-md ring-1 ring-indigo-100 cursor-pointer pointer-events-auto"
             >
                 <Info size={16} strokeWidth={2.5} />
             </button>
 
-            <div 
+            <div
                 ref={popoverRef}
                 className={`absolute ${popoverPosition} ${tooltipPos} w-64 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 transform scale-95 group-hover/info:scale-100 pointer-events-none`}
             >

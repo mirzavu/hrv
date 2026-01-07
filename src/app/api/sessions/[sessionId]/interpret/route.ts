@@ -4,10 +4,10 @@ import { withDollarId } from '@/lib/pbMap';
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 import { SessionSummaryPayload } from '@/types';
 import { interpretHRVSession } from '@/utils/autonomicInterpretation';
-import { 
-  generateScoreBasedInterpretation, 
+import {
+  generateScoreBasedInterpretation,
   generateCalibrationInterpretation,
-  findComparisonSession 
+  findComparisonSession
 } from '@/utils/sessionComparison';
 import { formatDateForPocketBase } from '@/utils/dateUtils';
 import { toLocalDateString, DEFAULT_TIMEZONE } from '@/utils/dateUtils';
@@ -153,7 +153,7 @@ export async function GET(
 
     const previousSessions = previousSessionsResponse
       .map(s => withDollarId(s))
-      .filter(s => !s.is_crash) as SessionSummaryRecord[];
+      .filter(s => !s.is_crash) as unknown as SessionSummaryRecord[];
 
     // Calculate phase based on unique days
     const uniqueDatesSet = new Set<string>();
@@ -249,7 +249,7 @@ export async function GET(
           const baselineRecord = await pb.collection('user_baselines').getFirstListItem(
             `user_id = "${userId}"`
           );
-          baseline = withDollarId(baselineRecord) as UserBaseline;
+          baseline = withDollarId(baselineRecord) as unknown as UserBaseline;
         } catch (error: any) {
           if (error.status !== 404) {
             throw error;
@@ -284,9 +284,9 @@ export async function GET(
   } catch (error: unknown) {
     console.error('[Interpret API] Error generating interpretation:', error);
     return NextResponse.json(
-      { 
-        error: 'Failed to generate interpretation', 
-        details: error instanceof Error ? error.message : 'Unknown error' 
+      {
+        error: 'Failed to generate interpretation',
+        details: error instanceof Error ? error.message : 'Unknown error'
       },
       { status: 500 }
     );
