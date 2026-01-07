@@ -29,7 +29,11 @@ import {
     AlertCircle,
     Eye,
     Wind,
-    Info
+    Info,
+    Sparkles,
+    ArrowRight,
+    HelpCircle,
+    RefreshCw
 } from 'lucide-react';
 
 // --- Types ---
@@ -38,7 +42,7 @@ interface WeeklyDataPoint {
     date: string;
     name: string;
     // 0-100 Scores
-    score: number | null; 
+    score: number | null;
     energy: number | null;
     stress: number | null;
     health: number | null;
@@ -62,7 +66,7 @@ interface WeeklyStats {
     avgStress: number;
     avgHealth: number;
     avgFocus: number;
-    
+
     // Changes for 5 Scores (Percentage points)
     changeScore: number;
     changeEnergy: number;
@@ -73,15 +77,19 @@ interface WeeklyStats {
     // Biometric Stats
     avgReadiness: number;
     changeReadiness: number;
-    
+
     weeklyCV: number; // Stability
     changeCV: number;
 
     avgHR: number;
     avgRMSSD: number;
     trend: 'improving' | 'declining' | 'stable';
+
+    // Insight Data
     insightTitle: string;
-    insightText: string;
+    insightObservation: string;
+    insightAction: string;
+    viewed: boolean;
 }
 
 interface WeeklyRecoveryReportProps {
@@ -93,11 +101,11 @@ interface WeeklyRecoveryReportProps {
 // --- Configuration ---
 
 const METRICS = {
-    hrv: { label: 'HRV Score', color: '#14b8a6', icon: Activity, key: 'score' }, 
-    energy: { label: 'Energy', color: '#f59e0b', icon: Zap, key: 'energy' }, 
-    health: { label: 'Health', color: '#10b981', icon: Heart, key: 'health' }, 
-    stress: { label: 'Stress', color: '#8b5cf6', icon: Brain, key: 'stress' }, 
-    focus: { label: 'Focus', color: '#3b82f6', icon: Eye, key: 'focus' }, 
+    hrv: { label: 'HRV Score', color: '#14b8a6', icon: Activity, key: 'score' },
+    energy: { label: 'Energy', color: '#f59e0b', icon: Zap, key: 'energy' },
+    health: { label: 'Health', color: '#10b981', icon: Heart, key: 'health' },
+    stress: { label: 'Stress', color: '#8b5cf6', icon: Brain, key: 'stress' },
+    focus: { label: 'Focus', color: '#3b82f6', icon: Eye, key: 'focus' },
 };
 
 type MetricKey = keyof typeof METRICS;
@@ -106,7 +114,7 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
     // View States
     const [scoreView, setScoreView] = useState<'body' | 'mind'>('body');
     const [deepDiveTab, setDeepDiveTab] = useState<'readiness' | 'rmssd' | 'hr'>('readiness');
-    
+
     // Data States
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyDataPoint[]>([]);
@@ -161,7 +169,8 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                     maxKey: null,
                     color: '#4f46e5',
                     label: 'Readiness',
-                    unit: '/100'
+                    unit: '/100',
+                    info: "Rising indicates higher capacity for load; falling suggests need for recovery."
                 };
             case 'rmssd':
                 return {
@@ -171,7 +180,8 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                     maxKey: 'rmssdMax',
                     color: '#10b981',
                     label: 'RMSSD',
-                    unit: 'ms'
+                    unit: 'ms',
+                    info: "Rising trends often signal fitness gains; falling trends may indicate stress."
                 };
             case 'hr':
                 return {
@@ -181,7 +191,8 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                     maxKey: 'hrMax',
                     color: '#ef4444',
                     label: 'Resting HR',
-                    unit: 'bpm'
+                    unit: 'bpm',
+                    info: "Lower is generally better; falling trend indicates improved cardiovascular efficiency."
                 };
         }
     };
@@ -204,31 +215,90 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2 md:p-4 animate-in fade-in duration-200 font-sans">
             <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
-                
-                {/* --- Header --- */}
-                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white z-20 shrink-0">
+
+                {/* --- Header (New Design) --- */}
+                <div className="relative z-10 bg-white border-b border-stone-100 p-4 md:px-6 md:py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+
+                    {/* Left: Title & Context */}
                     <div>
-                        <div className="flex items-center gap-3">
-                            <h2 className="text-xl md:text-2xl font-bold text-slate-900 flex items-center gap-2">
-                                Weekly Report
-                            </h2>
-                            {usagePhase === 'calibration' && (
-                                <span className="px-3 py-1 text-xs font-bold uppercase tracking-wider bg-amber-500 text-white rounded-full">
-                                    Calibration
-                                </span>
-                            )}
+                        <div className="flex items-center gap-2 mb-1">
+                            <span className="text-xs font-bold text-orange-600 uppercase tracking-widest bg-orange-50 px-2 py-1 rounded">03. Recovery</span>
+                            <span className="text-xs text-gray-400">Weekly Insights</span>
                         </div>
-                        <div className="flex items-center gap-2 text-slate-500 text-xs md:text-sm mt-0.5 font-medium">
+                        <h2 className="text-xl md:text-2xl font-bold text-stone-800 flex items-center gap-2">
+                            Weekly Report
+                        </h2>
+                        <div className="flex items-center gap-2 text-stone-500 text-xs md:text-sm mt-0.5 font-medium">
                             <Calendar size={14} />
                             <span>{formatWeekRange() || 'Loading...'}</span>
                         </div>
                     </div>
-                    <button 
-                        onClick={onClose}
-                        className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
-                    >
-                        <X size={24} />
-                    </button>
+
+                    {/* Right: Controls */}
+                    <div className="flex items-center gap-2 md:gap-4 self-end md:self-auto">
+
+                        {/* Clear Cache Button */}
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => {
+                                    if (confirm('Are you sure you want to reset the cache and regenerate the analysis?')) {
+                                        setLoading(true);
+                                        // Re-fetch with refresh=true
+                                        fetch(`/api/trends/weekly?userId=${userId}&refresh=true`)
+                                            .then(res => res.json())
+                                            .then(result => {
+                                                if (result.error) {
+                                                    setError(result.error);
+                                                } else {
+                                                    setData(result.data);
+                                                    setStats(result.stats);
+                                                    setUsagePhase(result.usage_phase || null);
+                                                    setWeekRange(result.weekRange || null);
+                                                }
+                                            })
+                                            .catch(() => setError('Failed to refresh data'))
+                                            .finally(() => setLoading(false));
+                                    }
+                                }}
+                                className="group flex items-center gap-2 text-sm font-semibold text-stone-500 hover:text-orange-600 transition-colors"
+                            >
+                                <div className="p-1.5 bg-stone-100 group-hover:bg-orange-100 rounded-full transition-colors">
+                                    <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-700" />
+                                </div>
+                                <span className="hidden sm:inline">Reset Cache</span>
+                            </button>
+                            <div className="h-4 w-px bg-stone-200 hidden sm:block"></div>
+                        </div>
+
+                        {/* Report Pill */}
+                        <div className="flex items-center gap-2">
+                            {/* Close Button Mobile */}
+                            <button
+                                onClick={onClose}
+                                className="md:hidden p-2 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-full"
+                            >
+                                <X size={20} />
+                            </button>
+
+                            <div className="group flex items-center gap-3 px-5 py-2.5 text-xs font-bold text-stone-800 bg-stone-100 rounded-full transition-all relative">
+                                Past Week
+                                {/* Viewed Indicator */}
+                                {stats && !stats.viewed && (
+                                    <div className="relative flex items-center justify-center w-2 h-2 ml-1">
+                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
+                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <button
+                                onClick={onClose}
+                                className="hidden md:block p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors ml-2"
+                            >
+                                <X size={24} />
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 {/* --- Scrollable Content --- */}
@@ -248,7 +318,7 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                         </div>
                     ) : (
                         <div className="p-4 md:p-8 space-y-6 md:space-y-8 max-w-5xl mx-auto">
-                            
+
                             {/* SECTION 1: The 5 Scores (Selling Terms) */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                                 {[
@@ -258,10 +328,10 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                     { key: 'focus', val: stats?.avgFocus, chg: stats?.changeFocus },
                                     { key: 'hrv', val: stats?.avgScore, chg: stats?.changeScore },
                                 ].map((item) => (
-                                    <ScoreCard 
-                                        key={item.key} 
-                                        metricKey={item.key as MetricKey} 
-                                        value={item.val || 0} 
+                                    <ScoreCard
+                                        key={item.key}
+                                        metricKey={item.key as MetricKey}
+                                        value={item.val || 0}
                                         change={item.chg || 0}
                                     />
                                 ))}
@@ -273,28 +343,26 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                     <div className="bg-slate-100 p-1 rounded-xl inline-flex">
                                         <button
                                             onClick={() => setScoreView('body')}
-                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                                                scoreView === 'body' 
-                                                ? 'bg-white text-slate-900 shadow-sm' 
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${scoreView === 'body'
+                                                ? 'bg-white text-slate-900 shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                                }`}
                                         >
                                             <Heart size={14} className={scoreView === 'body' ? 'text-rose-500' : ''} />
                                             Body
                                         </button>
                                         <button
                                             onClick={() => setScoreView('mind')}
-                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-                                                scoreView === 'mind' 
-                                                ? 'bg-white text-slate-900 shadow-sm' 
+                                            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${scoreView === 'mind'
+                                                ? 'bg-white text-slate-900 shadow-sm'
                                                 : 'text-slate-500 hover:text-slate-700'
-                                            }`}
+                                                }`}
                                         >
                                             <Brain size={14} className={scoreView === 'mind' ? 'text-violet-500' : ''} />
                                             Mind
                                         </button>
                                     </div>
-                                    
+
                                     {/* Legend */}
                                     <div className="flex flex-wrap gap-4 text-[10px] uppercase font-bold text-slate-500 tracking-wide">
                                         {scoreView === 'body' ? (
@@ -318,8 +386,8 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                             <defs>
                                                 {Object.entries(METRICS).map(([key, config]) => (
                                                     <linearGradient key={key} id={`grad-${key}`} x1="0" y1="0" x2="0" y2="1">
-                                                        <stop offset="5%" stopColor={config.color} stopOpacity={0.2}/>
-                                                        <stop offset="95%" stopColor={config.color} stopOpacity={0}/>
+                                                        <stop offset="5%" stopColor={config.color} stopOpacity={0.2} />
+                                                        <stop offset="95%" stopColor={config.color} stopOpacity={0} />
                                                     </linearGradient>
                                                 ))}
                                             </defs>
@@ -327,7 +395,7 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                             <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} dy={10} />
                                             <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} />
                                             <Tooltip content={<CustomTooltip />} />
-                                            
+
                                             {scoreView === 'body' ? (
                                                 <>
                                                     <Area type="monotone" dataKey="energy" stroke={METRICS.energy.color} fill={`url(#grad-energy)`} strokeWidth={2} />
@@ -347,26 +415,36 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
                             {/* SECTION 3: Biometrics Deep Dive */}
                             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                                
+
                                 {/* 3A: The Chart Panel */}
-                                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm">
+                                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative group">
+
                                     <div className="flex items-center justify-between mb-6">
-                                        <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                                            <Activity size={18} className="text-slate-400" />
-                                            Physiological Trends
-                                        </h3>
-                                        
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                                                <Activity size={18} className="text-slate-400" />
+                                                Physiological Trends
+                                            </h3>
+
+                                            {/* INFO POPOVER (Trends) - Relative/Inline */}
+                                            <InfoPopover
+                                                title={ddConfig.label}
+                                                description={ddConfig.info}
+                                                isAbsolute={false}
+                                                align="center"
+                                            />
+                                        </div>
+
                                         {/* Tabs */}
                                         <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-100">
                                             {(['readiness', 'rmssd', 'hr'] as const).map(tab => (
                                                 <button
                                                     key={tab}
                                                     onClick={() => setDeepDiveTab(tab)}
-                                                    className={`px-3 py-1.5 rounded-md text-[11px] uppercase font-bold tracking-wide transition-all ${
-                                                        deepDiveTab === tab
-                                                            ? 'bg-white text-slate-900 shadow-sm border border-slate-100'
-                                                            : 'text-slate-400 hover:text-slate-600'
-                                                    }`}
+                                                    className={`px-3 py-1.5 rounded-md text-[11px] uppercase font-bold tracking-wide transition-all ${deepDiveTab === tab
+                                                        ? 'bg-white text-slate-900 shadow-sm border border-slate-100'
+                                                        : 'text-slate-400 hover:text-slate-600'
+                                                        }`}
                                                 >
                                                     {tab === 'rmssd' ? 'HRV' : tab}
                                                 </button>
@@ -379,13 +457,13 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                             <ComposedChart data={data} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                 <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} dy={10} />
-                                                <YAxis 
-                                                    domain={['dataMin - 5', 'dataMax + 5']} 
-                                                    axisLine={false} 
-                                                    tickLine={false} 
-                                                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} 
+                                                <YAxis
+                                                    domain={['dataMin - 5', 'dataMax + 5']}
+                                                    axisLine={false}
+                                                    tickLine={false}
+                                                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
                                                 />
-                                                <Tooltip 
+                                                <Tooltip
                                                     cursor={{ fill: '#f8fafc' }}
                                                     content={({ active, payload }) => {
                                                         if (active && payload && payload.length) {
@@ -404,11 +482,11 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
                                                 {/* Normal Range Area */}
                                                 {ddConfig.minKey && ddConfig.maxKey && data.length > 0 && (
-                                                    <ReferenceArea 
-                                                        y1={data[0][ddConfig.minKey as keyof WeeklyDataPoint] as number} 
-                                                        y2={data[0][ddConfig.maxKey as keyof WeeklyDataPoint] as number} 
-                                                        fill={ddConfig.color} 
-                                                        fillOpacity={0.05} 
+                                                    <ReferenceArea
+                                                        y1={data[0][ddConfig.minKey as keyof WeeklyDataPoint] as number}
+                                                        y2={data[0][ddConfig.maxKey as keyof WeeklyDataPoint] as number}
+                                                        fill={ddConfig.color}
+                                                        fillOpacity={0.05}
                                                     />
                                                 )}
 
@@ -417,23 +495,23 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
                                                         <Cell key={`cell-${index}`} fill={ddConfig.color} fillOpacity={0.2} />
                                                     ))}
                                                 </Bar>
-                                                
+
                                                 {ddConfig.avgKey && (
-                                                    <Line 
-                                                        type="monotone" 
-                                                        dataKey={ddConfig.avgKey} 
-                                                        stroke={ddConfig.color} 
-                                                        strokeWidth={3} 
-                                                        dot={false} 
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey={ddConfig.avgKey}
+                                                        stroke={ddConfig.color}
+                                                        strokeWidth={3}
+                                                        dot={false}
                                                     />
                                                 )}
                                                 {!ddConfig.avgKey && (
-                                                    <Line 
-                                                        type="monotone" 
-                                                        dataKey={ddConfig.dataKey} 
-                                                        stroke={ddConfig.color} 
-                                                        strokeWidth={3} 
-                                                        dot={{r: 3, fill: ddConfig.color}}
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey={ddConfig.dataKey}
+                                                        stroke={ddConfig.color}
+                                                        strokeWidth={3}
+                                                        dot={{ r: 3, fill: ddConfig.color }}
                                                     />
                                                 )}
                                             </ComposedChart>
@@ -461,73 +539,115 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
                                 {/* 3B: Stability & Readiness Stats */}
                                 <div className="space-y-4">
-                                    <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between h-[48%] group">
-                                        <div className="flex justify-between items-start z-10">
-                                            <span className="text-indigo-900/60 text-xs font-bold uppercase tracking-wider">Weekly Readiness</span>
-                                            <Zap size={16} className="text-indigo-600" />
+
+                                    {/* READINESS CARD */}
+                                    <div className="bg-indigo-50 border border-indigo-100 rounded-3xl p-6 relative flex flex-col justify-between h-[48%] group">
+
+                                        {/* INFO POPOVER (Readiness) */}
+                                        <InfoPopover
+                                            title="Weekly Readiness"
+                                            description="Higher is better. Rising suggests peak recovery; falling suggests accumulated fatigue."
+                                        />
+
+                                        {/* Background Decoration Wrapper */}
+                                        <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
+                                            <div className="absolute right-[-10px] bottom-[-10px] opacity-10 text-indigo-600 transition-transform duration-500 group-hover:scale-110">
+                                                <Zap size={100} />
+                                            </div>
                                         </div>
-                                        <div className="z-10 mt-2">
+
+                                        {/* Content */}
+                                        <div className="flex justify-between items-start z-10 relative">
+                                            <span className="text-indigo-900/60 text-xs font-bold uppercase tracking-wider">Weekly Readiness</span>
+                                        </div>
+                                        <div className="z-10 mt-2 relative">
                                             <div className="flex items-baseline">
                                                 <span className="text-4xl font-black text-indigo-900">{stats?.avgReadiness}</span>
                                                 <span className="text-indigo-900/40 text-sm font-bold ml-1">/ 100</span>
                                             </div>
                                             <ChangeBadge change={stats?.changeReadiness || 0} />
                                         </div>
-                                        <div className="absolute right-[-10px] bottom-[-10px] opacity-10 text-indigo-600 transition-transform duration-500 group-hover:scale-110">
-                                            <Zap size={100} />
+                                    </div>
+
+                                    {/* STABILITY CARD */}
+                                    <div className="bg-white border border-slate-200 rounded-3xl relative flex flex-col justify-between h-[48%] group/card">
+
+                                        {/* Decoration Wrapper */}
+                                        <div className="absolute inset-0 rounded-3xl overflow-hidden pointer-events-none">
+                                            <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.03] text-slate-900 transition-transform duration-500 group-hover/card:scale-110">
+                                                <Activity size={100} />
+                                            </div>
+                                        </div>
+
+                                        {/* INFO POPOVER (Stability) */}
+                                        <InfoPopover
+                                            title="Stability (CV)"
+                                            description="Coefficient of Variation. Lower is better. Spikes >10% indicate your body is struggling to adapt to stress."
+                                        />
+
+                                        {/* Main Content */}
+                                        <div className="p-6 h-full flex flex-col justify-between relative z-10 pointer-events-none">
+                                            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Stability (CV)</span>
+
+                                            <div className="mt-2">
+                                                <span className={`text-4xl font-black ${stats?.weeklyCV && stats.weeklyCV > 10 ? 'text-rose-500' : 'text-slate-900'}`}>
+                                                    {stats?.weeklyCV}%
+                                                </span>
+                                                <div className="mt-1 flex items-center gap-2">
+                                                    <ChangeBadge change={stats?.changeCV || 0} inverse={true} />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="bg-white border border-slate-200 rounded-3xl p-6 relative overflow-hidden flex flex-col justify-between h-[48%] group">
-                                        <div className="flex justify-between items-start z-10">
-                                            <span className="text-slate-400 text-xs font-bold uppercase tracking-wider">Stability (CV)</span>
-                                            {stats?.weeklyCV && stats.weeklyCV < 10 ? (
-                                                <TrendingDown size={16} className="text-emerald-500" />
-                                            ) : (
-                                                <TrendingUp size={16} className="text-rose-500" />
-                                            )}
-                                        </div>
-                                        <div className="z-10 mt-2">
-                                            <span className={`text-4xl font-black ${stats?.weeklyCV && stats.weeklyCV > 10 ? 'text-rose-500' : 'text-slate-900'}`}>
-                                                {stats?.weeklyCV}%
-                                            </span>
-                                            <div className="mt-1">
-                                                <ChangeBadge change={stats?.changeCV || 0} inverse={true} />
-                                            </div>
-                                        </div>
-                                        <div className="absolute right-[-10px] bottom-[-10px] opacity-[0.03] text-slate-900 transition-transform duration-500 group-hover:scale-110">
-                                            <Activity size={100} />
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
 
-                            {/* SECTION 4: Trend & Insight (Requested Style) */}
-                            <div className="bg-white border-x border-b border-slate-200 rounded-3xl p-2 shadow-sm">
-                                <div className="bg-slate-50 rounded-[2rem] p-6 lg:p-10 flex flex-col items-center text-center relative overflow-hidden border border-slate-100">
-                                    {/* Background Icon */}
-                                    <div className="absolute top-0 right-0 p-8 opacity-[0.03] pointer-events-none text-slate-900">
-                                        <Wind size={160} />
+                            {/* SECTION 4: Analysis & Action (Vertical Stack) */}
+                            <div className="bg-white border border-slate-200 rounded-3xl shadow-sm overflow-hidden flex flex-col">
+                                {/* Top: Analysis (Observation) */}
+                                <div className="p-8 relative overflow-hidden bg-white">
+                                    <div className="z-10 relative">
+                                        <div className="flex items-center gap-3 mb-6">
+                                            <div className="bg-slate-100 p-2 rounded-xl text-slate-600">
+                                                <Wind size={20} />
+                                            </div>
+                                            <span className="text-slate-400 text-xs font-bold uppercase tracking-[0.2em]">Analysis Protocol</span>
+                                        </div>
+
+                                        <h3 className="text-2xl font-black text-slate-900 mb-4 leading-tight">
+                                            {stats?.insightTitle || "Weekly Patterns"}
+                                        </h3>
+
+                                        <p className="text-slate-600 text-sm md:text-lg leading-relaxed font-medium">
+                                            {stats?.insightObservation || "Gathering sufficient biometric data to generate actionable insights."}
+                                        </p>
                                     </div>
-                                    
-                                    {/* Badge */}
-                                    <div className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-full shadow-xl shadow-slate-200 mb-6 z-10">
-                                        <Wind size={16} strokeWidth={2.5} />
-                                        <span className="text-[11px] font-black uppercase tracking-[0.2em]">Analysis Protocol</span>
+
+                                    {/* Decoration */}
+                                    <div className="absolute top-0 right-0 p-10 opacity-[0.03] pointer-events-none">
+                                        <Wind size={200} />
                                     </div>
-                                    
-                                    {/* Title */}
-                                    <p className="text-slate-900 text-xl md:text-3xl font-black tracking-tight leading-tight mb-4 max-w-2xl z-10">
-                                        {stats?.insightTitle || "Data Processing..."}
-                                    </p>
-                                    
-                                    {/* Divider */}
-                                    <div className="w-16 h-1.5 bg-indigo-500 rounded-full mb-4 opacity-20"></div>
-                                    
-                                    {/* Body Text */}
-                                    <p className="text-slate-500 text-sm md:text-lg font-medium leading-relaxed max-w-3xl z-10">
-                                        {stats?.insightText || "Gathering sufficient biometric data to generate actionable insights."}
-                                    </p>
+                                </div>
+
+                                {/* Bottom: Action (Recommendation) */}
+                                <div className="bg-indigo-600 p-8 relative overflow-hidden text-white border-t border-indigo-500/30">
+                                    <div className="z-10 relative">
+                                        <div className="flex items-center gap-2 mb-4 opacity-90">
+                                            <Sparkles size={16} className="text-yellow-300" />
+                                            <span className="text-xs font-bold uppercase tracking-wider">Recommended Action</span>
+                                        </div>
+
+                                        <p className="text-indigo-50 text-sm md:text-base font-medium leading-relaxed">
+                                            {stats?.insightAction || "Continue tracking your sessions to build a comprehensive view of your recovery patterns."}
+                                        </p>
+                                    </div>
+
+                                    {/* Gradient Overlay */}
+                                    <div className="absolute inset-0 bg-gradient-to-br from-indigo-500 to-indigo-700 opacity-50 z-0"></div>
+                                    <div className="absolute bottom-[-20px] right-[-20px] opacity-10 rotate-12 z-0">
+                                        <Zap size={120} fill="currentColor" />
+                                    </div>
                                 </div>
                             </div>
 
@@ -541,12 +661,66 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
 // --- Subcomponents ---
 
+interface InfoPopoverProps {
+    title: string;
+    description: string;
+    className?: string;
+    isAbsolute?: boolean;
+    align?: 'left' | 'right' | 'center';
+}
+
+const InfoPopover: React.FC<InfoPopoverProps> = ({
+    title,
+    description,
+    className = "",
+    isAbsolute = true,
+    align = 'right'
+}) => {
+    const positionClass = isAbsolute
+        ? (className || "top-4 right-4")
+        : (className || "");
+
+    const wrapperClass = `${isAbsolute ? 'absolute' : 'relative'} ${positionClass} z-50 group/info`;
+
+    let tooltipPos = "";
+    let arrowPos = "";
+
+    if (align === 'right') {
+        tooltipPos = "right-0 origin-bottom-right";
+        arrowPos = "right-3";
+    } else if (align === 'left') {
+        tooltipPos = "left-0 origin-bottom-left";
+        arrowPos = "left-3";
+    } else {
+        tooltipPos = "left-1/2 -translate-x-1/2 origin-bottom";
+        arrowPos = "left-1/2 -translate-x-1/2";
+    }
+
+    return (
+        <div className={wrapperClass}>
+            <button className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2 rounded-full shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-md ring-1 ring-indigo-100 cursor-pointer pointer-events-auto">
+                <Info size={16} strokeWidth={2.5} />
+            </button>
+
+            <div className={`absolute bottom-full mb-3 w-64 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 transform scale-95 group-hover/info:scale-100 pointer-events-none ${tooltipPos}`}>
+                <div className="font-bold mb-2 text-indigo-300 flex items-center gap-2 border-b border-indigo-500/30 pb-2">
+                    <Activity size={14} /> {title}
+                </div>
+                <p className="leading-relaxed text-slate-300">
+                    {description}
+                </p>
+                <div className={`absolute -bottom-1.5 w-3 h-3 bg-slate-900 rotate-45 ${arrowPos}`}></div>
+            </div>
+        </div>
+    );
+};
+
 const ChangeBadge: React.FC<{ change: number, inverse?: boolean }> = ({ change, inverse = false }) => {
     const isPositive = change > 0;
     const isNeutral = change === 0;
-    
+
     const isGood = inverse ? !isPositive : isPositive;
-    
+
     const colorClass = isNeutral ? 'text-slate-400' : (isGood ? 'text-emerald-500' : 'text-rose-500');
     const Icon = isPositive ? TrendingUp : TrendingDown;
 
@@ -563,7 +737,7 @@ const ChangeBadge: React.FC<{ change: number, inverse?: boolean }> = ({ change, 
 const ScoreCard: React.FC<{ metricKey: MetricKey, value: number, change: number }> = ({ metricKey, value, change }) => {
     const config = METRICS[metricKey];
     const Icon = config.icon;
-    
+
     const isInverse = metricKey === 'stress';
 
     return (
