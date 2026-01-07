@@ -372,7 +372,7 @@ export async function GET(request: NextRequest) {
         let insightTitle = 'Data Processing...';
         let insightObservation = 'Gathering sufficient biometric data to generate actionable insights.';
         let insightAction = 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.';
-        let viewed = false;
+
 
         const avgHR = baselineMetrics.hr_avg || (displayDays.find(d => d.hr !== null)?.hr) || 0;
         const avgHRV = baselineMetrics.rmssd_avg || (displayDays.find(d => d.rmssd !== null)?.rmssd) || 0;
@@ -396,34 +396,28 @@ export async function GET(request: NextRequest) {
             }
         }
 
-        // Check for cached insight first (if not just refreshed/deleted)
-        let cachedInsight: any = null;
-        const ENABLE_CACHE = false; // Caching disabled by user request
-        if (ENABLE_CACHE && !refresh) {
+        // Check for existing insight in DB first (unless refresh was requested)
+        let existingInsight: any = null;
+        if (!refresh) {
             try {
-                console.log(`[Weekly API] Checking cache for user_id="${userId}", week_start="${weekStartForQuery}"`);
-                const cachedResults = await pb.collection('weekly_insights').getList(1, 1, {
+                const existingResults = await pb.collection('weekly_insights').getList(1, 1, {
                     filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`,
                 });
-                if (cachedResults.items.length > 0) {
-                    cachedInsight = cachedResults.items[0];
-                    console.log(`[Weekly API] ✅ Found cached insight for week ${startLocalDate}`);
+                if (existingResults.items.length > 0) {
+                    existingInsight = existingResults.items[0];
                 }
-            } catch (cacheError: any) {
-                console.error('[Weekly API] Cache lookup error:', cacheError.message);
+            } catch (dbError: any) {
+                console.warn('[Weekly API] DB lookup error:', dbError.message);
             }
         }
 
-        if (cachedInsight) {
-            // Use cached values
-            console.log(`[Weekly API] Using cached insight, skipping AI API call`);
-            insightTitle = cachedInsight.insight_title;
-            insightObservation = cachedInsight.insight_observation;
-            insightAction = cachedInsight.insight_action;
-            viewed = !!cachedInsight.viewed; // Get viewed status
+        if (existingInsight) {
+            // Use existing insight from DB
+            insightTitle = existingInsight.insight_title;
+            insightObservation = existingInsight.insight_observation;
+            insightAction = existingInsight.insight_action;
         } else if (validScores.length > 0 && validRmssd.length > 0) {
-            // No cache - call AI Insight API
-            console.log(`[Weekly API] No cache found (or refreshed), calling AI Insight API for week ${startLocalDate}`);
+            // No existing insight - generate with AI
             try {
                 // Prepare baseline comparison text
                 let baselineComparison = 'Baseline not yet established';
@@ -507,48 +501,48 @@ export async function GET(request: NextRequest) {
                         insightTitle = aiData.title || obsCheck.split('.')[0].substring(0, 50) || 'Weekly Analysis';
 
 
-                        // Save to cache for future requests
-                        if (ENABLE_CACHE) {
-                            try {
-                                console.log(`[Weekly API] Attempting to save insight to cache:`, {
-                                    user_id: userId,
-                                    week_start: weekStartForQuery,
-                                    title: insightTitle
-                                });
-                                await pb.collection('weekly_insights').create({
-                                    user_id: userId,
-                                    week_start: weekStartForQuery,
-                                    insight_title: insightTitle,
-                                    insight_observation: insightObservation,
-                                    insight_action: insightAction,
-                                    viewed: false // Default to false
-                                });
-                                console.log(`[Weekly API] ✅ Successfully saved insight to cache for week ${startLocalDate}`);
-                            } catch (saveError: any) {
-                                // If duplicate, try to update instead
-                                if (saveError.message?.includes('UNIQUE constraint')) {
-                                    console.log('[Weekly API] Cache entry exists, attempting update instead');
-                                    try {
-                                        const existing = await pb.collection('weekly_insights').getList(1, 1, {
-                                            filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
+                        // Always save insights to database for tracking viewed status
+                        // (even if cache reading is disabled)
+                        try {
+                            console.log(`[Weekly API] Attempting to save insight to database:`, {
+                                user_id: userId,
+                                week_start: weekStartForQuery,
+                                title: insightTitle
+                            });
+                            await pb.collection('weekly_insights').create({
+                                user_id: userId,
+                                week_start: weekStartForQuery,
+                                insight_title: insightTitle,
+                                insight_observation: insightObservation,
+                                insight_action: insightAction,
+                                viewed: true // Set to true since row is created when modal is opened
+                            });
+                            console.log(`[Weekly API] ✅ Successfully saved insight to database for week ${startLocalDate}`);
+                        } catch (saveError: any) {
+                            // If duplicate, try to update instead
+                            if (saveError.message?.includes('UNIQUE constraint') || saveError.status === 400) {
+                                console.log('[Weekly API] Insight entry exists, attempting update instead');
+                                try {
+                                    const existing = await pb.collection('weekly_insights').getList(1, 1, {
+                                        filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
+                                    });
+                                    if (existing.items.length > 0) {
+                                        await pb.collection('weekly_insights').update(existing.items[0].id, {
+                                            insight_title: insightTitle,
+                                            insight_observation: insightObservation,
+                                            insight_action: insightAction,
+                                            // Set to true since modal is open (regenerating insights)
+                                            viewed: true
                                         });
-                                        if (existing.items.length > 0) {
-                                            await pb.collection('weekly_insights').update(existing.items[0].id, {
-                                                insight_title: insightTitle,
-                                                insight_observation: insightObservation,
-                                                insight_action: insightAction,
-                                                viewed: false // Reset viewed on regen
-                                            });
-                                            console.log(`[Weekly API] ✅ Updated existing cache entry for week ${startLocalDate}`);
-                                        }
-                                    } catch (updateError) {
-                                        console.warn('[Weekly API] Failed to update cache:', updateError);
+                                        console.log(`[Weekly API] ✅ Updated existing insight entry for week ${startLocalDate}`);
                                     }
-                                } else {
-                                    console.warn('[Weekly API] Failed to save insight to cache:', saveError.message);
+                                } catch (updateError) {
+                                    console.warn('[Weekly API] Failed to update insight:', updateError);
                                 }
+                            } else {
+                                console.warn('[Weekly API] Failed to save insight to database:', saveError.message);
                             }
-                        } // End of ENABLE_CACHE block
+                        }
                     }
                 } else {
                     console.warn('[Weekly API] AI Insight API failed, using fallback');
@@ -581,8 +575,7 @@ export async function GET(request: NextRequest) {
                 trend,
                 insightTitle,
                 insightObservation,
-                insightAction,
-                viewed
+                insightAction
             },
             usage_phase: usagePhase,
             weekRange: {
@@ -615,8 +608,7 @@ export async function GET(request: NextRequest) {
                 trend: 'stable' as const,
                 insightTitle: 'Data Processing...',
                 insightObservation: 'Gathering sufficient biometric data to generate actionable insights.',
-                insightAction: 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.',
-                viewed: false
+                insightAction: 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.'
             },
             usage_phase: null,
             error: 'Not enough data available'
