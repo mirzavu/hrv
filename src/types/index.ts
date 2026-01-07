@@ -133,6 +133,9 @@ export interface SessionSummary {
   // HRV Score (0-100)
   hrvScore: HRVMetric;
 
+  // Readiness Score (Personalized 0-100)
+  readinessScore: HRVMetric;
+
   // Frequency domain metrics
   lfPower: HRVMetric;
   hfPower: HRVMetric;
@@ -228,6 +231,9 @@ export interface SessionSummaryRecord {
 
   // HRV Score (0-100)
   hrv_score?: number | null;
+
+  // Readiness Score (Personalized 0-100)
+  readiness_score?: number | null;
 
   // Session date (stores session startTime for temporal distribution checks)
   session_date?: string | null;

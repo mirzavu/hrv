@@ -200,7 +200,8 @@ const computeSessionSummaryPayload = async ({
     });
 
     // Try to calculate personalized HRV Readiness Score if baseline exists
-    let hrvScore: number | null = fallbackHrvScore; // Start with fallback
+    let hrvScore: number | null = fallbackHrvScore; // Keeps the absolute "Quality" score
+    let readinessScore: number | null = null; // Default to null
     let baselineUsed = false;
     let isCrash = false;
     let usagePhase: 'calibration' | 'early_baseline' | 'full_baseline' | null = null;
@@ -226,9 +227,8 @@ const computeSessionSummaryPayload = async ({
         }, userBaseline);
 
         if (personalizedScore !== null) {
-            // ▼▼▼ COMMENT OUT OR REMOVE THIS LINE ▼▼▼
-            // hrvScore = personalizedScore; 
-            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+            // Save to the new specific field instead of overwriting hrvScore
+            readinessScore = personalizedScore;
 
             baselineUsed = true;
 
@@ -290,7 +290,8 @@ const computeSessionSummaryPayload = async ({
         stress_score: fourScores.stressScore,
         health_score: fourScores.healthScore,
         focus_score: fourScores.focusScore,
-        hrv_score: hrvScore,
+        hrv_score: hrvScore, // Now always remains the "Absolute" score
+        readiness_score: readinessScore,
         is_crash: isCrash,
         // usage_phase is now stored in users table, not in session_summary
     };

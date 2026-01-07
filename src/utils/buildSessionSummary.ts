@@ -121,6 +121,13 @@ export const buildSessionSummary = (
       unit: '/100'
     },
 
+    // Readiness Score (0-100)
+    readinessScore: {
+      label: 'Readiness',
+      value: payload.readiness_score,
+      unit: '/100'
+    },
+
     // Frequency domain metrics
     lfPower: {
       label: 'LF Power',

@@ -202,6 +202,7 @@ export async function GET(
       health_score: summaryRecord.health_score ?? null,
       focus_score: summaryRecord.focus_score ?? null,
       hrv_score: summaryRecord.hrv_score ?? null,
+      readiness_score: summaryRecord.readiness_score ?? null,
       session_date: summaryRecord.session_date ?? null,
       ai_title: summaryRecord.ai_title ?? null,
       ai_interpretation: summaryRecord.ai_interpretation ?? null,

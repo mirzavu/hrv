@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { SessionSummary, UserBaseline, PhaseData } from '@/types';
 import WellnessMetricCard from './WellnessMetricCard';
 import { getWellnessMetricConfig } from '@/utils/wellnessLogic';
-import { calculateHrvReadinessScore } from '@/utils/baselineCalculations';
 
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 
@@ -21,12 +20,9 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
     console.log(`[WellnessScoreGrid] 🔒 HRV Score Lock Debug: baselineEstablished=${baselineEstablished}, showProgress(isRecentSession)=${showProgress}, baseline.id=${baseline?.id || 'none'}`);
 
     const scores = useMemo(() => {
-        // Calculate Readiness Score on the fly
-        const readinessScore = calculateHrvReadinessScore({
-            rmssd: summary.sessionRMSSD.value ?? null,
-            sdnn: summary.sdnn?.value ?? null,
-            meanHR: summary.meanHR.value ?? null,
-        }, baseline);
+        // Use server-provided readiness score directly
+        // If the server didn't return one (old sessions), default to 0
+        const readinessScore = summary.readinessScore?.value ?? 0;
 
         const configs = [
             // Row 1: Health, Energy, Stress
@@ -36,7 +32,7 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
             // Row 2: Focus, HRV Score, Readiness
             getWellnessMetricConfig('focusScore', summary.focusScore.value ?? 0),
             getWellnessMetricConfig('hrvScore', summary.hrvScore.value ?? 0, baseline?.established ?? false),
-            getWellnessMetricConfig('hrvReadiness', readinessScore ?? 0, baseline?.established ?? false),
+            getWellnessMetricConfig('hrvReadiness', readinessScore, baseline?.established ?? false),
         ];
 
         // Map trends if available (future improvement: pass previous session data)
