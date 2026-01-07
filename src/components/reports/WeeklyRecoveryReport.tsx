@@ -32,8 +32,7 @@ import {
     Info,
     Sparkles,
     ArrowRight,
-    HelpCircle,
-    RefreshCw
+    HelpCircle
 } from 'lucide-react';
 
 // --- Types ---
@@ -89,7 +88,6 @@ interface WeeklyStats {
     insightTitle: string;
     insightObservation: string;
     insightAction: string;
-    viewed: boolean;
 }
 
 interface WeeklyRecoveryReportProps {
@@ -126,8 +124,23 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
     useEffect(() => {
         if (isOpen && userId) {
             fetchData();
+            // Mark as viewed when opened
+            markAsViewed();
         }
     }, [isOpen, userId]);
+
+    const markAsViewed = async () => {
+        if (!userId) return;
+        try {
+            await fetch(`/api/trends/weekly/viewed`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId }),
+            });
+        } catch (e) {
+            console.error('Error marking weekly report as viewed:', e);
+        }
+    };
 
     const fetchData = async () => {
         setLoading(true);
@@ -221,10 +234,6 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
                     {/* Left: Title & Context */}
                     <div>
-                        <div className="flex items-center gap-2 mb-1">
-                            <span className="text-xs font-bold text-orange-600 uppercase tracking-widest bg-orange-50 px-2 py-1 rounded">03. Recovery</span>
-                            <span className="text-xs text-gray-400">Weekly Insights</span>
-                        </div>
                         <h2 className="text-xl md:text-2xl font-bold text-stone-800 flex items-center gap-2">
                             Weekly Report
                         </h2>
@@ -236,68 +245,21 @@ const WeeklyRecoveryReport: React.FC<WeeklyRecoveryReportProps> = ({ isOpen, onC
 
                     {/* Right: Controls */}
                     <div className="flex items-center gap-2 md:gap-4 self-end md:self-auto">
+                        {/* Close Button Mobile */}
+                        <button
+                            onClick={onClose}
+                            className="md:hidden p-2 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-full"
+                        >
+                            <X size={20} />
+                        </button>
 
-                        {/* Clear Cache Button */}
-                        <div className="flex items-center gap-4">
-                            <button
-                                onClick={() => {
-                                    if (confirm('Are you sure you want to reset the cache and regenerate the analysis?')) {
-                                        setLoading(true);
-                                        // Re-fetch with refresh=true
-                                        fetch(`/api/trends/weekly?userId=${userId}&refresh=true`)
-                                            .then(res => res.json())
-                                            .then(result => {
-                                                if (result.error) {
-                                                    setError(result.error);
-                                                } else {
-                                                    setData(result.data);
-                                                    setStats(result.stats);
-                                                    setUsagePhase(result.usage_phase || null);
-                                                    setWeekRange(result.weekRange || null);
-                                                }
-                                            })
-                                            .catch(() => setError('Failed to refresh data'))
-                                            .finally(() => setLoading(false));
-                                    }
-                                }}
-                                className="group flex items-center gap-2 text-sm font-semibold text-stone-500 hover:text-orange-600 transition-colors"
-                            >
-                                <div className="p-1.5 bg-stone-100 group-hover:bg-orange-100 rounded-full transition-colors">
-                                    <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-700" />
-                                </div>
-                                <span className="hidden sm:inline">Reset Cache</span>
-                            </button>
-                            <div className="h-4 w-px bg-stone-200 hidden sm:block"></div>
-                        </div>
-
-                        {/* Report Pill */}
-                        <div className="flex items-center gap-2">
-                            {/* Close Button Mobile */}
-                            <button
-                                onClick={onClose}
-                                className="md:hidden p-2 text-slate-400 hover:text-slate-900 bg-slate-50 rounded-full"
-                            >
-                                <X size={20} />
-                            </button>
-
-                            <div className="group flex items-center gap-3 px-5 py-2.5 text-xs font-bold text-stone-800 bg-stone-100 rounded-full transition-all relative">
-                                Past Week
-                                {/* Viewed Indicator */}
-                                {stats && !stats.viewed && (
-                                    <div className="relative flex items-center justify-center w-2 h-2 ml-1">
-                                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75"></span>
-                                        <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500"></span>
-                                    </div>
-                                )}
-                            </div>
-
-                            <button
-                                onClick={onClose}
-                                className="hidden md:block p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors ml-2"
-                            >
-                                <X size={24} />
-                            </button>
-                        </div>
+                        {/* Close Button Desktop */}
+                        <button
+                            onClick={onClose}
+                            className="hidden md:block p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-full transition-colors"
+                        >
+                            <X size={24} />
+                        </button>
                     </div>
                 </div>
 

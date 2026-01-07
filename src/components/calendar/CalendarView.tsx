@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { sessionCache } from '@/lib/sessionCache';
 import { SessionSummary } from '@/types';
 import SessionSummaryModal from '@/components/session/SessionSummaryModal';
@@ -63,6 +64,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [showMonthlyReport, setShowMonthlyReport] = useState(false);
   const [usagePhase, setUsagePhase] = useState<'calibration' | 'early_baseline' | 'full_baseline' | null>(null);
   const [baselineEstablished, setBaselineEstablished] = useState<boolean>(false);
+  const [weeklyReportViewed, setWeeklyReportViewed] = useState<boolean>(false);
 
   // Fetch user's usage_phase for badge display
   useEffect(() => {
@@ -97,6 +99,40 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
     };
     checkBaseline();
   }, [userId]);
+
+  // Fetch weekly report viewed status
+  useEffect(() => {
+    if (!userId) return;
+    const fetchWeeklyReportStatus = async () => {
+      try {
+        const res = await fetch(`/api/trends/weekly?userId=${userId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setWeeklyReportViewed(data.stats?.viewed === true);
+        }
+      } catch (e) {
+        console.error('Error fetching weekly report status:', e);
+      }
+    };
+    fetchWeeklyReportStatus();
+  }, [userId, refreshKey]);
+
+  // Mark weekly report as viewed
+  const markWeeklyReportAsViewed = async () => {
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/trends/weekly/viewed`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId }),
+      });
+      if (res.ok) {
+        setWeeklyReportViewed(true);
+      }
+    } catch (e) {
+      console.error('Error marking weekly report as viewed:', e);
+    }
+  };
 
   // State for the currently viewed month
   const today = new Date();
@@ -314,28 +350,53 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
 
   return (
     <div className="w-full max-w-7xl mx-auto font-sans">
-      {/* Top Bar */}
-      <div className={`p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg mb-4 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="flex justify-between items-center">
-          <button
-            onClick={clearCache}
-            className={`px-3 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 ${darkMode ? 'text-gray-200 bg-gray-700 border-gray-600 hover:bg-gray-600' : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'}`}
-            title="Clear cache"
-          >
-            <TrashIcon />
-            Clear Cache
-          </button>
-          {/* Weekly Report Button with Calibration Badge */}
-          <div className="relative flex items-center gap-2">
+      {/* Top Bar - Organic Float Design */}
+      <div className="mb-4">
+        {/* Floating Header */}
+        <div className={`${darkMode ? 'bg-gray-700' : 'bg-white'} rounded-full p-2 pl-6 pr-2 flex flex-col sm:flex-row justify-between items-center gap-3 w-full`}>
+          
+          {/* Left: Reset Cache */}
+          <div className="flex items-center gap-4">
             <button
-              onClick={() => setShowWeeklyReport(true)}
-              className="px-4 py-2 text-sm font-semibold rounded-lg shadow-sm transition-colors duration-200 flex items-center gap-2 text-white bg-blue-600 hover:bg-blue-700"
+              onClick={clearCache}
+              className={`group flex items-center gap-2 text-sm font-semibold transition-colors ${darkMode ? 'text-gray-400 hover:text-orange-500' : 'text-stone-500 hover:text-orange-600'}`}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 3v18h18" />
-                <path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3" />
-              </svg>
-              Past Week Report
+              <div className={`p-1.5 rounded-full transition-colors ${darkMode ? 'bg-gray-600 group-hover:bg-orange-500/20' : 'bg-stone-100 group-hover:bg-orange-100'}`}>
+                <RefreshCw className="w-3.5 h-3.5 group-hover:rotate-180 transition-transform duration-700" />
+              </div>
+              <span className="hidden sm:inline">Reset Cache</span>
+            </button>
+            <div className={`h-4 w-px hidden sm:block ${darkMode ? 'bg-gray-600' : 'bg-stone-200'}`}></div>
+          </div>
+
+          {/* Right: Report Button */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                setShowWeeklyReport(true);
+                // Mark as viewed when opened
+                if (!weeklyReportViewed && userId) {
+                  markWeeklyReportAsViewed();
+                }
+              }}
+              className={`group flex items-center gap-3 px-5 py-2.5 text-sm font-bold rounded-full transition-all relative shadow-sm ${
+                weeklyReportViewed
+                  ? darkMode
+                    ? 'text-gray-300 bg-gray-700 hover:bg-gray-600'
+                    : 'text-stone-700 bg-stone-100 hover:bg-stone-200'
+                  : darkMode
+                    ? 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
+                    : 'text-white bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-lg hover:scale-105'
+              }`}
+            >
+              Weekly Report
+              {/* Unviewed Indicator */}
+              {!weeklyReportViewed && (
+                <div className="relative flex items-center justify-center w-2 h-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                </div>
+              )}
             </button>
             {usagePhase === 'calibration' && (
               <span className="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-amber-500 text-white rounded-full">
@@ -345,6 +406,7 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
           </div>
         </div>
       </div>
+
 
       {/* Calendar Container */}
       <div className={`p-3 sm:p-4 md:p-6 rounded-2xl shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
@@ -479,17 +541,19 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
       </div>
 
       {/* Session Summary Modal */}
-      {selectedSessionSummary && (
-        <SessionSummaryModal
-          summary={selectedSessionSummary}
-          darkMode={darkMode}
-          onReset={() => { }}
-          isGuest={userId === 'guest' || !userId}
-          onGuestLogin={() => { }}
-          onClose={() => setSelectedSessionSummary(null)}
-          userId={userId}
-        />
-      )}
+      {
+        selectedSessionSummary && (
+          <SessionSummaryModal
+            summary={selectedSessionSummary}
+            darkMode={darkMode}
+            onReset={() => { }}
+            isGuest={userId === 'guest' || !userId}
+            onGuestLogin={() => { }}
+            onClose={() => setSelectedSessionSummary(null)}
+            userId={userId}
+          />
+        )
+      }
       {/* Weekly Recovery Report Modal */}
       <WeeklyRecoveryReport
         isOpen={showWeeklyReport}
@@ -502,6 +566,6 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
         userId={userId}
         currentMonth={viewMonth}
       />
-    </div>
+    </div >
   );
 }
