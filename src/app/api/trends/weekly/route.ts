@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const userId = searchParams.get('userId');
     const endDateParam = searchParams.get('endDate');
+    const refresh = searchParams.get('refresh') === 'true'; // New param to force refresh
 
     if (!userId) {
         return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
         let userTimezone = DEFAULT_TIMEZONE;
         let userSignupDate: Date | null = null;
         let usagePhase: 'calibration' | 'early_baseline' | 'full_baseline' | null = null;
-        
+
         try {
             const user = await pb.collection('users').getOne(userId);
             userTimezone = user.timezone || DEFAULT_TIMEZONE;
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
         const expandedStartDate = new Date(startDate);
         expandedStartDate.setDate(expandedStartDate.getDate() - 1);
         const expandedStartLocalDate = formatLocalDate(expandedStartDate);
-        
+
         const expandedEndDate = new Date(endDate);
         expandedEndDate.setDate(expandedEndDate.getDate() + 1);
         const expandedEndLocalDate = formatLocalDate(expandedEndDate);
@@ -88,7 +89,7 @@ export async function GET(request: NextRequest) {
         const baselineStartDate = new Date(endDate);
         baselineStartDate.setDate(endDate.getDate() - 30);
         const baselineStartLocalDate = formatLocalDate(baselineStartDate);
-        
+
         const expandedBaselineStart = new Date(baselineStartDate);
         expandedBaselineStart.setDate(expandedBaselineStart.getDate() - 1);
         const expandedBaselineStartLocal = formatLocalDate(expandedBaselineStart);
@@ -175,18 +176,18 @@ export async function GET(request: NextRequest) {
         // Generate Daily Averages + Rolling Averages for Sunday-Saturday week
         // Get the current week's Sunday-Saturday range
         const { sunday, saturday } = getCurrentWeekRange(userTimezone, referenceDate);
-        
+
         // Generate array of dates from startDate to endDate (or Sunday to Saturday if within week)
         const displayDays = [];
         const currentDate = new Date(startDate);
         const endDateForLoop = endDate <= saturday ? endDate : saturday;
-        
+
         while (currentDate <= endDateForLoop) {
             const dayStr = formatLocalDate(currentDate);
             const dayName = currentDate.toLocaleDateString('en-US', { weekday: 'short' });
-            
+
             const dayData = dailyMap.get(dayStr);
-            
+
             // Calculate daily averages
             const rmssdRaw = dayData && dayData.rmssd.length > 0
                 ? Math.round(dayData.rmssd.reduce((a, b) => a + b, 0) / dayData.rmssd.length)
@@ -367,30 +368,182 @@ export async function GET(request: NextRequest) {
             else if (diff < -5) trend = 'declining';
         }
 
-        // Generate Insight
+        // Generate AI Insight (with caching)
         let insightTitle = 'Data Processing...';
-        let insightText = 'Gathering sufficient biometric data to generate actionable insights.';
-
-        if (validScores.length > 0 && validRmssd.length > 0) {
-            const avgRMSSD = validRmssd.reduce((a, b) => a + b, 0) / validRmssd.length;
-            const avgHR = displayDays.filter(d => d.hr !== null).length > 0
-                ? displayDays.filter(d => d.hr !== null).map(d => d.hr!).reduce((a, b) => a + b, 0) / displayDays.filter(d => d.hr !== null).length
-                : baselineMetrics.hr_avg || 60;
-
-            if (trend === 'improving' && weeklyCV < 10) {
-                insightTitle = 'Peak Adaptation Phase';
-                insightText = 'Your parasympathetic activity (HRV) is trending upward while your Resting HR remains stable within your optimal range. This indicates your body is adapting positively to recent training loads. It is a great time to push for higher intensity sessions.';
-            } else if (trend === 'declining' || weeklyCV > 15) {
-                insightTitle = 'Recovery Priority';
-                insightText = 'Your HRV stability is showing signs of stress accumulation. Consider prioritizing sleep, light movement, and stress management techniques to support recovery.';
-            } else if (trend === 'stable' && weeklyCV < 10) {
-                insightTitle = 'Maintained Stability';
-                insightText = 'Your biometrics show consistent patterns, indicating good adaptation to your current routine. Continue monitoring for optimal performance windows.';
-            }
-        }
+        let insightObservation = 'Gathering sufficient biometric data to generate actionable insights.';
+        let insightAction = 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.';
+        let viewed = false;
 
         const avgHR = baselineMetrics.hr_avg || (displayDays.find(d => d.hr !== null)?.hr) || 0;
         const avgHRV = baselineMetrics.rmssd_avg || (displayDays.find(d => d.rmssd !== null)?.rmssd) || 0;
+
+        // Create date range for week_start (PocketBase stores dates with time as YYYY-MM-DD 00:00:00.000Z)
+        const weekStartForQuery = `${startLocalDate} 00:00:00.000Z`;
+
+        // Handle Refresh Request
+        if (refresh) {
+            console.log(`[Weekly API] Refresh requested. Deleting existing insight for ${weekStartForQuery}`);
+            try {
+                const existing = await pb.collection('weekly_insights').getList(1, 1, {
+                    filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
+                });
+                if (existing.items.length > 0) {
+                    await pb.collection('weekly_insights').delete(existing.items[0].id);
+                    console.log(`[Weekly API] Deleted cached insight ${existing.items[0].id}`);
+                }
+            } catch (delError) {
+                console.warn('[Weekly API] Failed to delete insight on refresh:', delError);
+            }
+        }
+
+        // Check for cached insight first (if not just refreshed/deleted)
+        let cachedInsight: any = null;
+        if (!refresh) {
+            try {
+                console.log(`[Weekly API] Checking cache for user_id="${userId}", week_start="${weekStartForQuery}"`);
+                const cachedResults = await pb.collection('weekly_insights').getList(1, 1, {
+                    filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`,
+                });
+                if (cachedResults.items.length > 0) {
+                    cachedInsight = cachedResults.items[0];
+                    console.log(`[Weekly API] ✅ Found cached insight for week ${startLocalDate}`);
+                }
+            } catch (cacheError: any) {
+                console.error('[Weekly API] Cache lookup error:', cacheError.message);
+            }
+        }
+
+        if (cachedInsight) {
+            // Use cached values
+            console.log(`[Weekly API] Using cached insight, skipping AI API call`);
+            insightTitle = cachedInsight.insight_title;
+            insightObservation = cachedInsight.insight_observation;
+            insightAction = cachedInsight.insight_action;
+            viewed = !!cachedInsight.viewed; // Get viewed status
+        } else if (validScores.length > 0 && validRmssd.length > 0) {
+            // No cache - call AI Insight API
+            console.log(`[Weekly API] No cache found (or refreshed), calling AI Insight API for week ${startLocalDate}`);
+            try {
+                // Prepare baseline comparison text
+                let baselineComparison = 'Baseline not yet established';
+                if (baselineMetrics.rmssd_avg !== null && avgHRV > 0) {
+                    const diff = avgHRV - baselineMetrics.rmssd_avg;
+                    const percentDiff = (diff / baselineMetrics.rmssd_avg) * 100;
+                    if (percentDiff > 5) {
+                        baselineComparison = `RMSSD is ${percentDiff.toFixed(1)}% above baseline (${baselineMetrics.rmssd_avg.toFixed(0)}ms)`;
+                    } else if (percentDiff < -5) {
+                        baselineComparison = `RMSSD is ${Math.abs(percentDiff).toFixed(1)}% below baseline (${baselineMetrics.rmssd_avg.toFixed(0)}ms)`;
+                    } else {
+                        baselineComparison = `RMSSD is within baseline range (${baselineMetrics.rmssd_avg.toFixed(0)}ms)`;
+                    }
+                }
+
+                // Prepare daily data for pattern recognition
+                const dailyDataForAI = displayDays.map(d => ({
+                    day: d.name,
+                    energy: d.energy,
+                    stress: d.stress,
+                    health: d.health,
+                    focus: d.focus,
+                    score: d.score
+                }));
+
+                // Call AI Insight API (internal call)
+                const baseUrl = request.nextUrl.origin;
+                const aiResponse = await fetch(`${baseUrl}/api/ai-insight`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        mode: 'weekly',
+                        data: {
+                            scores: {
+                                energy: { avg: avgEnergy, change: changeEnergy },
+                                stress: { avg: avgStress, change: changeStress },
+                                health: { avg: avgHealth, change: changeHealth },
+                                focus: { avg: avgFocus, change: changeFocus },
+                                hrvScore: { avg: avgScore, change: changeScore }
+                            },
+                            readiness: {
+                                avg: avgReadiness,
+                                change: changeReadiness
+                            },
+                            hrv: {
+                                avgRMSSD: Math.round(avgHRV),
+                                weeklyCV: weeklyCV,
+                                changeCV: changeCV
+                            },
+                            baseline: {
+                                rmssdAvg: baselineMetrics.rmssd_avg,
+                                hrAvg: baselineMetrics.hr_avg,
+                                comparison: baselineComparison
+                            },
+                            dailyData: dailyDataForAI,
+                            weekRange: {
+                                start: startLocalDate,
+                                end: endLocalDate
+                            },
+                            usagePhase: usagePhase
+                        }
+                    })
+                });
+
+                if (aiResponse.ok) {
+                    const aiData = await aiResponse.json();
+                    if (aiData.insight && aiData.actionableInsight) {
+                        insightObservation = aiData.insight;
+                        insightAction = aiData.actionableInsight;
+                        // Use title from AI if available, otherwise fallback
+                        insightTitle = aiData.title || aiData.insight.split('.')[0].substring(0, 50) || 'Weekly Analysis';
+
+                        // Save to cache for future requests
+                        try {
+                            console.log(`[Weekly API] Attempting to save insight to cache:`, {
+                                user_id: userId,
+                                week_start: weekStartForQuery,
+                                title: insightTitle
+                            });
+                            await pb.collection('weekly_insights').create({
+                                user_id: userId,
+                                week_start: weekStartForQuery,
+                                insight_title: insightTitle,
+                                insight_observation: insightObservation,
+                                insight_action: insightAction,
+                                viewed: false // Default to false
+                            });
+                            console.log(`[Weekly API] ✅ Successfully saved insight to cache for week ${startLocalDate}`);
+                        } catch (saveError: any) {
+                            // If duplicate, try to update instead
+                            if (saveError.message?.includes('UNIQUE constraint')) {
+                                console.log('[Weekly API] Cache entry exists, attempting update instead');
+                                try {
+                                    const existing = await pb.collection('weekly_insights').getList(1, 1, {
+                                        filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
+                                    });
+                                    if (existing.items.length > 0) {
+                                        await pb.collection('weekly_insights').update(existing.items[0].id, {
+                                            insight_title: insightTitle,
+                                            insight_observation: insightObservation,
+                                            insight_action: insightAction,
+                                            viewed: false // Reset viewed on regen
+                                        });
+                                        console.log(`[Weekly API] ✅ Updated existing cache entry for week ${startLocalDate}`);
+                                    }
+                                } catch (updateError) {
+                                    console.warn('[Weekly API] Failed to update cache:', updateError);
+                                }
+                            } else {
+                                console.warn('[Weekly API] Failed to save insight to cache:', saveError.message);
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('[Weekly API] AI Insight API failed, using fallback');
+                }
+            } catch (aiError) {
+                console.error('[Weekly API] Error calling AI Insight API:', aiError);
+                // Fallback to default messages
+            }
+        }
 
         return NextResponse.json({
             data: displayDays,
@@ -413,7 +566,9 @@ export async function GET(request: NextRequest) {
                 avgRMSSD: Math.round(avgHRV),
                 trend,
                 insightTitle,
-                insightText
+                insightObservation,
+                insightAction,
+                viewed
             },
             usage_phase: usagePhase,
             weekRange: {
@@ -445,7 +600,9 @@ export async function GET(request: NextRequest) {
                 avgRMSSD: 0,
                 trend: 'stable' as const,
                 insightTitle: 'Data Processing...',
-                insightText: 'Gathering sufficient biometric data to generate actionable insights.'
+                insightObservation: 'Gathering sufficient biometric data to generate actionable insights.',
+                insightAction: 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.',
+                viewed: false
             },
             usage_phase: null,
             error: 'Not enough data available'
