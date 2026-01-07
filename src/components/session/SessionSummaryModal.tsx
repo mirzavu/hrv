@@ -1,5 +1,6 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline, UserProfile } from '@/types';
+import { useSessionVisualization } from '@/hooks/useSessionVisualization';
 import { X, Heart, Activity, TrendingUp, TrendingDown, Clock, Waves, Target, AlertTriangle, Sparkles, BarChart3 } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
@@ -179,139 +180,16 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     }
   }, [isContentExpanded, chartsReady]);
 
-  const heartRateData = useMemo(() => {
-    const intervals = summary.rrIntervals ?? [];
-    const valid = intervals.filter(
-      (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
-    );
-    if (!valid.length) {
-      return [];
-    }
-
-    const startTimestamp = typeof valid[0].timestamp === 'number' ? valid[0].timestamp : null;
-    let elapsedSeconds = 0;
-    let lastRR = valid[0].value ?? 0;
-
-    return valid
-      .map((interval, index) => {
-        const rr = interval.value ?? lastRR;
-        if (!rr || rr <= 0) {
-          return null;
-        }
-
-        if (startTimestamp !== null && typeof interval.timestamp === 'number') {
-          elapsedSeconds = (interval.timestamp - startTimestamp) / 1000;
-        } else if (index === 0) {
-          elapsedSeconds = 0;
-        } else {
-          elapsedSeconds += rr / 1000;
-        }
-
-        lastRR = rr;
-
-        return {
-          time: Number(elapsedSeconds.toFixed(1)),
-          bpm: Number((60000 / rr).toFixed(1)),
-          rr,
-        };
-      })
-      .filter((point): point is { time: number; bpm: number; rr: number } =>
-        Boolean(point) &&
-        Number.isFinite(point?.bpm) &&
-        Number.isFinite(point?.rr)
-      );
-  }, [summary.rrIntervals]);
-
-  // Determine if session is "new" (within last 30 mins) to show Progress Bar
-  const isRecentSession = useMemo(() => {
-    if (!summary.rrIntervals || summary.rrIntervals.length === 0) {
-      return true;
-    }
-
-    const lastInterval = summary.rrIntervals[summary.rrIntervals.length - 1];
-
-    // Check if timestamp appears to be an absolute epoch (milliseconds)
-    // 1600000000000 is approx year 2020
-    if (lastInterval.timestamp > 1600000000000) {
-      const diff = Date.now() - lastInterval.timestamp;
-      const isRecent = diff < 1000 * 5; // 5 seconds threshold
-      // Show only if session ended within the last 5 seconds
-      return isRecent;
-    }
-
-    // If relative timestamps or unsure, default to true (safest for fresh sessions)
-    return true;
-  }, [summary.rrIntervals, summary.session_id]);
-
-  // Get session's actual date for display and calculations
-  const sessionDate = useMemo(() => {
-    if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-      return new Date(summary.rrIntervals?.[0].timestamp);
-    }
-    return new Date();
-  }, [summary.rrIntervals]);
-
-  const poincareData = useMemo(() => {
-    const intervals = summary.rrIntervals ?? [];
-    const valid = intervals.filter(
-      (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
-    );
-    if (valid.length < 2) {
-      return [];
-    }
-
-    const points = [];
-    for (let i = 0; i < valid.length - 1; i++) {
-      const rrn = valid[i].value ?? 0;
-      const rrn1 = valid[i + 1].value ?? 0;
-
-      if (rrn > 0 && rrn1 > 0) {
-        points.push({
-          rrn: Number(rrn.toFixed(1)),
-          rrn1: Number(rrn1.toFixed(1)),
-        });
-      }
-    }
-
-    return points;
-  }, [summary.rrIntervals]);
-
-  const tachogramData = useMemo(() => {
-    const intervals = summary.rrIntervals ?? [];
-    const valid = intervals.filter(
-      (interval) => typeof interval?.value === 'number' && (interval.value ?? 0) > 0
-    );
-    if (!valid.length) {
-      return [];
-    }
-
-    const startTimestamp = typeof valid[0].timestamp === 'number' ? valid[0].timestamp : null;
-    let elapsedSeconds = 0;
-
-    return valid.map((interval, index) => {
-      const rr = interval.value ?? 0;
-
-      if (startTimestamp !== null && typeof interval.timestamp === 'number') {
-        elapsedSeconds = (interval.timestamp - startTimestamp) / 1000;
-      } else if (index === 0) {
-        elapsedSeconds = 0;
-      } else {
-        elapsedSeconds += rr / 1000;
-      }
-
-      return {
-        beatNumber: index + 1,
-        time: Number(elapsedSeconds.toFixed(1)),
-        rrInterval: Number(rr.toFixed(1)),
-      };
-    });
-  }, [summary.rrIntervals]);
-
-
-  const stabilizationTime =
-    typeof summary.timeToStabilize?.value === 'number'
-      ? summary.timeToStabilize.value
-      : null;
+  // === DATA TRANSFORMATION LOGIC EXTRACTED TO HOOK ===
+  const {
+    heartRateData,
+    poincareData,
+    tachogramData,
+    isRecentSession,
+    sessionDate,
+    stabilizationTime
+  } = useSessionVisualization(summary);
+  // ===================================================
 
   const userTimezone = userProfile?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   const formattedSessionDate = !isRecentSession
