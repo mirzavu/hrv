@@ -114,6 +114,7 @@ export async function GET(request: NextRequest) {
             const stressWeekly = calculateAverage(weeklySessions, 'stress_score');
             const healthWeekly = calculateAverage(weeklySessions, 'health_score');
             const focusWeekly = calculateAverage(weeklySessions, 'focus_score');
+            const restingHRWeekly = calculateAverage(weeklySessions, 'session_mean_hr');
 
             // 30-Day Rolling Average at the END of this week
             const rollingStart = new Date(rangeEnd);
@@ -144,6 +145,7 @@ export async function GET(request: NextRequest) {
                 stress: Math.round(stressWeekly || 0),
                 health: Math.round(healthWeekly || 0),
                 focus: Math.round(focusWeekly || 0),
+                restingHR: Math.round(restingHRWeekly || 0),
                 hasData: weeklySessions.length > 0
             });
         }
@@ -172,6 +174,7 @@ export async function GET(request: NextRequest) {
         const avgHealth = Math.round(calculateAverage(monthSessions, 'health_score') || 0);
         const avgFocus = Math.round(calculateAverage(monthSessions, 'focus_score') || 0);
         const avgRMSSD = Math.round(calculateAverage(monthSessions, 'rmssd_session_ms') || 0);
+        const avgRestingHR = Math.round(calculateAverage(monthSessions, 'session_mean_hr') || 0);
 
         // Calculate changes (first week vs last week with data)
         const weeksWithData = weeks.filter(w => w.hasData);
@@ -237,7 +240,8 @@ export async function GET(request: NextRequest) {
                             stress: w.stress,
                             health: w.health,
                             focus: w.focus,
-                            rmssd: w.rmssd
+                            rmssd: w.rmssd,
+                            restingHR: w.restingHR
                         })),
                         monthLabel: targetDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
                         sessionCount: monthSessions.length
@@ -312,6 +316,7 @@ export async function GET(request: NextRequest) {
                 monthlyCV: Number(monthlyCV.toFixed(1)),
                 sessionCount: monthSessions.length,
                 avgRMSSD,
+                avgRestingHR,
                 avgScore,
                 avgEnergy,
                 avgStress,
@@ -336,6 +341,7 @@ export async function GET(request: NextRequest) {
                 monthlyCV: 0,
                 sessionCount: 0,
                 avgRMSSD: 0,
+                avgRestingHR: 0,
                 avgScore: 0,
                 avgEnergy: 0,
                 avgStress: 0,

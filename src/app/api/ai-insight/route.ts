@@ -58,6 +58,38 @@ Return ONLY a valid JSON object with these keys:
 Do not wrap in markdown code blocks. Just the raw JSON string.
 `;
 
+// System prompt for Monthly Reports
+const MONTHLY_REPORT_SYSTEM_PROMPT = `
+You are an expert HRV and Recovery Analyst for an athlete.
+Your goal is to provide a "Monthly Recovery Report" analyzing trends over the past month.
+
+TONE & STYLE:
+- Professional yet encouraging and personalized.
+- Concise and actionable. Avoid fluff.
+- Use 2-3 short paragraphs max.
+- Highlight the most significant monthly patterns.
+
+CRITICAL ANALYSIS - HRV vs Resting HR Balance:
+- Look for the "cross-over" warning pattern: Resting HR RISING while HRV Score is DECLINING.
+- This cross-over pattern is an early indicator of overtraining, accumulated fatigue, or impending burnout.
+- If you see this pattern, flag it prominently as a warning.
+- Conversely, if HRV is rising and HR is stable/declining, this indicates good adaptation.
+
+STRUCTURE OF THE INSIGHT:
+1. **Headline**: 5-8 words summarizing the month's key finding.
+2. **Observation**: What is the data saying? Focus on trends across weeks, especially HRV vs HR balance.
+3. **Action**: One specific recommendation for the coming month.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON object with these keys:
+{
+  "title": "Headline here",
+  "observation": "Observation text here",
+  "action": "Actionable advice here"
+}
+Do not wrap in markdown code blocks. Just the raw JSON string.
+`;
+
 export async function POST(req: NextRequest) {
     try {
         const rawBody = await req.json();
@@ -119,6 +151,49 @@ export async function POST(req: NextRequest) {
         - AMo50: ${metricData.amo50?.value}%
         
         Generate a concise interpretation of what these metrics indicate about this session's recovery state.
+        `;
+        } else if (rawBody.mode === 'monthly' && rawBody.data) {
+            // Monthly report analysis
+            systemPrompt = MONTHLY_REPORT_SYSTEM_PROMPT;
+            expectedFormat = "weekly"; // Same format as weekly (title, observation, action)
+            const { scores, hrv, weeklyData, monthLabel, sessionCount } = rawBody.data;
+
+            // Calculate cross-over pattern analysis
+            let crossOverAnalysis = '';
+            if (weeklyData && weeklyData.length >= 2) {
+                const firstWeek = weeklyData[0];
+                const lastWeek = weeklyData[weeklyData.length - 1];
+                const hrvTrend = lastWeek.score - firstWeek.score;
+                const hrTrend = lastWeek.restingHR - firstWeek.restingHR;
+
+                if (hrTrend > 0 && hrvTrend < 0) {
+                    crossOverAnalysis = `WARNING: Cross-over pattern detected! HR increased by ${hrTrend}bpm while HRV decreased by ${Math.abs(hrvTrend)} points.`;
+                } else if (hrvTrend > 0 && hrTrend <= 0) {
+                    crossOverAnalysis = `Positive adaptation: HRV improved by ${hrvTrend} points while HR remained stable/decreased.`;
+                }
+            }
+
+            userPrompt = `
+        Monthly Recovery Analysis for ${monthLabel}:
+        - Total Sessions: ${sessionCount}
+        
+        Monthly Averages:
+        - HRV Score: ${scores?.hrvScore?.avg} (Change: ${scores?.hrvScore?.change}%)
+        - Energy: ${scores?.energy?.avg} (Change: ${scores?.energy?.change}%)
+        - Stress: ${scores?.stress?.avg} (Change: ${scores?.stress?.change}%)
+        - Health: ${scores?.health?.avg} (Change: ${scores?.health?.change}%)
+        - Focus: ${scores?.focus?.avg} (Change: ${scores?.focus?.change}%)
+        
+        HRV Metrics:
+        - Average RMSSD: ${hrv?.avgRMSSD}ms
+        - Monthly CV (Stability): ${hrv?.monthlyCV}%
+        
+        Weekly Breakdown (HRV Score vs Resting HR):
+        ${weeklyData?.map((w: any) => `${w.label}: HRV=${w.score}, HR=${w.restingHR}bpm`).join('\n        ')}
+        
+        ${crossOverAnalysis ? `Cross-Over Analysis: ${crossOverAnalysis}` : ''}
+        
+        Generate the Monthly Recovery Insight in JSON format. Pay special attention to the HRV vs Resting HR balance and flag any cross-over patterns.
         `;
         } else if (rawBody.mode === 'rewording' && rawBody.data) {
             // Single session rewording (baseline phase)

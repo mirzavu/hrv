@@ -48,7 +48,10 @@ interface WeeklyDataPoint {
     stress: number;
     health: number;
     focus: number;
-    
+
+    // Resting HR for Balance chart
+    restingHR: number;
+
     // Flag to indicate if this week has actual data
     hasData?: boolean;
 }
@@ -75,6 +78,7 @@ interface MonthlyStats {
     insightTitle?: string;
     insightObservation?: string;
     insightAction?: string;
+    avgRestingHR: number;
 }
 
 interface MonthlyAnalysisReportProps {
@@ -104,7 +108,7 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
 }) => {
     // View States
     const [scoreView, setScoreView] = useState<'body' | 'mind'>('body');
-    const [deepDiveTab, setDeepDiveTab] = useState<'score' | 'rmssd' | 'vagal'>('score');
+    const [deepDiveTab, setDeepDiveTab] = useState<'score' | 'rmssd' | 'vagal' | 'balance'>('score');
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState<WeeklyDataPoint[]>([]);
@@ -174,7 +178,20 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                     color: '#8b5cf6', // Violet
                     label: 'Vagal Tone',
                     unit: 'HFnu',
-                    info: "Normalized High Frequency power. Indicates parasympathetic activity."
+                    info: "Indicates the \"rest and digest\" system is dominant or suppressed.",
+                    isDualAxis: false
+                };
+            case 'balance':
+                return {
+                    dataKey: 'score',
+                    secondaryDataKey: 'restingHR',
+                    baselineKey: null,
+                    color: '#14b8a6', // Teal for HRV
+                    secondaryColor: '#ef4444', // Red for HR
+                    label: 'HRV vs HR Balance',
+                    unit: '',
+                    info: "Compares HRV Score against Resting HR. A 'cross-over' (HR rising + HRV falling) signals potential burnout.",
+                    isDualAxis: true
                 };
         }
     };
@@ -338,7 +355,7 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
 
                                         {/* Tabs */}
                                         <div className="flex bg-slate-50 p-1 rounded-lg border border-slate-100">
-                                            {(['score', 'rmssd', 'vagal'] as const).map(tab => (
+                                            {(['score', 'rmssd', 'vagal', 'balance'] as const).map(tab => (
                                                 <button
                                                     key={tab}
                                                     onClick={() => setDeepDiveTab(tab)}
@@ -355,15 +372,27 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
 
                                     <div className="h-[250px] w-full">
                                         <ResponsiveContainer width="100%" height="100%">
-                                            <ComposedChart data={dataWithValues} margin={{ top: 10, right: 0, left: -20, bottom: 0 }}>
+                                            <ComposedChart data={dataWithValues} margin={{ top: 10, right: ddConfig.isDualAxis ? 20 : 0, left: -20, bottom: 0 }}>
                                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                                                 <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }} dy={10} />
                                                 <YAxis
+                                                    yAxisId="left"
                                                     axisLine={false}
                                                     tickLine={false}
-                                                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 600 }}
-                                                    domain={['auto', 'auto']}
+                                                    tick={{ fill: ddConfig.isDualAxis ? '#14b8a6' : '#94a3b8', fontSize: 11, fontWeight: 600 }}
+                                                    domain={ddConfig.isDualAxis ? [0, 100] : ['auto', 'auto']}
                                                 />
+                                                {ddConfig.isDualAxis && (
+                                                    <YAxis
+                                                        yAxisId="right"
+                                                        orientation="right"
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                        tick={{ fill: '#ef4444', fontSize: 11, fontWeight: 600 }}
+                                                        domain={['dataMin - 5', 'dataMax + 5']}
+                                                        tickFormatter={(value) => `${value}`}
+                                                    />
+                                                )}
                                                 <Tooltip
                                                     cursor={{ fill: '#f8fafc' }}
                                                     content={({ active, payload }) => {
@@ -372,8 +401,23 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                                                             return (
                                                                 <div className="bg-slate-900 text-white text-xs p-2 rounded-lg shadow-xl">
                                                                     <div className="font-bold mb-1">{d.label}</div>
-                                                                    <div>{ddConfig.label}: {d[ddConfig.dataKey as keyof WeeklyDataPoint]}</div>
-                                                                    {ddConfig.baselineKey && <div className="text-slate-400">Baseline: {d[ddConfig.baselineKey as keyof WeeklyDataPoint]}</div>}
+                                                                    {ddConfig.isDualAxis ? (
+                                                                        <>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: '#14b8a6' }}></div>
+                                                                                <span>HRV Score: {d.score}</span>
+                                                                            </div>
+                                                                            <div className="flex items-center gap-2">
+                                                                                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
+                                                                                <span>Resting HR: {d.restingHR} bpm</span>
+                                                                            </div>
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <div>{ddConfig.label}: {d[ddConfig.dataKey as keyof WeeklyDataPoint]}</div>
+                                                                            {ddConfig.baselineKey && <div className="text-slate-400">Baseline: {d[ddConfig.baselineKey as keyof WeeklyDataPoint]}</div>}
+                                                                        </>
+                                                                    )}
                                                                 </div>
                                                             )
                                                         }
@@ -381,13 +425,24 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                                                     }}
                                                 />
 
-                                                <Bar dataKey={ddConfig.dataKey} barSize={24} radius={[4, 4, 0, 0]}>
+                                                <Bar dataKey={ddConfig.dataKey} barSize={24} radius={[4, 4, 0, 0]} yAxisId="left">
                                                     {dataWithValues.map((entry, index) => (
                                                         <Cell key={`cell-${index}`} fill={ddConfig.color} fillOpacity={0.3} />
                                                     ))}
                                                 </Bar>
 
-                                                {ddConfig.baselineKey && (
+                                                {ddConfig.isDualAxis && ddConfig.secondaryDataKey && (
+                                                    <Line
+                                                        type="monotone"
+                                                        dataKey={ddConfig.secondaryDataKey}
+                                                        stroke={ddConfig.secondaryColor}
+                                                        strokeWidth={3}
+                                                        dot={{ r: 4, fill: ddConfig.secondaryColor }}
+                                                        yAxisId="right"
+                                                    />
+                                                )}
+
+                                                {!ddConfig.isDualAxis && ddConfig.baselineKey && (
                                                     <Line
                                                         type="monotone"
                                                         dataKey={ddConfig.baselineKey}
@@ -395,30 +450,47 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                                                         strokeWidth={3}
                                                         dot={false}
                                                         strokeDasharray="4 4"
+                                                        yAxisId="left"
                                                     />
                                                 )}
-                                                {!ddConfig.baselineKey && (
+                                                {!ddConfig.isDualAxis && !ddConfig.baselineKey && (
                                                     <Line
                                                         type="monotone"
                                                         dataKey={ddConfig.dataKey}
                                                         stroke={ddConfig.color}
                                                         strokeWidth={3}
                                                         dot={{ r: 3, fill: ddConfig.color }}
+                                                        yAxisId="left"
                                                     />
                                                 )}
                                             </ComposedChart>
                                         </ResponsiveContainer>
                                     </div>
                                     <div className="flex justify-center mt-4 gap-6 text-[10px] uppercase font-bold text-slate-400 tracking-wider">
-                                        <div className="flex items-center gap-2">
-                                            <div className="w-3 h-3 rounded-sm opacity-30" style={{ backgroundColor: ddConfig.color }}></div>
-                                            Weekly Avg
-                                        </div>
-                                        {ddConfig.baselineKey && (
-                                            <div className="flex items-center gap-2">
-                                                <div className="w-4 h-0.5" style={{ backgroundColor: ddConfig.color }}></div>
-                                                30d Baseline
-                                            </div>
+                                        {ddConfig.isDualAxis ? (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 rounded-sm opacity-30" style={{ backgroundColor: '#14b8a6' }}></div>
+                                                    HRV Score
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-4 h-0.5 rounded-full" style={{ backgroundColor: '#ef4444' }}></div>
+                                                    Resting HR
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-3 h-3 rounded-sm opacity-30" style={{ backgroundColor: ddConfig.color }}></div>
+                                                    Weekly Avg
+                                                </div>
+                                                {ddConfig.baselineKey && (
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-4 h-0.5" style={{ backgroundColor: ddConfig.color }}></div>
+                                                        30d Baseline
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
                                 </div>
@@ -617,13 +689,13 @@ const InfoPopover: React.FC<InfoPopoverProps> = ({
 
     return (
         <div className={wrapperClass}>
-            <button 
+            <button
                 ref={buttonRef}
                 className="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 p-2 rounded-full shadow-sm transition-all duration-300 hover:scale-110 hover:shadow-md ring-1 ring-indigo-100 cursor-pointer pointer-events-auto"
             >
                 <Info size={16} strokeWidth={2.5} />
             </button>
-            <div 
+            <div
                 ref={popoverRef}
                 className={`absolute ${popoverPosition} ${tooltipPos} w-64 bg-slate-900 text-white text-xs p-4 rounded-xl shadow-2xl opacity-0 invisible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 transform scale-95 group-hover/info:scale-100 pointer-events-none z-50`}
             >
