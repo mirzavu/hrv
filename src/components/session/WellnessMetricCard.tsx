@@ -35,7 +35,7 @@ const WellnessMetricCard: React.FC<WellnessMetricCardProps> = ({
     const isLocked = status === 'No Baseline';
 
     return (
-        <div className={`border rounded-2xl p-5 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col group ${className} ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
+        <div className={`rounded-2xl p-5 shadow-sm flex flex-col group ${className} ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
 
             {/* Main Content Row */}
             <div className="flex items-center justify-between flex-1">

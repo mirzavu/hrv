@@ -16,6 +16,12 @@ interface WellnessScoreGridProps {
 }
 
 const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline, interpretation, phaseData, showProgress = true, darkMode = false }) => {
+    // Debug logging for HRV score locking
+    // Use phaseData to determine if baseline is established
+    // If in calibration phase, lock HRV and Readiness; otherwise unlock
+    const baselineEstablished = phaseData?.name !== 'calibration';
+    console.log(`[WellnessScoreGrid] 🔒 HRV Score Lock Debug: phase=${phaseData?.name}, baselineEstablished=${baselineEstablished}, showProgress(isRecentSession)=${showProgress}`);
+
     const scores = useMemo(() => {
         // Calculate Readiness Score on the fly
         const readinessScore = calculateHrvReadinessScore({
@@ -31,15 +37,15 @@ const WellnessScoreGrid: React.FC<WellnessScoreGridProps> = ({ summary, baseline
             getWellnessMetricConfig('stressScore', summary.stressScore.value ?? 0),
             // Row 2: Focus, HRV Score, Readiness
             getWellnessMetricConfig('focusScore', summary.focusScore.value ?? 0),
-            getWellnessMetricConfig('hrvScore', summary.hrvScore.value ?? 0, baseline?.established ?? false),
-            getWellnessMetricConfig('hrvReadiness', readinessScore ?? 0, baseline?.established ?? false),
+            getWellnessMetricConfig('hrvScore', summary.hrvScore.value ?? 0, baselineEstablished),
+            getWellnessMetricConfig('hrvReadiness', readinessScore ?? 0, baselineEstablished),
         ];
 
         // Map trends if available (future improvement: pass previous session data)
         // For now, trends are optional/undefined as per current SessionSummary structure
 
         return configs;
-    }, [summary, baseline]);
+    }, [summary, baseline, baselineEstablished]);
 
     // Get comparison data for wellness scores
     const getWellnessComparison = (scoreKey: string) => {

@@ -321,6 +321,8 @@ export async function POST(request: NextRequest) {
         // Pass current session summary so it's included in unique day count
         let phaseData: PhaseData | null = null;
         let updatedBaseline: UserBaseline | null = null;
+        let isBaselineCreated = false;
+        let isBaselineUpdated = false;
 
         try {
             const currentSessionSummary = {
@@ -346,34 +348,38 @@ export async function POST(request: NextRequest) {
                 isFirstSession: baselineResult.isFirstSession
             };
 
-            // Only fetch baseline from DB if it was just created or updated
-            // Skip fetch during calibration phase (no baseline exists yet)
-            if (baselineResult.baselineCreated || baselineResult.baselineUpdated) {
-                const pb = await getAdminPb();
-                try {
-                    const baseline = await pb.collection('user_baselines').getFirstListItem(
-                        `user_id = "${userId}"`
-                    );
-                    updatedBaseline = {
-                        $id: baseline.id,
-                        user_id: baseline.user_id,
-                        rmssd_avg: baseline.rmssd_avg,
-                        rmssd_stdev: baseline.rmssd_stdev,
-                        sdnn_avg: baseline.sdnn_avg,
-                        sdnn_stdev: baseline.sdnn_stdev,
-                        hr_avg: baseline.hr_avg,
-                        hr_stdev: baseline.hr_stdev,
-                        sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
-                        sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
-                        sessions_count: baseline.sessions_count,
-                        established: baseline.established,
-                        unique_morning_sessions_count: baseline.unique_morning_sessions_count,
-                        calibration_progress: baseline.calibration_progress,
-                        last_updated: baseline.last_updated,
-                        createdAt: baseline.created
-                    };
+            // Capture baseline state change flags (default to false if undefined)
+            isBaselineCreated = baselineResult.baselineCreated ?? false;
+            isBaselineUpdated = baselineResult.baselineUpdated ?? false;
 
-                } catch (error: unknown) {
+            // Always fetch baseline from DB if it exists (not just when created/updated)
+            // This ensures the modal always receives baseline data for HRV score display
+            const pb = await getAdminPb();
+            try {
+                const baseline = await pb.collection('user_baselines').getFirstListItem(
+                    `user_id = "${userId}"`
+                );
+                updatedBaseline = {
+                    $id: baseline.id,
+                    user_id: baseline.user_id,
+                    rmssd_avg: baseline.rmssd_avg,
+                    rmssd_stdev: baseline.rmssd_stdev,
+                    sdnn_avg: baseline.sdnn_avg,
+                    sdnn_stdev: baseline.sdnn_stdev,
+                    hr_avg: baseline.hr_avg,
+                    hr_stdev: baseline.hr_stdev,
+                    sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
+                    sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
+                    sessions_count: baseline.sessions_count,
+                    established: baseline.established,
+                    unique_morning_sessions_count: baseline.unique_morning_sessions_count,
+                    calibration_progress: baseline.calibration_progress,
+                    last_updated: baseline.last_updated,
+                    createdAt: baseline.created
+                };
+            } catch (error: any) {
+                // Baseline doesn't exist yet (404) - this is normal for new users
+                if (error.status !== 404) {
                     console.error('Error fetching baseline:', error);
                 }
             }
@@ -390,10 +396,14 @@ export async function POST(request: NextRequest) {
         const responseData = {
             ...summaryPayload,
             phase: phaseData,
-            baseline: updatedBaseline
+            baseline: updatedBaseline,
+            isBaselineCreated,
+            isBaselineUpdated
         };
 
 
+
+        console.log(`[Analyze API] 📊 Full Response:`, JSON.stringify(responseData, null, 2));
 
         return NextResponse.json(responseData);
     } catch (error) {

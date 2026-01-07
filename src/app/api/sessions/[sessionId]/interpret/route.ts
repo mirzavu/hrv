@@ -170,6 +170,8 @@ export async function GET(
     if (uniqueDays >= 15) phaseName = 'full_baseline';
     else if (uniqueDays >= 4) phaseName = 'early_baseline';
 
+    console.log(`[Interpret API] 🔍 Session=${sessionId}, userId=${userId}, uniqueDays=${uniqueDays}, phase=${phaseName}`);
+
     // Generate interpretation based on phase
     let interpretation: InterpretationResult | null = null;
     let baseline: UserBaseline | null = null;
@@ -194,6 +196,7 @@ export async function GET(
       // Baseline phase: Compare to baseline
       // Check if session is historical (more than 5 seconds old)
       const isHistoricalSession = (Date.now() - sessionDate.getTime()) > 5000;
+      console.log(`[Interpret API] 🔍 isHistoricalSession=${isHistoricalSession}, sessionDate=${sessionDate.toISOString()}, now=${new Date().toISOString()}`);
 
       if (isHistoricalSession) {
         // For historical sessions, fetch baseline that existed at least 18 hours before the session
@@ -245,20 +248,25 @@ export async function GET(
         }
       } else {
         // For recent sessions, use current baseline
+        console.log(`[Interpret API] 🔍 Fetching current baseline for userId=${userId}`);
         try {
           const baselineRecord = await pb.collection('user_baselines').getFirstListItem(
             `user_id = "${userId}"`
           );
           baseline = withDollarId(baselineRecord) as unknown as UserBaseline;
+          console.log(`[Interpret API] 🔍 Baseline fetched: id=${baseline.$id}, established=${baseline.established}, sessions_count=${baseline.sessions_count}`);
         } catch (error: any) {
+          console.log(`[Interpret API] 🔍 Baseline fetch error: status=${error.status}, message=${error.message}`);
           if (error.status !== 404) {
             throw error;
           }
           // Baseline doesn't exist - will fall back to score-based
+          console.log(`[Interpret API] 🔍 No baseline found (404) for userId=${userId}`);
         }
       }
 
       // Generate interpretation with baseline
+      console.log(`[Interpret API] 🔍 Generating interpretation: baseline=${baseline ? 'exists' : 'null'}, baseline.established=${baseline?.established}`);
       if (baseline && baseline.established) {
         interpretation = interpretHRVSession(sessionSummary, baseline);
       }

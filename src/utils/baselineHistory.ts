@@ -20,8 +20,8 @@ export const createBaselineSnapshot = async (userId: string, pb: PocketBase): Pr
         try {
             const user = await pb.collection('users').getOne(userId);
             userTimezone = user.timezone || 'UTC';
-        } catch (e) {
-            console.error('[BASELINE_HISTORY] Could not fetch user timezone:', e);
+        } catch {
+            // Could not fetch user timezone, using default UTC
         }
 
         // Get current date for snapshot in USER'S timezone (YYYY-MM-DD)
@@ -29,21 +29,15 @@ export const createBaselineSnapshot = async (userId: string, pb: PocketBase): Pr
         const { toLocalDateString } = await import('@/utils/dateUtils');
         const snapshotDate = toLocalDateString(new Date(), userTimezone);
 
-        console.log(`[BASELINE_HISTORY] Checking for existing snapshot: user=${userId}, timezone=${userTimezone}, date=${snapshotDate}`);
-
         // Check if snapshot already exists for today (idempotent)
         const filterQuery = `user_id = "${userId}" && snapshot_date = "${snapshotDate}"`;
-        console.log(`[BASELINE_HISTORY] Filter query: ${filterQuery}`);
 
         const existingSnapshots = await pb.collection('baseline_history').getList(1, 1, {
             filter: filterQuery
         });
 
-        console.log(`[BASELINE_HISTORY] Existing snapshots found: ${existingSnapshots.items.length}`);
-
         if (existingSnapshots.items.length > 0) {
-            // Snapshot already exists for today
-            console.log(`[BASELINE_HISTORY] Snapshot already exists for user ${userId} on ${snapshotDate}, skipping`);
+            // Snapshot already exists for today, skip
             return { success: true, snapshotId: existingSnapshots.items[0].id };
         }
 
@@ -94,12 +88,10 @@ export const createBaselineSnapshot = async (userId: string, pb: PocketBase): Pr
         };
 
         const record = await pb.collection('baseline_history').create(snapshotData);
-        console.log(`[BASELINE_HISTORY] Created daily snapshot for user ${userId} on ${snapshotDate}`);
 
         return { success: true, snapshotId: record.id };
 
-    } catch (error) {
-        console.error(`[BASELINE_HISTORY] Failed to create snapshot for user ${userId}:`, error);
+    } catch {
         // Don't throw - we don't want to block the baseline update process if history fails
         return { success: false };
     }

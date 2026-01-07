@@ -10,10 +10,6 @@ export const buildSessionSummary = (
   rawData: Array<{ timestamp: number; rrInterval?: number; allRrIntervals?: number[] }> = [],
   sessionId?: string | null
 ): SessionSummary => {
-  console.log('🔍 [BUILD_SUMMARY_DEBUG] Building session summary');
-  console.log('🔍 [BUILD_SUMMARY_DEBUG] payload.rmssd_cv_percent:', payload.rmssd_cv_percent);
-  console.log('🔍 [BUILD_SUMMARY_DEBUG] Full payload:', payload);
-
   // Compute RMSSD Delta dynamically
   const rmssdDelta = (payload.rmssd_end_ms !== null && payload.rmssd_start_ms !== null)
     ? payload.rmssd_end_ms - payload.rmssd_start_ms
@@ -32,19 +28,6 @@ export const buildSessionSummary = (
       rrIntervals.push({ timestamp: entry.timestamp, value: entry.rrInterval });
     }
   });
-
-  // Debug logging for rrIntervals timestamps
-  console.log(`[BUILD_SUMMARY_DEBUG] Session ID: ${sessionId}`);
-  console.log(`[BUILD_SUMMARY_DEBUG] rawData length: ${rawData.length}`);
-  console.log(`[BUILD_SUMMARY_DEBUG] rrIntervals length: ${rrIntervals.length}`);
-  if (rrIntervals.length > 0) {
-    console.log(`[BUILD_SUMMARY_DEBUG] First rrInterval:`, rrIntervals[0]);
-    console.log(`[BUILD_SUMMARY_DEBUG] First timestamp: ${rrIntervals[0].timestamp} (is absolute: ${rrIntervals[0].timestamp > 1600000000000})`);
-    console.log(`[BUILD_SUMMARY_DEBUG] Last rrInterval:`, rrIntervals[rrIntervals.length - 1]);
-    console.log(`[BUILD_SUMMARY_DEBUG] Last timestamp: ${rrIntervals[rrIntervals.length - 1].timestamp} (is absolute: ${rrIntervals[rrIntervals.length - 1].timestamp > 1600000000000})`);
-  } else {
-    console.log(`[BUILD_SUMMARY_DEBUG] No rrIntervals extracted - this will cause title to show "Session Summary"`);
-  }
 
   // Use server-calculated 4 scores from database
   return {

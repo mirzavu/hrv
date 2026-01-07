@@ -93,7 +93,6 @@ Do not wrap in markdown code blocks. Just the raw JSON string.
 export async function POST(req: NextRequest) {
     try {
         const rawBody = await req.json();
-        console.log("[AI API] 🚀 Request Received");
 
         let userPrompt = "";
         let systemPrompt = "";
@@ -216,9 +215,6 @@ export async function POST(req: NextRequest) {
             userPrompt = `Analyze the following data: ${JSON.stringify(rawBody)}`;
         }
 
-        console.log("[AI API] 📥 Incoming Request Payload:", JSON.stringify(rawBody, null, 2));
-        console.log("[AI API] 📝 User Prompt Generated:", userPrompt.substring(0, 500) + "...");
-
         const completion = await openai.chat.completions.create({
             model: MODEL_NAME,
             messages: [
@@ -231,7 +227,6 @@ export async function POST(req: NextRequest) {
         });
 
         const content = completion.choices[0].message.content;
-        console.log("[AI API] 🤖 OpenAI Response Content:", content);
 
         if (!content) {
             throw new Error("No content generated");

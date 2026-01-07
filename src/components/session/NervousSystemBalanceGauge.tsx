@@ -1,4 +1,5 @@
 import React from 'react';
+import { Scale } from 'lucide-react';
 
 interface NervousSystemBalanceGaugeProps {
   // Use SD2/SD1-based percentages
@@ -38,51 +39,39 @@ const NervousSystemBalanceGauge: React.FC<NervousSystemBalanceGaugeProps> = ({
     : { text: 'text-emerald-600', border: 'border-emerald-500', bg: 'bg-emerald-50' }; // Parasympathetic dominant
 
   return (
-    <div className={`p-0.5 rounded-2xl h-full flex flex-col ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
-      <div className={`rounded-[15px] p-6 text-center flex flex-col h-full ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
-        <div className="mb-4 flex items-center justify-center gap-2">
-          <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Nervous System Balance</h3>
-          {/* Comparison percentage removed - doesn't make sense for ratio metrics, the gauge itself shows the state */}
-        </div>
+    <div className={`rounded-[15px] p-6 flex flex-col h-full shadow-sm ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+      <div className="mb-4 flex items-center gap-2">
+        <Scale size={18} className={darkMode ? 'text-gray-400' : 'text-slate-400'} />
+        <h3 className={`text-lg font-semibold ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>Nervous System Balance</h3>
+      </div>
 
-        {/* Horizontal Bar Segmented Visualization */}
-        <div className="w-full max-w-lg flex flex-col items-center mb-4 mx-auto">
-          {/* Marker Container */}
-          <div className="relative w-full h-12">
-            <div
-              className="absolute bottom-0 flex flex-col items-center"
-              style={{ left: `${balanceScore}%`, transform: 'translateX(-50%)', transition: 'left 0.7s ease-out' }}
-            >
-              {/* Pill part of the marker */}
-              <div className={`px-3 py-1 ${scoreColorDetails.bg} ${scoreColorDetails.border} border-2 rounded-full text-sm font-bold ${scoreColorDetails.text} shadow-md z-10`}>
-                {Math.round(balanceScore)}
-              </div>
-              {/* Connecting line */}
-              <div className="w-px h-3 bg-gray-300" />
+      {/* Horizontal Bar Segmented Visualization */}
+      <div className="w-full flex flex-col items-center mb-4 mx-auto">
+        {/* Marker Container */}
+        <div className="relative w-full h-12">
+          <div
+            className="absolute bottom-0 flex flex-col items-center"
+            style={{ left: `${balanceScore}%`, transform: 'translateX(-50%)', transition: 'left 0.7s ease-out' }}
+          >
+            {/* Pill part of the marker */}
+            <div className={`px-3 py-1 ${scoreColorDetails.bg} ${scoreColorDetails.border} border-2 rounded-full text-sm font-bold ${scoreColorDetails.text} shadow-md z-10`}>
+              {Math.round(balanceScore)}
             </div>
-          </div>
-
-          {/* Segments container */}
-          <div className="w-full flex h-8 rounded-full overflow-hidden shadow-inner bg-gray-100">
-            <div className="w-[50%] bg-yellow-200/70 flex items-center justify-center text-xs font-medium text-yellow-700/80">Sympathetic</div>
-            <div className="w-[50%] bg-emerald-200/70 flex items-center justify-center text-xs font-medium text-emerald-700/80">Parasympathetic</div>
+            {/* Connecting line */}
+            <div className="w-px h-3 bg-gray-300" />
           </div>
         </div>
 
-        {/* Balance Breakdown */}
-        <div className="w-full space-y-2 mb-4">
-          <div className="flex justify-between items-center text-sm">
-            <span className={darkMode ? 'text-gray-400' : 'text-slate-600'}>Parasympathetic</span>
-            <span className="font-semibold text-emerald-600">
-              {parasympatheticPercent.toFixed(1)}%
-            </span>
-          </div>
-          <div className="flex justify-between items-center text-sm">
-            <span className={darkMode ? 'text-gray-400' : 'text-slate-600'}>Sympathetic</span>
-            <span className="font-semibold text-yellow-600">
-              {sympatheticPercent.toFixed(1)}%
-            </span>
-          </div>
+        {/* Segments container - thicker bar */}
+        <div className="w-full flex h-12 rounded-full overflow-hidden shadow-inner bg-gray-100">
+          <div className="w-[50%] bg-yellow-200/70 flex items-center justify-center text-sm font-bold text-yellow-700/80">Sympathetic</div>
+          <div className="w-[50%] bg-emerald-200/70 flex items-center justify-center text-sm font-bold text-emerald-700/80">Parasympathetic</div>
+        </div>
+
+        {/* Labels below the bar */}
+        <div className="w-full flex justify-between mt-2 text-xs font-bold text-slate-400 uppercase tracking-wide">
+          <span>Fight / Flight</span>
+          <span>Rest / Digest</span>
         </div>
       </div>
     </div>

@@ -59,8 +59,7 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data, darkMode = false }) =
   };
 
   return (
-    <div className={`p-0.5 rounded-2xl ${darkMode ? 'bg-gray-700' : 'bg-slate-200'}`}>
-      <div className={`rounded-[15px] p-6 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
+    <div className={`rounded-[15px] p-6 shadow-sm ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
         <div className="mb-4">
           <h3 className={`text-lg font-semibold mb-1 ${darkMode ? 'text-gray-200' : 'text-slate-700'}`}>
             Heart Rhythm Analysis
@@ -161,7 +160,6 @@ const PoincarePlot: React.FC<PoincarePlotProps> = ({ data, darkMode = false }) =
             </div>
           </div>
         </div>
-      </div>
     </div >
   );
 };
