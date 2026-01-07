@@ -50,7 +50,7 @@ export async function GET(
 
     if (session.rawFile) {
       try {
-        const fileUrl = pb.files.getUrl(session, session.rawFile);
+        const fileUrl = pb.files.getURL(session, session.rawFile);
         console.log(`[API] Fetching raw file from: ${fileUrl}`);
 
         // Fetch the file

@@ -231,14 +231,33 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
       if (response.ok) {
         const data = await response.json();
 
+        // Transform API response to match expected format
+        // API should return { title, interpretation } for single sessions
+        // but handle both formats for robustness
+        let transformedData;
         if (data.title && data.interpretation) {
-          setAiInsight(data);
+          // Already in correct format
+          transformedData = data;
+        } else if (data.title && (data.observation || data.action)) {
+          // Transform from weekly report format (fallback)
+          transformedData = {
+            title: data.title,
+            interpretation: [data.observation, data.action].filter(Boolean).join(' ')
+          };
+        } else {
+          console.error('[AutonomicInterpretation] ❌ API response missing required fields:', data);
+          setIsError(true);
+          return;
+        }
+
+        if (transformedData.title && transformedData.interpretation) {
+          setAiInsight(transformedData);
 
           if (sessionId) {
             const updatePayload = {
               sessionId,
-              ai_title: data.title,
-              ai_interpretation: data.interpretation
+              ai_title: transformedData.title,
+              ai_interpretation: transformedData.interpretation
             };
 
             const updateResponse = await fetch('/api/sessions/update-insight', {
@@ -256,7 +275,7 @@ const AutonomicInterpretation: React.FC<AutonomicInterpretationProps> = ({
             console.warn('[AutonomicInterpretation] ⚠️ No sessionId available - cannot store to DB');
           }
         } else {
-          console.error('[AutonomicInterpretation] ❌ API response missing title or interpretation:', data);
+          console.error('[AutonomicInterpretation] ❌ Transformed data missing title or interpretation:', transformedData);
           setIsError(true);
         }
       } else {

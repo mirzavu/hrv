@@ -250,23 +250,6 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
               uniqueDays: data.phase.uniqueDays
             });
           }
-
-          // For calibration phase, find comparison session for date display
-          if (data.phase?.name === 'calibration' && previousSessions.length > 0) {
-            let sessionDate: Date;
-            if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
-              sessionDate = new Date(summary.rrIntervals[0].timestamp);
-            } else {
-              sessionDate = new Date();
-            }
-
-            const comparisonResult = findComparisonSession(sessionDate, previousSessions);
-            if (comparisonResult.session) {
-              if (comparisonResult.session.session_date || comparisonResult.session.createdAt) {
-                setComparisonSessionDate(new Date(comparisonResult.session.session_date || comparisonResult.session.createdAt!));
-              }
-            }
-          }
         } else {
           console.error('[SessionSummaryModal] Failed to fetch interpretation:', response.status);
           // Fallback: set a basic interpretation
@@ -300,7 +283,26 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
     };
 
     fetchInterpretation();
-  }, [summary.session_id, userId, isGuest, previousSessions]);
+  }, [summary.session_id, userId, isGuest]);
+
+  // 3. Find comparison session date when phase data and previousSessions are available
+  useEffect(() => {
+    if (computedPhaseData?.name === 'calibration' && previousSessions.length > 0 && summary.session_id) {
+      let sessionDate: Date;
+      if (summary.rrIntervals?.[0]?.timestamp && summary.rrIntervals[0].timestamp > 1600000000000) {
+        sessionDate = new Date(summary.rrIntervals[0].timestamp);
+      } else {
+        sessionDate = new Date();
+      }
+
+      const comparisonResult = findComparisonSession(sessionDate, previousSessions);
+      if (comparisonResult.session) {
+        if (comparisonResult.session.session_date || comparisonResult.session.createdAt) {
+          setComparisonSessionDate(new Date(comparisonResult.session.session_date || comparisonResult.session.createdAt!));
+        }
+      }
+    }
+  }, [computedPhaseData?.name, previousSessions, summary.session_id, summary.rrIntervals]);
 
 
   // Defer chart rendering briefly to allow the toggle animation to start
