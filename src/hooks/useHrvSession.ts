@@ -1,11 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { zipSync, strToU8 } from 'fflate';
-import { pb } from '@/lib/pocketbase';
 import { sessionCache } from '@/lib/sessionCache';
 import { User, SessionSummary, SessionMilestone, RawHeartData, UserBaseline, PhaseData } from '@/types';
-// import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 
@@ -21,51 +18,6 @@ const SESSION_MILESTONES: SessionMilestone[] = [
   { label: '5 Minutes', value: 300 },
 ];
 
-const CSV_HEADERS = ['timestamp', 'heartRate', 'rrInterval', 'rawValue', 'flags', 'rawBytes', 'allRrIntervals'] as const;
-
-type CsvHeaderKey = typeof CSV_HEADERS[number];
-
-const formatCsvValue = (value: unknown): string => {
-  if (value === undefined || value === null) {
-    return '';
-  }
-
-  let normalized: string;
-
-  if (Array.isArray(value) || typeof value === 'object') {
-    normalized = JSON.stringify(value);
-  } else {
-    normalized = String(value);
-  }
-
-  if (/[",\n]/.test(normalized)) {
-    return `"${normalized.replace(/"/g, '""')}"`;
-  }
-
-  return normalized;
-};
-
-const buildSessionCsv = (
-  finalRawData: RawHeartData[],
-  metadata: { startTime: string | null; endTime: string; duration: number; dataPoints: number }
-) => {
-  const lines = [
-    `# sessionStartTime=${metadata.startTime ?? ''}`,
-    `# sessionEndTime=${metadata.endTime}`,
-    `# durationSeconds=${metadata.duration}`,
-    `# dataPoints=${metadata.dataPoints}`,
-    CSV_HEADERS.join(',')
-  ];
-
-  for (const entry of finalRawData) {
-    const record = entry as Record<CsvHeaderKey, unknown>;
-    const row = CSV_HEADERS.map((header) => formatCsvValue(record[header]));
-    lines.push(row.join(','));
-  }
-
-  return lines.join('\n');
-};
-
 export const useHrvSession = (user: User | null, addToast: (message: string) => void) => {
   const [sessionStatus, setSessionStatus] = useState<SessionStatus>('idle');
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -74,10 +26,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
 
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
 
-  // 1. ADD THESE TWO LINES to store the missing data
   const [sessionBaseline, setSessionBaseline] = useState<UserBaseline | null>(null);
   const [sessionPhase, setSessionPhase] = useState<PhaseData | null>(null);
-  // ADD THIS LINE for interpretation
   const [sessionInterpretation, setSessionInterpretation] = useState<InterpretationResult | null>(null);
 
   // Derived state
@@ -106,10 +56,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setElapsedTime(0);
     setSessionSummary(null);
     setSessionStartTime(null);
-    // 2. ADD THESE RESETS
     setSessionBaseline(null);
     setSessionPhase(null);
-    // ADD THIS RESET
     setSessionInterpretation(null);
     setSessionStatus('idle');
     sessionStartTimestamp.current = null;
@@ -123,16 +71,10 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       status: sessionStatusRef.current,
       dataLength: finalRawData.length,
       hasRRQuality: !!rrQualityData,
-      timestamp: new Date().toISOString()
     });
 
-    // Prevent duplicate calls - MUST check and set synchronously before any async operations
-    if (sessionStatusRef.current === 'completed') {
-      console.log('🛑 [DEBUG] Already completed, returning early');
-      return;
-    }
+    if (sessionStatusRef.current === 'completed') return;
 
-    // IMMEDIATELY set status to prevent race conditions
     sessionStatusRef.current = 'completed';
     setSessionStatus('completed');
     if (demoDataGenerator.current) {
@@ -140,106 +82,18 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       demoDataGenerator.current = null;
     }
 
-    const endTime = new Date().toISOString();
-
-    // For display purposes, we'll create a temporary summary
-    // The real calculations will be done server-side via API
-    const summaryPayload = {
-      session_id: 'temp',
-      user_id: user?.$id || 'guest',
-      rmssd_session_ms: null,
-      sdnn_session_ms: null,
-      pnn50_percent: null,
-      session_mean_hr: null,
-      amode_50: null,
-      AMo50_count: null,
-      rr_max_ms: null,
-      rr_min_ms: null,
-      mxdmn_ms: null,
-      rmssd_start_ms: null,
-      rmssd_end_ms: null,
-      time_to_stabilize_seconds: null,
-      resp_coherence_score: null,
-      restoration_index: null,
-      session_stress_index: null,
-      mean_rr_ms: null,
-      lf_power_ms2: null,
-      hf_power_ms2: null,
-      lfhf_ratio: null,
-      total_power_ms2: null,
-      sd1_ms: null,
-      sd2_ms: null,
-      baevsky_mo: null,
-      baevsky_amo: null,
-      baevsky_mxdmn_ms: null,
-      baevsky_stress_index: null,
-    };
-
-    // Prepare for analysis
     const userId = user?.$id || 'guest';
     const isGuest = userId === 'guest';
-    let sessionId = 'guest-' + Date.now(); // Temp ID for guests
 
-    // Build initial display summary (will show N/A for advanced metrics until API returns)
-    const initialSummary = buildSessionSummary(summaryPayload, finalElapsedTime, finalRawData.length, finalRawData, sessionId);
-    setSessionSummary(initialSummary);
-    let shouldSaveSummaryToDb = false;
-
-    // Ensure startTime is never null - fallback to first data timestamp or current time
+    // Fallback start time if not set
     const finalStartTime = sessionStartTime ||
       (finalRawData.length > 0 ? new Date(finalRawData[0].timestamp).toISOString() : new Date().toISOString());
 
-    // 1. SAVE SESSION DATA (DB for Users, LocalStorage for Guests)
-    if (!isGuest) {
-      try {
-        // Create raw data file content (CSV archived in a ZIP)
-        const csvContent = buildSessionCsv(finalRawData, {
-          startTime: finalStartTime,
-          endTime,
-          duration: finalElapsedTime,
-          dataPoints: finalRawData.length
-        });
-
-        const timestamp = Date.now();
-        const archiveBytes = zipSync({ [`session-${timestamp}.csv`]: strToU8(csvContent) });
-
-        // Create raw data file for direct attachment to session
-        const file = new File([new Uint8Array(archiveBytes)], `session-${timestamp}.zip`, {
-          type: 'application/zip'
-        });
-
-        // Create session record with direct file attachment
-        console.log('💾 [DEBUG] Creating sessions record:', {
-          userId,
-          startTime: finalStartTime,
-          endTime,
-          timestamp: new Date().toISOString()
-        });
-        const sessionRecord = await pb.collection('sessions').create({
-          userId: userId,
-          startTime: finalStartTime,
-          endTime: endTime,
-          rawFile: file
-        });
-        console.log('✅ [DEBUG] sessions record created:', sessionRecord.id);
-
-        sessionId = sessionRecord.id;
-        shouldSaveSummaryToDb = true;
-
-        // Clear calendar cache so new session appears immediately when viewing calendar
-        sessionCache.clearByPrefix('calendar-');
-
-        addToast('Session saved successfully!');
-      } catch (error) {
-        console.error('Error saving session to database:', error);
-        addToast('Error: Could not save session to database.');
-        // We continue to analysis even if save failed, though we won't save the summary
-      }
-    } else {
-      // For guest users, save to localStorage
+    // For Guest Users: Save to LocalStorage (as backup/history)
+    if (isGuest) {
       const guestSessionData = {
-        startTime: sessionStartTime,
-        endTime: endTime,
+        startTime: finalStartTime,
+        endTime: new Date().toISOString(),
         duration: finalElapsedTime,
         dataPoints: finalRawData.length,
         rawData: finalRawData
@@ -248,7 +102,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       addToast('Session saved locally!');
     }
 
-    // 2. RUN ANALYSIS VIA API (For ALL users)
+    // Call API (Process & Analyze)
     try {
       console.log('🚀 [DEBUG] Calling analysis API for user:', userId);
       const response = await fetch('/api/sessions/analyze', {
@@ -261,7 +115,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
           sessionStartTime: finalStartTime,
           durationSeconds: finalElapsedTime,
           userId: userId,
-          sessionId: sessionId,
+          rrQualityData: rrQualityData,
+          // No sessionId passed - Server will create it
         }),
       });
 
@@ -270,65 +125,55 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       }
 
       const finalSummaryPayload = await response.json();
-
       console.log('🔍 [API_RESPONSE_DEBUG] API Response Payload:', finalSummaryPayload);
 
-      // 3. UPDATE UI WITH RESULTS
-      // Use sessionId from payload if available, otherwise use the one we have
-      const finalSessionId = finalSummaryPayload.session_id || sessionId;
-      const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData, finalSessionId);
+      // Get the real ID created by the server
+      const finalSessionId = finalSummaryPayload.session_id || `guest-${Date.now()}`;
+
+      // Build Summary for UI
+      const finalSummary = buildSessionSummary(
+        finalSummaryPayload,
+        finalElapsedTime,
+        finalRawData.length,
+        finalRawData,
+        finalSessionId
+      );
 
       setSessionSummary(finalSummary);
 
-      // 3. CAPTURE THE BASELINE AND PHASE FROM API
       if (finalSummaryPayload.baseline) {
         setSessionBaseline(finalSummaryPayload.baseline);
       }
       if (finalSummaryPayload.phase) {
         setSessionPhase(finalSummaryPayload.phase);
       }
-
-      // 3. CAPTURE INTERPRETATION
       if (finalSummaryPayload.interpretation) {
         setSessionInterpretation(finalSummaryPayload.interpretation);
       }
 
-      // 4. SAVE SUMMARY TO DB (Only for logged in users where session create succeeded)
-      if (shouldSaveSummaryToDb) {
-        console.log('💾 [DEBUG] Creating session_summary record');
-        await pb.collection('session_summary').create({
-          ...finalSummaryPayload,
-          rr_quality_data: rrQualityData,
-          session_date: finalStartTime,
-        });
-        console.log('✅ [DEBUG] session_summary record created');
+      // Clear calendar cache so new session appears immediately
+      if (!isGuest) {
+        sessionCache.clearByPrefix('calendar-');
+        addToast('Session saved successfully!');
       }
 
     } catch (analysisError) {
       console.error('Error in session analysis:', analysisError);
-      addToast('Warning: Session analysis failed. Some metrics may be unavailable.');
+      addToast('Warning: Session analysis failed. Please try again.');
     }
-
-    // Don't reset session here - let the user view the summary modal
   }, [addToast, user, sessionStartTime]);
 
   useEffect(() => {
     if ((sessionStatus === 'running' || sessionStatus === 'connecting') && sessionStartTimestamp.current) {
-      // Use timestamp-based calculation instead of setInterval
       const updateTimer = () => {
         if (sessionStartTimestamp.current && sessionStatusRef.current !== 'paused') {
           const now = Date.now();
           const elapsed = Math.floor((now - sessionStartTimestamp.current - pausedTime.current) / 1000);
-          // Apply 20x speed multiplier for demo sessions
           const finalElapsed = isDemoSession.current ? elapsed * 20 : elapsed;
           setElapsedTime(finalElapsed);
         }
       };
-
-      // Update immediately
       updateTimer();
-
-      // Then update every second for UI responsiveness (or faster for demo)
       const updateInterval = isDemoSession.current ? 100 : 1000;
       sessionTimer.current = setInterval(updateTimer, updateInterval);
     } else {
@@ -353,23 +198,20 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       milestonesReached.current.add(elapsedTime);
     }
     if (elapsedTime >= MAX_SESSION_DURATION) {
-      endSession(elapsedTime, rawHeartData, null); // RR quality not available in auto-end
+      endSession(elapsedTime, rawHeartData, null);
     }
   }, [elapsedTime, sessionStatus, addToast, rawHeartData, endSession]);
 
 
   const startRealSession = useCallback(() => {
-    if (sessionStatus !== 'idle') return false; // Prevent duplicate starts
+    if (sessionStatus !== 'idle') return false;
     isDemoSession.current = false;
     setSessionStatus('connecting');
-    // Don't start timer yet - will start when first data received
     return true;
   }, [sessionStatus]);
 
   const startDemoSession = useCallback(() => {
-    // If session is not idle, reset it first (synchronously using refs)
     if (sessionStatusRef.current !== 'idle') {
-      // Reset synchronously
       if (demoDataGenerator.current) {
         clearInterval(demoDataGenerator.current);
         demoDataGenerator.current = null;
@@ -385,31 +227,20 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       milestonesReached.current.clear();
       isDemoSession.current = false;
     }
-
-    // Now start the demo session
     isDemoSession.current = true;
     sessionStatusRef.current = 'connecting';
-    setSessionStatus('connecting'); // Demo also starts as connecting, timer starts on first data
+    setSessionStatus('connecting');
     return true;
   }, [sessionStatus]);
 
-  // Legacy compatibility - now just starts running status
   const startSession = useCallback(() => {
     setSessionStatus('running');
   }, []);
 
   const addRawHeartData = useCallback((data: RawHeartData | RawHeartData[]) => {
-    const addTime = new Date().toISOString().split('T')[1]; // Just time part
+    if (sessionStatusRef.current === 'paused' || sessionStatusRef.current === 'idle') return;
 
-    if (sessionStatusRef.current === 'paused' || sessionStatusRef.current === 'idle') {
-      return;
-    }
-
-    // If this is the first data and we're connecting, start the timer and switch to running
     if (sessionStatusRef.current === 'connecting' && !sessionStartTimestamp.current) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`💚 [${addTime}] First data received, starting timer`);
-      }
       const startTime = new Date().toISOString();
       setSessionStartTime(startTime);
       sessionStartTimestamp.current = Date.now();
@@ -419,37 +250,23 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       setSessionStatus('running');
     }
 
-    // Support both single data point and array of data points
     if (Array.isArray(data)) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`✅ [${addTime}] SESSION: Adding batch of ${data.length} beats`);
-      }
       setRawHeartData(prev => [...prev, ...data]);
     } else {
-      if (process.env.NODE_ENV === 'development') {
-      }
       setRawHeartData(prev => [...prev, data]);
     }
   }, []);
 
   const pauseSession = useCallback(() => {
-    if (sessionStatus !== 'running') {
-      return;
-    }
+    if (sessionStatus !== 'running') return;
     setSessionStatus('paused');
-    // Record when we paused to calculate total paused time
-    // For demo sessions, elapsedTime is 20x, so we need to divide by 20
     const actualElapsedTime = isDemoSession.current ? elapsedTime / 20 : elapsedTime;
     pausedTime.current += Date.now() - (sessionStartTimestamp.current || 0) - (actualElapsedTime * 1000);
   }, [sessionStatus, elapsedTime]);
 
   const resumeSession = useCallback(() => {
-    if (sessionStatus !== 'paused') {
-      return;
-    }
+    if (sessionStatus !== 'paused') return;
     setSessionStatus('running');
-    // Update the start timestamp to account for paused time
-    // For demo sessions, elapsedTime is 20x, so we need to divide by 20
     const actualElapsedTime = isDemoSession.current ? elapsedTime / 20 : elapsedTime;
     sessionStartTimestamp.current = Date.now() - actualElapsedTime * 1000 - pausedTime.current;
   }, [sessionStatus, elapsedTime]);
@@ -469,10 +286,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     addRawHeartData,
     sessionSummary,
     setSessionSummary,
-    // 4. EXPORT THE NEW STATE
     sessionBaseline,
     sessionPhase,
-    // EXPORT INTERPRETATION STATE
     sessionInterpretation,
     endSession,
     resetSession,

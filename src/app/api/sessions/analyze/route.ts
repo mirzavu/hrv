@@ -24,8 +24,6 @@ import {
     computeRestorationIndex,
     computeHrvStability,
 } from '@/utils/sessionProcessing';
-
-// === ADDED IMPORTS FOR INTERPRETATION ===
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 import { withDollarId } from '@/lib/pbMap';
 import { interpretHRVSession, InterpretationResult } from '@/utils/autonomicInterpretation';
@@ -34,7 +32,47 @@ import {
     generateCalibrationInterpretation,
     findComparisonSession
 } from '@/utils/sessionComparison';
-// ========================================
+import * as fflate from 'fflate';
+
+// --- CSV / ZIP HELPER FUNCTIONS (Moved from Frontend) ---
+const CSV_HEADERS = ['timestamp', 'heartRate', 'rrInterval', 'rawValue', 'flags', 'rawBytes', 'allRrIntervals'] as const;
+type CsvHeaderKey = typeof CSV_HEADERS[number];
+
+const formatCsvValue = (value: unknown): string => {
+    if (value === undefined || value === null) return '';
+    let normalized: string;
+    if (Array.isArray(value) || typeof value === 'object') {
+        normalized = JSON.stringify(value);
+    } else {
+        normalized = String(value);
+    }
+    if (/[",\n]/.test(normalized)) {
+        return `"${normalized.replace(/"/g, '""')}"`;
+    }
+    return normalized;
+};
+
+const buildSessionCsv = (
+    finalRawData: RawHeartData[],
+    metadata: { startTime: string | null; endTime: string; duration: number; dataPoints: number }
+) => {
+    const lines = [
+        `# sessionStartTime=${metadata.startTime ?? ''}`,
+        `# sessionEndTime=${metadata.endTime}`,
+        `# durationSeconds=${metadata.duration}`,
+        `# dataPoints=${metadata.dataPoints}`,
+        CSV_HEADERS.join(',')
+    ];
+
+    for (const entry of finalRawData) {
+        const record = entry as Record<CsvHeaderKey, unknown>;
+        const row = CSV_HEADERS.map((header) => formatCsvValue(record[header]));
+        lines.push(row.join(','));
+    }
+
+    return lines.join('\n');
+};
+// --------------------------------------------------------
 
 interface SummaryMetricOptions {
     rawData: RawHeartData[];
@@ -61,7 +99,6 @@ const calculateBalanceMetrics = (sd1: number | null, sd2: number | null): {
 
     let balanceIndexX: number | null = null;
     if (sd2_sd1_ratio !== null && sd2_sd1_ratio > 0) {
-        // Formula: 100 + (log10(ratio) / log10(10)) * 35
         const rawBalance = 100 + (Math.log10(sd2_sd1_ratio) / Math.log10(10)) * 35;
         balanceIndexX = Number(clamp(rawBalance, BALANCE_DOMAIN[0], BALANCE_DOMAIN[1]).toFixed(1));
     }
@@ -71,12 +108,7 @@ const calculateBalanceMetrics = (sd1: number | null, sd2: number | null): {
     let sympatheticPercent: number | null = null;
 
     if (balanceIndexX !== null) {
-        // NBS = X / 2 (Normalizes 0-200 scale to 0-100)
         normalizedBalanceScore = Number((balanceIndexX / 2).toFixed(1));
-
-        // Direct mapping: 
-        // X=128 -> NBS=64 -> 64% Parasympathetic
-        // X=72  -> NBS=36 -> 36% Parasympathetic
         parasympatheticPercent = normalizedBalanceScore;
         sympatheticPercent = Number((100 - normalizedBalanceScore).toFixed(1));
     }
@@ -138,12 +170,7 @@ const computeSessionSummaryPayload = async ({
     // Calculate complex metrics
     const timeToStabilize = computeTimeToStabilize(rawData, sessionStartTimestamp, meanHr);
     const respCoherence = computeRespCoherenceScore(rmssdSession, sdnnSession, pnn50);
-
-
-
     const hrvStability = computeHrvStability(rrSeries, sessionStartTimestamp, calculateRMSSD, calculateSDNN, calculateMeanHR);
-
-
 
     let sessionStressIndex: number | null = null;
     if (amode50 !== null && mxDmN && mxDmN !== 0) {
@@ -191,9 +218,9 @@ const computeSessionSummaryPayload = async ({
             last_updated: baseline.last_updated,
             createdAt: baseline.created
         };
-    } catch (error: any) {
-        // Baseline doesn't exist yet (404) - will use fallback calculation
-        if (error.status !== 404) {
+    } catch (error: unknown) {
+        const err = error as { status?: number };
+        if (err.status !== 404) {
             console.error('Error fetching user baseline:', error);
         }
     }
@@ -210,24 +237,11 @@ const computeSessionSummaryPayload = async ({
     });
 
     // Try to calculate personalized HRV Readiness Score if baseline exists
-    let hrvScore: number | null = fallbackHrvScore; // Keeps the absolute "Quality" score
-    let readinessScore: number | null = null; // Default to null
-    let baselineUsed = false;
+    const hrvScore: number | null = fallbackHrvScore;
+    let readinessScore: number | null = null;
     let isCrash = false;
-    let usagePhase: 'calibration' | 'early_baseline' | 'full_baseline' | null = null;
-
-    // Fetch usage_phase from users table
-    try {
-        const pb = await getAdminPb();
-        const userRecord = await pb.collection('users').getOne(userId);
-        usagePhase = userRecord.usage_phase || 'calibration';
-    } catch (error: any) {
-        // If user not found or field doesn't exist, default to calibration
-        usagePhase = 'calibration';
-    }
 
     if (userBaseline && userBaseline.established) {
-        // Use personalized baseline approach
         const personalizedScore = calculateHrvReadinessScore({
             rmssd: rmssdSession,
             sdnn: sdnnSession,
@@ -237,29 +251,12 @@ const computeSessionSummaryPayload = async ({
         }, userBaseline);
 
         if (personalizedScore !== null) {
-            // Save to the new specific field instead of overwriting hrvScore
             readinessScore = personalizedScore;
 
-            baselineUsed = true;
-
-            // Determine Phase based on unique_morning_sessions_count (not sessions_count)
-            // This ensures a user with 20 sessions on day 1 is still in calibration phase
-            const uniqueDays = userBaseline.unique_morning_sessions_count ?? 0;
-            if (uniqueDays < 4) usagePhase = 'calibration';
-            else if (uniqueDays < 15) usagePhase = 'early_baseline';
-            else usagePhase = 'full_baseline';
-
-            // Check for Crash (Z < -2.0)
-            // Score = 50 + (Z * 20) => Z = (Score - 50) / 20
-            // Threshold Z < -2.0 => Score < 10
             if (personalizedScore < 10) {
                 isCrash = true;
-                // console.log(`[API_ANALYZE] CRASH DETECTED: Score ${personalizedScore} (Z < -2.0)`);
             }
         }
-    } else {
-        // No baseline established yet - Calibration Phase
-        usagePhase = 'calibration';
     }
 
     return {
@@ -300,147 +297,141 @@ const computeSessionSummaryPayload = async ({
         stress_score: fourScores.stressScore,
         health_score: fourScores.healthScore,
         focus_score: fourScores.focusScore,
-        hrv_score: hrvScore, // Now always remains the "Absolute" score
+        hrv_score: hrvScore,
         readiness_score: readinessScore,
         is_crash: isCrash,
-        // usage_phase is now stored in users table, not in session_summary
     };
 };
 
 export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
-        const { rawData, sessionStartTime, durationSeconds, userId, sessionId } = body;
+        const { rawData, sessionStartTime, durationSeconds, userId, rrQualityData } = body;
 
-
-
-        if (!rawData || !userId || !sessionId) {
+        if (!rawData || !userId) {
             return NextResponse.json(
-                { error: 'Missing required fields: rawData, userId, sessionId' },
+                { error: 'Missing required fields: rawData, userId' },
                 { status: 400 }
             );
         }
 
+        const pb = await getAdminPb();
+        let finalSessionId = body.sessionId;
+        const isGuest = userId === 'guest' || userId.startsWith('guest');
+
+        // =====================================================================
+        // 1. CREATE SESSION RECORD (Server-Side)
+        // =====================================================================
+        if (!isGuest) {
+            try {
+                // Generate CSV
+                const endTime = new Date(new Date(sessionStartTime).getTime() + (durationSeconds * 1000)).toISOString();
+                const csvContent = buildSessionCsv(rawData, {
+                    startTime: sessionStartTime,
+                    endTime: endTime,
+                    duration: durationSeconds,
+                    dataPoints: rawData.length
+                });
+
+                // Zip it
+                const timestamp = Date.now();
+                const zipData = fflate.zipSync({ [`session-${timestamp}.csv`]: fflate.strToU8(csvContent) });
+
+                // Create File object
+                const fileName = `session-${timestamp}.zip`;
+                const file = new File([Buffer.from(zipData)], fileName, { type: 'application/zip' });
+
+                // Create record in PocketBase
+                const sessionRecord = await pb.collection('sessions').create({
+                    userId: userId,
+                    startTime: sessionStartTime,
+                    endTime: endTime,
+                    rawFile: file
+                });
+
+                finalSessionId = sessionRecord.id;
+                console.log('✅ [API] Session record created:', finalSessionId);
+            } catch (err) {
+                console.error('❌ [API] Failed to create session record:', err);
+                // Continue with analysis but mark as error
+            }
+        } else {
+            // For guests, use a temp ID if not provided
+            if (!finalSessionId) finalSessionId = `guest-${Date.now()}`;
+        }
+
+        // =====================================================================
+        // 2. COMPUTE METRICS
+        // =====================================================================
         const summaryPayload = await computeSessionSummaryPayload({
             rawData,
             sessionStartTime,
             durationSeconds: durationSeconds || 0,
             userId,
-            sessionId,
+            sessionId: finalSessionId,
         });
 
-
-
-        // Run baseline check synchronously and include phase data + baseline in response
-        // Pass current session summary so it's included in unique day count
+        // =====================================================================
+        // 3. BASELINE CHECK & PHASE
+        // =====================================================================
         let phaseData: PhaseData | null = null;
         let updatedBaseline: UserBaseline | null = null;
         let isBaselineCreated = false;
         let isBaselineUpdated = false;
 
-        try {
-            const currentSessionSummary = {
-                session_date: sessionStartTime || new Date().toISOString(),
-                rmssd_session_ms: summaryPayload.rmssd_session_ms
-            };
-
-
-
-            const baselineResult = await autoCheckAndUpdateBaseline(
-                userId,
-                sessionId,
-                currentSessionSummary
-            );
-
-
-
-            // Extract phase data from result
-            phaseData = {
-                name: baselineResult.phase,
-                progress: baselineResult.phaseProgress,
-                uniqueDays: baselineResult.uniqueDays,
-                isFirstSession: baselineResult.isFirstSession
-            };
-
-            // Capture baseline state change flags (default to false if undefined)
-            isBaselineCreated = baselineResult.baselineCreated ?? false;
-            isBaselineUpdated = baselineResult.baselineUpdated ?? false;
-
-            // Always fetch baseline from DB if it exists (not just when created/updated)
-            // This ensures the modal always receives baseline data for HRV score display
-            const pb = await getAdminPb();
+        if (!isGuest) {
             try {
-                const baseline = await pb.collection('user_baselines').getFirstListItem(
-                    `user_id = "${userId}"`
-                );
-                updatedBaseline = {
-                    $id: baseline.id,
-                    user_id: baseline.user_id,
-                    rmssd_avg: baseline.rmssd_avg,
-                    rmssd_stdev: baseline.rmssd_stdev,
-                    sdnn_avg: baseline.sdnn_avg,
-                    sdnn_stdev: baseline.sdnn_stdev,
-                    hr_avg: baseline.hr_avg,
-                    hr_stdev: baseline.hr_stdev,
-                    sd1_sd2_ratio_avg: baseline.sd1_sd2_ratio_avg,
-                    sd1_sd2_ratio_stdev: baseline.sd1_sd2_ratio_stdev,
-                    sessions_count: baseline.sessions_count,
-                    established: baseline.established,
-                    unique_morning_sessions_count: baseline.unique_morning_sessions_count,
-                    calibration_progress: baseline.calibration_progress,
-                    last_updated: baseline.last_updated,
-                    createdAt: baseline.created
+                const currentSessionSummary = {
+                    session_date: sessionStartTime || new Date().toISOString(),
+                    rmssd_session_ms: summaryPayload.rmssd_session_ms
                 };
-            } catch (error: any) {
-                // Baseline doesn't exist yet (404) - this is normal for new users
-                if (error.status !== 404) {
-                    console.error('Error fetching baseline:', error);
-                }
+
+                const baselineResult = await autoCheckAndUpdateBaseline(
+                    userId,
+                    finalSessionId,
+                    currentSessionSummary
+                );
+
+                phaseData = {
+                    name: baselineResult.phase,
+                    progress: baselineResult.phaseProgress,
+                    uniqueDays: baselineResult.uniqueDays,
+                    isFirstSession: baselineResult.isFirstSession
+                };
+
+                isBaselineCreated = baselineResult.baselineCreated ?? false;
+                isBaselineUpdated = baselineResult.baselineUpdated ?? false;
+
+                // Fetch full baseline object
+                try {
+                    const baseline = await pb.collection('user_baselines').getFirstListItem(`user_id = "${userId}"`);
+                    updatedBaseline = withDollarId(baseline) as unknown as UserBaseline;
+                } catch { /* ignore 404 */ }
+
+            } catch (error) {
+                console.error('Baseline check failed:', error);
+                phaseData = { name: 'calibration', progress: 0, uniqueDays: 0 };
             }
-        } catch (error) {
-            console.error('Baseline check failed:', error);
-            // Set default phase data on error
-            phaseData = {
-                name: 'calibration',
-                progress: 0,
-                uniqueDays: 0
-            };
         }
 
         // =====================================================================
-        // GENERATE SERVER-SIDE INTERPRETATION
+        // 4. GENERATE INTERPRETATION
         // =====================================================================
         let interpretation: InterpretationResult | null = null;
         try {
-            const pb = await getAdminPb();
-
-            // 1. Build a temporary SessionSummary object (needed for interpretation funcs)
-            // Use actual rawData length or fallback to duration
             const dataPointsCount = rawData.length > 0 ? rawData.length : Math.max(60, durationSeconds || 60);
-
-            // Add phase to payload for builder
             const builderPayload = { ...summaryPayload, phase: phaseData };
+            const sessionSummary = buildSessionSummary(builderPayload, durationSeconds || 0, dataPointsCount, rawData, finalSessionId);
+            const sessionDate = sessionStartTime ? new Date(sessionStartTime) : new Date();
 
-            const sessionSummary = buildSessionSummary(
-                builderPayload,
-                durationSeconds || 0,
-                dataPointsCount,
-                rawData,
-                sessionId
-            );
-
-            // 2. Logic based on Phase
-            if (phaseData?.name === 'calibration') {
-                // Fetch previous sessions for comparison
-                // Filter: user_id match, not this session, not crash
+            if (isGuest) {
+                interpretation = generateScoreBasedInterpretation(sessionSummary, true);
+            } else if (phaseData?.name === 'calibration') {
                 const previousSessions = await pb.collection('session_summary').getList(1, 10, {
-                    filter: `user_id = "${userId}" && session_id != "${sessionId}" && is_crash = false`,
+                    filter: `user_id = "${userId}" && session_id != "${finalSessionId}" && is_crash = false`,
                     sort: '-session_date'
                 });
-
                 const prevRecords = previousSessions.items.map(s => withDollarId(s)) as unknown as SessionSummaryRecord[];
-
-                const sessionDate = sessionStartTime ? new Date(sessionStartTime) : new Date();
                 const comparisonResult = findComparisonSession(sessionDate, prevRecords);
 
                 if (comparisonResult.session) {
@@ -451,52 +442,49 @@ export async function POST(request: NextRequest) {
                         comparisonResult.metricTitle
                     );
                 } else {
-                    // Fallback to score-based if no valid comparison found
                     interpretation = generateScoreBasedInterpretation(sessionSummary, prevRecords.length === 0);
                 }
-
             } else {
-                // Baseline Phase (Early or Full)
                 if (updatedBaseline && updatedBaseline.established) {
                     interpretation = interpretHRVSession(sessionSummary, updatedBaseline);
                 }
-
-                // Fallback if interpretation failed or baseline missing
-                if (!interpretation) {
-                    interpretation = generateScoreBasedInterpretation(sessionSummary, false);
-                }
+                if (!interpretation) interpretation = generateScoreBasedInterpretation(sessionSummary, false);
             }
-
         } catch (interpError) {
-            console.error('[Analyze API] Interpretation generation failed:', interpError);
-            // Non-blocking error, frontend will handle missing interpretation
+            console.error('[API] Interpretation generation failed:', interpError);
         }
 
         // =====================================================================
+        // 5. SAVE SUMMARY RECORD (Server-Side)
+        // =====================================================================
+        if (!isGuest && finalSessionId) {
+            try {
+                await pb.collection('session_summary').create({
+                    ...summaryPayload,
+                    rr_quality_data: rrQualityData,
+                    session_date: sessionStartTime,
+                    session_id: finalSessionId
+                });
+                console.log('✅ [API] Session Summary record saved.');
+            } catch (err) {
+                console.error('❌ [API] Failed to save session summary:', err);
+            }
+        }
 
         const responseData = {
             ...summaryPayload,
+            session_id: finalSessionId,
             phase: phaseData,
             baseline: updatedBaseline,
-            interpretation: interpretation, // <--- Add this
+            interpretation: interpretation,
             isBaselineCreated,
             isBaselineUpdated
         };
 
-        console.log(`[Analyze API] 📊 Response:`, JSON.stringify({
-            baseline: updatedBaseline ? { $id: updatedBaseline.$id, established: updatedBaseline.established } : null,
-            phase: phaseData,
-            interpretationTitle: interpretation?.title,
-            isBaselineCreated,
-            isBaselineUpdated
-        }, null, 2));
-
         return NextResponse.json(responseData);
+
     } catch (error) {
         console.error('Error in session analysis API:', error);
-        return NextResponse.json(
-            { error: 'Internal server error' },
-            { status: 500 }
-        );
+        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
