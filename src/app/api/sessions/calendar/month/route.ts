@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log(`[Calendar Month] User timezone: ${userTimezone}`);
+
 
     // Import day boundary utilities
     const { getLocalDayStartUTC, getLocalDayEndUTC } = await import('@/utils/dateUtils');
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
     const startDateObj = new Date(startDate + 'T00:00:00');
     startDateObj.setDate(startDateObj.getDate() - 1);
     const expandedStartDate = startDateObj.toISOString().split('T')[0];
-    
+
     const endDateObj = new Date(endDate + 'T00:00:00');
     endDateObj.setDate(endDateObj.getDate() + 1);
     const expandedEndDate = endDateObj.toISOString().split('T')[0];
@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
 
     let filter = `user_id = "${userId}" && session_date >= "${startDateTime}" && session_date <= "${endDateTime}"`;
 
-    console.log(`[Calendar Month] Fetching for user ${userId}, local date range: ${startDate} to ${endDate}, expanded UTC range: ${startDateTime} to ${endDateTime}`);
+
 
     // Fetch all summaries for the month (with expanded range to account for timezone)
     let summariesResponse = await pb.collection('session_summary').getList(1, 1000, {
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       fields: 'id,session_id,session_date,rmssd_session_ms'
     });
 
-    console.log(`[Calendar Month] Range query found ${summariesResponse.items.length} summaries`);
+
 
     // Fallback: substring match on session_date if needed
     if (summariesResponse.items.length === 0) {
@@ -77,13 +77,13 @@ export async function GET(request: NextRequest) {
         sort: '-session_date',
         fields: 'id,session_id,session_date,rmssd_session_ms'
       });
-      console.log(`[Calendar Month] Fallback substring query found ${fallbackResponse.items.length} summaries`);
+
       if (fallbackResponse.items.length > 0) {
         summariesResponse = fallbackResponse;
       }
     }
 
-    console.log(`[Calendar Month] Using ${summariesResponse.items.length} summaries for processing`);
+
 
     if (summariesResponse.items.length === 0) {
       return NextResponse.json({ dates: [] });
@@ -105,10 +105,7 @@ export async function GET(request: NextRequest) {
         return;
       }
 
-      // Debug: Log date conversion for debugging timezone issues (only for Jan 1)
-      if (dateStr === '2026-01-01' || dateStr === '2025-01-01') {
-        console.log(`[Calendar Month DEBUG] Jan 1 session: session_date raw: ${summary.session_date} -> userTZ: ${userTimezone} -> local: ${dateStr}`);
-      }
+
       if (!dateStr) return;
 
       if (!dateMap.has(dateStr)) {
