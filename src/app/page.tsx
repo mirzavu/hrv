@@ -56,6 +56,7 @@ const AppContent = () => {
         setSessionSummary,
         sessionBaseline, // <-- Add this
         sessionPhase,    // <-- Add this
+        sessionInterpretation, // <-- Destructure interpretation
         endSession,
         resetSession,
         demoDataGenerator,
@@ -415,6 +416,8 @@ const AppContent = () => {
                                 // 2. PASS THE MISSING PROPS HERE
                                 initialBaseline={sessionBaseline}
                                 initialPhaseData={sessionPhase}
+                                // 3. PASS INTERPRETATION HERE
+                                initialInterpretation={sessionInterpretation}
                             />
                         )
                     )}

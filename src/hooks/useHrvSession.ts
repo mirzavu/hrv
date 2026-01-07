@@ -7,6 +7,7 @@ import { sessionCache } from '@/lib/sessionCache';
 import { User, SessionSummary, SessionMilestone, RawHeartData, UserBaseline, PhaseData } from '@/types';
 // import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
+import type { InterpretationResult } from '@/utils/autonomicInterpretation';
 
 type SessionStatus = 'idle' | 'connecting' | 'running' | 'paused' | 'completed' | 'error';
 
@@ -76,6 +77,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   // 1. ADD THESE TWO LINES to store the missing data
   const [sessionBaseline, setSessionBaseline] = useState<UserBaseline | null>(null);
   const [sessionPhase, setSessionPhase] = useState<PhaseData | null>(null);
+  // ADD THIS LINE for interpretation
+  const [sessionInterpretation, setSessionInterpretation] = useState<InterpretationResult | null>(null);
 
   // Derived state
   const sessionActive = sessionStatus === 'running' || sessionStatus === 'paused' || sessionStatus === 'connecting';
@@ -106,6 +109,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     // 2. ADD THESE RESETS
     setSessionBaseline(null);
     setSessionPhase(null);
+    // ADD THIS RESET
+    setSessionInterpretation(null);
     setSessionStatus('idle');
     sessionStartTimestamp.current = null;
     pausedTime.current = 0;
@@ -281,6 +286,11 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       }
       if (finalSummaryPayload.phase) {
         setSessionPhase(finalSummaryPayload.phase);
+      }
+
+      // 3. CAPTURE INTERPRETATION
+      if (finalSummaryPayload.interpretation) {
+        setSessionInterpretation(finalSummaryPayload.interpretation);
       }
 
       // 4. SAVE SUMMARY TO DB (Only for logged in users where session create succeeded)
@@ -462,6 +472,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     // 4. EXPORT THE NEW STATE
     sessionBaseline,
     sessionPhase,
+    // EXPORT INTERPRETATION STATE
+    sessionInterpretation,
     endSession,
     resetSession,
     demoDataGenerator,

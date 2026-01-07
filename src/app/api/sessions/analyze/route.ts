@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { SessionSummaryPayload, RawHeartData, UserBaseline, PhaseData } from '@/types';
+import type { SessionSummaryPayload, RawHeartData, UserBaseline, PhaseData, SessionSummaryRecord } from '@/types';
 import {
     calculateRMSSD,
     calculateSDNN,
@@ -23,8 +23,18 @@ import {
     computeRespCoherenceScore,
     computeRestorationIndex,
     computeHrvStability,
-    type TimestampedRR
 } from '@/utils/sessionProcessing';
+
+// === ADDED IMPORTS FOR INTERPRETATION ===
+import { buildSessionSummary } from '@/utils/buildSessionSummary';
+import { withDollarId } from '@/lib/pbMap';
+import { interpretHRVSession, InterpretationResult } from '@/utils/autonomicInterpretation';
+import {
+    generateScoreBasedInterpretation,
+    generateCalibrationInterpretation,
+    findComparisonSession
+} from '@/utils/sessionComparison';
+// ========================================
 
 interface SummaryMetricOptions {
     rawData: RawHeartData[];
@@ -397,19 +407,86 @@ export async function POST(request: NextRequest) {
             };
         }
 
+        // =====================================================================
+        // GENERATE SERVER-SIDE INTERPRETATION
+        // =====================================================================
+        let interpretation: InterpretationResult | null = null;
+        try {
+            const pb = await getAdminPb();
+
+            // 1. Build a temporary SessionSummary object (needed for interpretation funcs)
+            // Use actual rawData length or fallback to duration
+            const dataPointsCount = rawData.length > 0 ? rawData.length : Math.max(60, durationSeconds || 60);
+
+            // Add phase to payload for builder
+            const builderPayload = { ...summaryPayload, phase: phaseData };
+
+            const sessionSummary = buildSessionSummary(
+                builderPayload,
+                durationSeconds || 0,
+                dataPointsCount,
+                rawData,
+                sessionId
+            );
+
+            // 2. Logic based on Phase
+            if (phaseData?.name === 'calibration') {
+                // Fetch previous sessions for comparison
+                // Filter: user_id match, not this session, not crash
+                const previousSessions = await pb.collection('session_summary').getList(1, 10, {
+                    filter: `user_id = "${userId}" && session_id != "${sessionId}" && is_crash = false`,
+                    sort: '-session_date'
+                });
+
+                const prevRecords = previousSessions.items.map(s => withDollarId(s)) as unknown as SessionSummaryRecord[];
+
+                const sessionDate = sessionStartTime ? new Date(sessionStartTime) : new Date();
+                const comparisonResult = findComparisonSession(sessionDate, prevRecords);
+
+                if (comparisonResult.session) {
+                    interpretation = generateCalibrationInterpretation(
+                        sessionSummary,
+                        comparisonResult.session,
+                        comparisonResult.insightText,
+                        comparisonResult.metricTitle
+                    );
+                } else {
+                    // Fallback to score-based if no valid comparison found
+                    interpretation = generateScoreBasedInterpretation(sessionSummary, prevRecords.length === 0);
+                }
+
+            } else {
+                // Baseline Phase (Early or Full)
+                if (updatedBaseline && updatedBaseline.established) {
+                    interpretation = interpretHRVSession(sessionSummary, updatedBaseline);
+                }
+
+                // Fallback if interpretation failed or baseline missing
+                if (!interpretation) {
+                    interpretation = generateScoreBasedInterpretation(sessionSummary, false);
+                }
+            }
+
+        } catch (interpError) {
+            console.error('[Analyze API] Interpretation generation failed:', interpError);
+            // Non-blocking error, frontend will handle missing interpretation
+        }
+
+        // =====================================================================
+
         const responseData = {
             ...summaryPayload,
             phase: phaseData,
             baseline: updatedBaseline,
+            interpretation: interpretation, // <--- Add this
             isBaselineCreated,
             isBaselineUpdated
         };
 
-
-
         console.log(`[Analyze API] 📊 Response:`, JSON.stringify({
             baseline: updatedBaseline ? { $id: updatedBaseline.$id, established: updatedBaseline.established } : null,
             phase: phaseData,
+            interpretationTitle: interpretation?.title,
             isBaselineCreated,
             isBaselineUpdated
         }, null, 2));
