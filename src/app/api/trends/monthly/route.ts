@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         // Start and End of the Target Month (in user's local timezone)
         const monthStartLocal = formatLocalDate(new Date(year, month, 1));
         const monthEndLocal = formatLocalDate(new Date(year, month + 1, 0));
+        const monthEnd = new Date(year, month + 1, 0); // Date object for comparison
 
         // Fetch Data Buffer: Need previous 30 days for rolling predictions/baselines
         const fetchStartDate = new Date(year, month, 1);
@@ -54,7 +55,7 @@ export async function GET(request: NextRequest) {
         const expandedFetchStart = new Date(fetchStartDate);
         expandedFetchStart.setDate(expandedFetchStart.getDate() - 1);
         const expandedFetchStartLocal = formatLocalDate(expandedFetchStart);
-        
+
         const expandedMonthEnd = new Date(year, month + 1, 0);
         expandedMonthEnd.setDate(expandedMonthEnd.getDate() + 1);
         const expandedMonthEndLocal = formatLocalDate(expandedMonthEnd);
@@ -80,48 +81,41 @@ export async function GET(request: NextRequest) {
         }
 
         // 3. Process Weekly Data
-        // We will divide the month into standard weeks (Week 1, Week 2...) based on day of month? 
-        // Or ISO weeks?
-        // Simpler for visualization: 4-5 chunks based on dates (1-7, 8-14, 15-21, 22-end).
-
         const weeks = [];
         const ranges = [
             { start: 1, end: 7, label: 'Week 1' },
             { start: 8, end: 14, label: 'Week 2' },
             { start: 15, end: 21, label: 'Week 3' },
-            { start: 22, end: 31, label: 'Week 4+' } // Handles 28, 30, 31 day months
+            { start: 22, end: 31, label: 'Week 4+' }
         ];
 
         for (const range of ranges) {
-            // Range specific to this MONTH
             const rangeStart = new Date(year, month, range.start);
-            // Fix end date overflow for shorter months
             let rangeEnd = new Date(year, month, range.end, 23, 59, 59);
             if (rangeEnd.getMonth() !== month) {
-                rangeEnd = new Date(year, month + 1, 0, 23, 59, 59); // Clamp to end of month
+                rangeEnd = new Date(year, month + 1, 0, 23, 59, 59);
             }
-            if (rangeStart > monthEnd) continue; // Skip if range starts after month ends (shouldn't happen with standard ranges)
+            if (rangeStart > monthEnd) continue;
 
-            // Filtering sessions for this specific week (for Bar Chart)
-            // Convert session_date to local date string for comparison
             const rangeStartLocal = formatLocalDate(rangeStart);
             const rangeEndLocal = formatLocalDate(rangeEnd);
-            
+
             const weeklySessions = sessions.filter(s => {
                 if (!s.session_date) return false;
                 const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
                 return sessionLocalDate >= rangeStartLocal && sessionLocalDate <= rangeEndLocal;
             });
 
-            // Weekly Averages
-            const rmssdWeeklyParams = calculateAverage(weeklySessions, 'rmssd_session_ms');
-            const sdnnWeeklyParams = calculateAverage(weeklySessions, 'sdnn_session_ms');
-            const hfnuWeeklyParams = calculateAverageNormalizedHF(weeklySessions);
-            const sd2sd1WeeklyParams = calculateAverageRatio(weeklySessions, 'sd2_ms', 'sd1_ms'); // SD2 / SD1
-            const scoreWeeklyParams = calculateAverageScore(weeklySessions); // HRV Score
+            // Weekly Averages for all metrics
+            const rmssdWeekly = calculateAverage(weeklySessions, 'rmssd_session_ms');
+            const hfnuWeekly = calculateAverageNormalizedHF(weeklySessions);
+            const scoreWeekly = calculateAverageScore(weeklySessions);
+            const energyWeekly = calculateAverage(weeklySessions, 'energy_score');
+            const stressWeekly = calculateAverage(weeklySessions, 'stress_score');
+            const healthWeekly = calculateAverage(weeklySessions, 'health_score');
+            const focusWeekly = calculateAverage(weeklySessions, 'focus_score');
 
-            // 30-Day Rolling Average (Trend Line) at the END of this week
-            // Window: (rangeEnd - 30 days) to rangeEnd
+            // 30-Day Rolling Average at the END of this week
             const rollingStart = new Date(rangeEnd);
             rollingStart.setDate(rollingStart.getDate() - 30);
             const rollingStartLocal = formatLocalDate(rollingStart);
@@ -133,43 +127,180 @@ export async function GET(request: NextRequest) {
             });
 
             const rmssdRolling = calculateAverage(rollingSessions, 'rmssd_session_ms');
-            const sdnnRolling = calculateAverage(rollingSessions, 'sdnn_session_ms');
             const scoreRolling = calculateAverageScore(rollingSessions);
 
             weeks.push({
                 label: range.label,
                 startDate: formatLocalDate(rangeStart),
                 endDate: formatLocalDate(rangeEnd),
-                // Meters
-                rmssd: Math.round(rmssdWeeklyParams || 0),
+                // Core metrics
+                rmssd: Math.round(rmssdWeekly || 0),
                 rmssdRolling: Math.round(rmssdRolling || 0),
-                sdnn: Math.round(sdnnWeeklyParams || 0),
-                sdnnRolling: Math.round(sdnnRolling || 0),
-                hfnu: Math.round(hfnuWeeklyParams || 0),
-                stressRatio: Number((sd2sd1WeeklyParams || 0).toFixed(2)),
-                score: Math.round(scoreWeeklyParams || 0),
+                hfnu: Math.round(hfnuWeekly || 0),
+                score: Math.round(scoreWeekly || 0),
                 scoreRolling: Math.round(scoreRolling || 0),
-                // Validation (disable bar if no data)
+                // Additional metrics for Body/Mind chart
+                energy: Math.round(energyWeekly || 0),
+                stress: Math.round(stressWeekly || 0),
+                health: Math.round(healthWeekly || 0),
+                focus: Math.round(focusWeekly || 0),
                 hasData: weeklySessions.length > 0
             });
         }
 
         // 4. Monthly Aggregates
-        // Filter sessions strictly within the month for overall stats (using local dates)
         const monthSessions = sessions.filter(s => {
             if (!s.session_date) return false;
             const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
             return sessionLocalDate >= monthStartLocal && sessionLocalDate <= monthEndLocal;
         });
 
-        // Calculate Monthly CV (Coefficient of Variation of RMSSD)
+        // Calculate Monthly CV
         const validRmssd = monthSessions.filter(s => s.rmssd_session_ms).map(s => s.rmssd_session_ms);
         let monthlyCV = 0;
         if (validRmssd.length > 1) {
-            const mean = validRmssd.reduce((a, b) => a + b, 0) / validRmssd.length;
-            const variance = validRmssd.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / validRmssd.length;
+            const mean = validRmssd.reduce((a: number, b: number) => a + b, 0) / validRmssd.length;
+            const variance = validRmssd.reduce((a: number, b: number) => a + Math.pow(b - mean, 2), 0) / validRmssd.length;
             const sd = Math.sqrt(variance);
             monthlyCV = mean > 0 ? (sd / mean) * 100 : 0;
+        }
+
+        // Calculate average scores for the month
+        const avgScore = Math.round(calculateAverageScore(monthSessions) || 0);
+        const avgEnergy = Math.round(calculateAverage(monthSessions, 'energy_score') || 0);
+        const avgStress = Math.round(calculateAverage(monthSessions, 'stress_score') || 0);
+        const avgHealth = Math.round(calculateAverage(monthSessions, 'health_score') || 0);
+        const avgFocus = Math.round(calculateAverage(monthSessions, 'focus_score') || 0);
+        const avgRMSSD = Math.round(calculateAverage(monthSessions, 'rmssd_session_ms') || 0);
+
+        // Calculate changes (first week vs last week with data)
+        const weeksWithData = weeks.filter(w => w.hasData);
+        let changeScore = 0, changeEnergy = 0, changeStress = 0, changeHealth = 0, changeFocus = 0;
+
+        if (weeksWithData.length >= 2) {
+            const first = weeksWithData[0];
+            const last = weeksWithData[weeksWithData.length - 1];
+            changeScore = first.score > 0 ? Math.round(((last.score - first.score) / first.score) * 100) : 0;
+            changeEnergy = first.energy > 0 ? Math.round(((last.energy - first.energy) / first.energy) * 100) : 0;
+            changeStress = first.stress > 0 ? Math.round(((last.stress - first.stress) / first.stress) * 100) : 0;
+            changeHealth = first.health > 0 ? Math.round(((last.health - first.health) / first.health) * 100) : 0;
+            changeFocus = first.focus > 0 ? Math.round(((last.focus - first.focus) / first.focus) * 100) : 0;
+        }
+
+        // 5. AI Insight Generation (with caching)
+        let insightTitle = 'Monthly Patterns';
+        let insightObservation = 'Gathering sufficient biometric data to generate actionable insights.';
+        let insightAction = 'Continue tracking your sessions to build a comprehensive view of your recovery patterns.';
+
+        const monthStartForQuery = `${monthStartLocal} 00:00:00.000Z`;
+
+        // Check for existing insight in DB first
+        let existingInsight: any = null;
+        try {
+            const existingResults = await pb.collection('monthly_insights').getList(1, 1, {
+                filter: `user_id = "${userId}" && month_start = "${monthStartForQuery}"`,
+            });
+            if (existingResults.items.length > 0) {
+                existingInsight = existingResults.items[0];
+            }
+        } catch (dbError: any) {
+            console.warn('[Monthly API] DB lookup error:', dbError.message);
+        }
+
+        if (existingInsight) {
+            // Use existing insight from DB
+            insightTitle = existingInsight.insight_title;
+            insightObservation = existingInsight.insight_observation;
+            insightAction = existingInsight.insight_action;
+        } else if (monthSessions.length >= 3) {
+            // No existing insight - generate with AI
+            try {
+                const baseUrl = request.nextUrl.origin;
+                const aiPayload = {
+                    mode: 'monthly',
+                    data: {
+                        scores: {
+                            energy: { avg: avgEnergy, change: changeEnergy },
+                            stress: { avg: avgStress, change: changeStress },
+                            health: { avg: avgHealth, change: changeHealth },
+                            focus: { avg: avgFocus, change: changeFocus },
+                            hrvScore: { avg: avgScore, change: changeScore }
+                        },
+                        hrv: {
+                            avgRMSSD: avgRMSSD,
+                            monthlyCV: Number(monthlyCV.toFixed(1))
+                        },
+                        weeklyData: weeks.filter(w => w.hasData).map(w => ({
+                            label: w.label,
+                            score: w.score,
+                            energy: w.energy,
+                            stress: w.stress,
+                            health: w.health,
+                            focus: w.focus,
+                            rmssd: w.rmssd
+                        })),
+                        monthLabel: targetDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
+                        sessionCount: monthSessions.length
+                    }
+                };
+
+
+
+                const aiResponse = await fetch(`${baseUrl}/api/ai-insight`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(aiPayload)
+                });
+
+                if (aiResponse.ok) {
+                    const aiData = await aiResponse.json();
+
+
+                    const obsCheck = aiData.observation || aiData.insight;
+                    const actionCheck = aiData.action || aiData.actionableInsight;
+
+                    if (obsCheck && actionCheck) {
+                        insightObservation = obsCheck;
+                        insightAction = actionCheck;
+                        insightTitle = aiData.title || obsCheck.split('.')[0].substring(0, 50) || 'Monthly Analysis';
+
+                        // Save to DB
+                        try {
+                            await pb.collection('monthly_insights').create({
+                                user_id: userId,
+                                month_start: monthStartForQuery,
+                                insight_title: insightTitle,
+                                insight_observation: insightObservation,
+                                insight_action: insightAction
+                            });
+                        } catch (saveError: any) {
+                            if (saveError.message?.includes('UNIQUE constraint')) {
+                                console.log('[Monthly API] Entry exists, attempting update instead');
+                                try {
+                                    const existing = await pb.collection('monthly_insights').getList(1, 1, {
+                                        filter: `user_id = "${userId}" && month_start = "${monthStartForQuery}"`
+                                    });
+                                    if (existing.items.length > 0) {
+                                        await pb.collection('monthly_insights').update(existing.items[0].id, {
+                                            insight_title: insightTitle,
+                                            insight_observation: insightObservation,
+                                            insight_action: insightAction
+                                        });
+                                    }
+                                } catch (updateError) {
+                                    console.warn('[Monthly API] Failed to update insight:', updateError);
+                                }
+                            } else {
+                                console.warn('[Monthly API] Failed to save insight to DB:', saveError.message);
+                            }
+                        }
+                    }
+                } else {
+                    console.warn('[Monthly API] AI Insight API failed, using fallback');
+                }
+            } catch (aiError) {
+                console.error('[Monthly API] Error calling AI Insight API:', aiError);
+            }
         }
 
         return NextResponse.json({
@@ -177,7 +308,20 @@ export async function GET(request: NextRequest) {
             stats: {
                 monthlyCV: Number(monthlyCV.toFixed(1)),
                 sessionCount: monthSessions.length,
-                avgRMSSD: Math.round(calculateAverage(monthSessions, 'rmssd_session_ms') || 0)
+                avgRMSSD,
+                avgScore,
+                avgEnergy,
+                avgStress,
+                avgHealth,
+                avgFocus,
+                changeScore,
+                changeEnergy,
+                changeStress,
+                changeHealth,
+                changeFocus,
+                insightTitle,
+                insightObservation,
+                insightAction
             }
         });
 
@@ -185,9 +329,26 @@ export async function GET(request: NextRequest) {
         console.error('Monthly API Error:', error);
         return NextResponse.json({
             weeks: [],
-            stats: { monthlyCV: 0, sessionCount: 0, avgRMSSD: 0 },
+            stats: {
+                monthlyCV: 0,
+                sessionCount: 0,
+                avgRMSSD: 0,
+                avgScore: 0,
+                avgEnergy: 0,
+                avgStress: 0,
+                avgHealth: 0,
+                avgFocus: 0,
+                changeScore: 0,
+                changeEnergy: 0,
+                changeStress: 0,
+                changeHealth: 0,
+                changeFocus: 0,
+                insightTitle: 'Data Processing...',
+                insightObservation: 'Gathering sufficient biometric data.',
+                insightAction: 'Continue tracking your sessions.'
+            },
             error: 'Could not load monthly data'
-        }); // Robust fallback
+        });
     }
 }
 
@@ -198,17 +359,7 @@ function calculateAverage(sessions: any[], key: string): number | null {
     return valid.reduce((acc, s) => acc + s[key], 0) / valid.length;
 }
 
-function calculateAverageRatio(sessions: any[], numKey: string, denKey: string): number | null {
-    // Average of ratios? or Ratio of averages?
-    // Usually average of daily ratios is safer for "Average Daily State"
-    const valid = sessions.filter(s => s[numKey] && s[denKey] && s[denKey] > 0);
-    if (valid.length === 0) return null;
-    return valid.reduce((acc, s) => acc + (s[numKey] / s[denKey]), 0) / valid.length;
-}
-
 function calculateAverageNormalizedHF(sessions: any[]): number | null {
-    // HFnu = HF / (LF + HF) * 100
-    // DB might store 'hf_power_ms2' and 'lf_power_ms2'
     const valid = sessions.filter(s => s.hf_power_ms2 && s.lf_power_ms2);
     if (valid.length === 0) return null;
 
@@ -220,7 +371,6 @@ function calculateAverageNormalizedHF(sessions: any[]): number | null {
 }
 
 function calculateAverageScore(sessions: any[]): number | null {
-    // Prefer hrv_score, fallback to readiness_score
     const valid = sessions.filter(s =>
         (s.hrv_score !== null && s.hrv_score !== undefined) ||
         (s.readiness_score !== null && s.readiness_score !== undefined)
