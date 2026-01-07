@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { zipSync, strToU8 } from 'fflate';
 import { pb } from '@/lib/pocketbase';
 import { sessionCache } from '@/lib/sessionCache';
-import { User, SessionSummary, SessionMilestone, RawHeartData } from '@/types';
+import { User, SessionSummary, SessionMilestone, RawHeartData, UserBaseline, PhaseData } from '@/types';
 // import { computeSessionSummaryPayload } from '@/utils/sessionSummary'; // Now using server-side API
 import { buildSessionSummary } from '@/utils/buildSessionSummary';
 
@@ -74,8 +74,8 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
 
   // 1. ADD THESE TWO LINES to store the missing data
-  const [sessionBaseline, setSessionBaseline] = useState<any>(null);
-  const [sessionPhase, setSessionPhase] = useState<any>(null);
+  const [sessionBaseline, setSessionBaseline] = useState<UserBaseline | null>(null);
+  const [sessionPhase, setSessionPhase] = useState<PhaseData | null>(null);
 
   // Derived state
   const sessionActive = sessionStatus === 'running' || sessionStatus === 'paused' || sessionStatus === 'connecting';
@@ -113,7 +113,7 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     isDemoSession.current = false;
   }, []);
 
-  const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[], rrQualityData?: any) => {
+  const endSession = useCallback(async (finalElapsedTime: number, finalRawData: RawHeartData[], rrQualityData?: unknown) => {
     console.log('🔴 [DEBUG] endSession called:', {
       status: sessionStatusRef.current,
       dataLength: finalRawData.length,

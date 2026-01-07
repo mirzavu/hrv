@@ -362,8 +362,7 @@ export const shouldUpdateBaseline = (
   return daysSince >= daysSinceUpdate;
 };
 
-const groupSessionsByDate = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
-  sessions: T[],
+const groupSessionsByDate = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: unknown }>(sessions: T[],
   timezone: string = DEFAULT_TIMEZONE
 ): Map<string, T[]> => {
   const grouped = new Map<string, T[]>();
@@ -378,8 +377,7 @@ const groupSessionsByDate = <T extends { session_date?: string | null; createdAt
   return grouped;
 };
 
-export const canCreateBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: any }>(
-  sessions: T[]
+export const canCreateBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string;[key: string]: unknown }>(sessions: T[]
 ): { valid: boolean; uniqueDays: number } => {
   if (sessions.length === 0) return { valid: false, uniqueDays: 0 };
   const grouped = groupSessionsByDate(sessions);
@@ -400,8 +398,7 @@ export const canCreateBaseline = <T extends { session_date?: string | null; crea
  * Select sessions for baseline calculation
  * Logic: 30-day window, "One Morning" rule (First session of day)
  */
-export const selectSessionsForBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string; startTime?: string; is_crash?: boolean;[key: string]: any }>(
-  sessions: T[]
+export const selectSessionsForBaseline = <T extends { session_date?: string | null; createdAt?: string; created?: string; startTime?: string; is_crash?: boolean;[key: string]: unknown }>(sessions: T[]
 ): T[] => {
   if (sessions.length === 0) return [];
 

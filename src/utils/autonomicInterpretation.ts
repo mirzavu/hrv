@@ -696,7 +696,6 @@ export function interpretHRVSession(
   // 1. RMSSD (Parasympathetic)
   const rmssdDiff = addDiff('RMSSD', 'RMSSD', summary.sessionRMSSD.value, baseline.rmssd_avg);
   if (rmssdDiff) {
-    const _sign = rmssdDiff.change >= 0 ? '+' : '-';
     relativeParts.push(`Parasympathetic activity is ${rmssdDiff.change >= 0 ? 'up' : 'down'} ${rmssdDiff.absChange.toFixed(1)}%`);
   }
 

@@ -1,10 +1,9 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { SessionSummary, UserBaseline, UserProfile } from '@/types';
-import { X, Heart, Activity, TrendingUp, TrendingDown, Clock, Waves, Target, Zap, AlertTriangle, Shield, Brain, Sparkles, BarChart3, Gauge, ChevronDown, ChevronUp } from 'lucide-react';
+import { X, Heart, Activity, TrendingUp, TrendingDown, Clock, Waves, Target, AlertTriangle, Sparkles, BarChart3 } from 'lucide-react';
 import MetricCard from './MetricCard';
 import HeartRateChart from './HeartRateChart';
 import PoincarePlot from './PoincarePlot';
-import RestorationIndexGauge from './RestorationIndexGauge';
 import NervousSystemBalanceGauge from './NervousSystemBalanceGauge';
 import WellnessScoreGrid from './WellnessScoreGrid';
 import BreathingCoherenceChart from './BreathingCoherenceChart';

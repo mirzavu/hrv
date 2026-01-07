@@ -8,6 +8,13 @@ import { calculateBaselineMetrics, canCreateBaseline, selectSessionsForBaseline,
 import { createBaselineSnapshot } from './baselineHistory';
 import { createStreakNotification, createBaselineUpdatedNotification } from './notifications';
 import { toLocalDateString, getLocalDayStartUTC, getLocalDayEndUTC, DEFAULT_TIMEZONE, formatDateForPocketBase } from '@/utils/dateUtils';
+import type { UserBaseline } from '@/types';
+
+// Helper interface for PocketBase errors
+interface PocketBaseError {
+  status?: number;
+  message?: string;
+}
 
 /**
  * Check if user has any session for today (in user's local timezone), excluding the current session
@@ -39,7 +46,7 @@ const hasSessionToday = async (userId: string, currentSessionId: string): Promis
     yesterdayDate.setDate(yesterdayDate.getDate() - 1);
     const tomorrowDate = new Date(todayDate);
     tomorrowDate.setDate(tomorrowDate.getDate() + 1);
-    
+
     const expandedStartLocal = toLocalDateString(yesterdayDate, userTimezone);
     const expandedEndLocal = toLocalDateString(tomorrowDate, userTimezone);
 
@@ -129,7 +136,7 @@ export const autoCheckAndUpdateBaseline = async (
           );
 
           const allSummaries = (await Promise.all(summaryPromises))
-            .filter((s): s is any => s !== null);
+            .filter((s): s is NonNullable<typeof s> => s !== null);
 
           const uniqueCount = countUniqueMorningSessions(allSummaries);
           const progressInfo = calculateBaselineProgress(uniqueCount);
@@ -174,7 +181,7 @@ export const autoCheckAndUpdateBaseline = async (
     );
 
     let allSummaries = (await Promise.all(summaryPromises))
-      .filter((s): s is any => s !== null);
+      .filter((s): s is NonNullable<typeof s> => s !== null);
 
     // Include current session summary if provided (it's not saved to DB yet)
     if (currentSessionSummary && currentSessionId) {
@@ -214,14 +221,15 @@ export const autoCheckAndUpdateBaseline = async (
     // console.log(`[BASELINE] Step 1: Calculated uniqueDays: ${uniqueDays}, phase: ${progressInfo.phase}, progress: ${progressInfo.progress}%`);
 
     // Check if baseline exists
-    let existingBaseline: any = null;
+    let existingBaseline: UserBaseline | null = null;
     try {
       existingBaseline = await pb.collection('user_baselines').getFirstListItem(
         `user_id = "${userId}"`
-      );
+      ) as unknown as UserBaseline;
       // console.log(`[BASELINE] Step 1: Baseline exists: ${existingBaseline.id}`);
-    } catch (error: any) {
-      if (error.status !== 404) {
+    } catch (error: unknown) {
+      const status = (error as PocketBaseError)?.status;
+      if (status !== 404) {
         throw error;
       }
       // console.log(`[BASELINE] Step 1: No baseline found`);
@@ -235,7 +243,7 @@ export const autoCheckAndUpdateBaseline = async (
           usage_phase: 'calibration'
         });
         console.log(`[BASELINE] Step 2: Updated usage_phase to 'calibration'`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[BASELINE] Failed to update usage_phase:', error);
       }
 
@@ -260,7 +268,7 @@ export const autoCheckAndUpdateBaseline = async (
           usage_phase: fullBaselinePhase
         });
         console.log(`[BASELINE] Step 5: Updated usage_phase to 'full_baseline'`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[BASELINE] Failed to update usage_phase:', error);
       }
 
@@ -286,7 +294,7 @@ export const autoCheckAndUpdateBaseline = async (
             // Check for streak milestone
             await createStreakNotification(userId, uniqueDays);
           }
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('[BASELINE] Failed to update baseline:', error);
         }
       } else {
@@ -335,7 +343,7 @@ export const autoCheckAndUpdateBaseline = async (
           usage_phase: progressInfo.phase
         });
         console.log(`[BASELINE] Step 4: Updated usage_phase to '${progressInfo.phase}'`);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[BASELINE] Failed to update usage_phase:', error);
       }
 
@@ -350,7 +358,7 @@ export const autoCheckAndUpdateBaseline = async (
 
         // Check for streak milestone
         await createStreakNotification(userId, uniqueDays);
-      } catch (error: any) {
+      } catch (error: unknown) {
         console.error('[BASELINE] Failed to update baseline:', error);
       }
 
@@ -462,8 +470,9 @@ export const getBaselineStatus = async (
       if (baseline.established) {
         hasBaseline = true;
       }
-    } catch (error: any) {
-      if (error.status !== 404) {
+    } catch (error: unknown) {
+      const status = (error as PocketBaseError)?.status;
+      if (status !== 404) {
         throw error;
       }
     }
@@ -492,7 +501,7 @@ export const getBaselineStatus = async (
     );
 
     const summaries = (await Promise.all(summaryPromises))
-      .filter((s): s is any => s !== null);
+      .filter((s): s is NonNullable<typeof s> => s !== null);
 
     const currentSessions = summaries.length;
     const baselineCheck = canCreateBaseline(summaries);

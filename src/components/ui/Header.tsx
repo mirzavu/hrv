@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Activity, Bell } from 'lucide-react';
 import { User } from '@/types';
 import { UserDropdown } from './UserDropdown';
@@ -200,12 +201,12 @@ const Header: React.FC<HeaderProps> = ({
     <header className={`border-b shadow-sm transition-colors duration-300 ${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-slate-200'}`}>
       <div className="max-w-7xl mx-auto py-3 flex items-center justify-between">
         {/* Logo */}
-        <a href="/" onClick={(e) => { e.preventDefault(); router.push('/'); }} className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
+        <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="bg-gradient-to-br from-teal-500 to-cyan-600 p-2.5 rounded-xl shadow-lg">
             <Activity className="w-6 h-6 text-white" strokeWidth={2.5} />
           </div>
           <h1 className={`text-2xl font-bold tracking-tight ${darkMode ? 'text-gray-100' : 'text-slate-800'}`}>HRV Monitor</h1>
-        </a>
+        </Link>
 
         {/* Right Side: Navigation, Notification & Profile */}
         <div className="flex items-center space-x-2 sm:space-x-4">

@@ -94,8 +94,6 @@ export const calculateFourScores = (metrics: {
         meanHR,
         bsi,
         totalPower,
-        sleepRecovery: _sleepRecovery = 0.6,
-        shortTermRRStd: _shortTermRRStd,
         sd1,
         sd2,
         hti
@@ -127,14 +125,12 @@ export const calculateFourScores = (metrics: {
         // Calculate normalized components
         const p_RMSSD = normalizeMinMax(rmssd, RMSSD_MIN, RMSSD_MAX);
         const p_SDNN = normalizeMinMax(sdnn, SDNN_MIN, SDNN_MAX);
-        const _p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN); // Inverted: higher HR reduces score
-        const _p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
-
-        // Calculate BSI normalization
-        let _p_BSI = 0.5; // Default neutral value
-        if (bsi !== null) {
-            _p_BSI = normalizeMinMax(bsi, BSI_MIN, BSI_MAX);
-        }
+        // Note: These calculations are kept for reference but not used in current formula
+        // const p_HR = normalizeMinMax(HR_MAX - meanHR, 0, HR_MAX - HR_MIN);
+        // const p_totalPower = totalPower ? normalizeMinMax(totalPower, TOTAL_POWER_MIN, TOTAL_POWER_MAX) : 0.5;
+        // const p_BSI = bsi !== null ? normalizeMinMax(bsi, BSI_MIN, BSI_MAX) : 0.5;
+        void bsi; // Mark as intentionally unused (reserved for future use)
+        void totalPower; // Mark as intentionally unused (reserved for future use)
 
         // Calculate Energy Score
         // Reflects overall readiness to perform based on recovery (parasympathetic) and activation (sympathetic)
