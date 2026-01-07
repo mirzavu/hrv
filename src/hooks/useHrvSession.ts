@@ -70,7 +70,12 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
   const [elapsedTime, setElapsedTime] = useState(0);
   const [rawHeartData, setRawHeartData] = useState<RawHeartData[]>([]);
   const [sessionSummary, setSessionSummary] = useState<SessionSummary | null>(null);
+
   const [sessionStartTime, setSessionStartTime] = useState<string | null>(null);
+
+  // 1. ADD THESE TWO LINES to store the missing data
+  const [sessionBaseline, setSessionBaseline] = useState<any>(null);
+  const [sessionPhase, setSessionPhase] = useState<any>(null);
 
   // Derived state
   const sessionActive = sessionStatus === 'running' || sessionStatus === 'paused' || sessionStatus === 'connecting';
@@ -98,6 +103,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     setElapsedTime(0);
     setSessionSummary(null);
     setSessionStartTime(null);
+    // 2. ADD THESE RESETS
+    setSessionBaseline(null);
+    setSessionPhase(null);
     setSessionStatus('idle');
     sessionStartTimestamp.current = null;
     pausedTime.current = 0;
@@ -264,7 +272,16 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
       // Use sessionId from payload if available, otherwise use the one we have
       const finalSessionId = finalSummaryPayload.session_id || sessionId;
       const finalSummary = buildSessionSummary(finalSummaryPayload, finalElapsedTime, finalRawData.length, finalRawData, finalSessionId);
+
       setSessionSummary(finalSummary);
+
+      // 3. CAPTURE THE BASELINE AND PHASE FROM API
+      if (finalSummaryPayload.baseline) {
+        setSessionBaseline(finalSummaryPayload.baseline);
+      }
+      if (finalSummaryPayload.phase) {
+        setSessionPhase(finalSummaryPayload.phase);
+      }
 
       // 4. SAVE SUMMARY TO DB (Only for logged in users where session create succeeded)
       if (shouldSaveSummaryToDb) {
@@ -442,6 +459,9 @@ export const useHrvSession = (user: User | null, addToast: (message: string) => 
     addRawHeartData,
     sessionSummary,
     setSessionSummary,
+    // 4. EXPORT THE NEW STATE
+    sessionBaseline,
+    sessionPhase,
     endSession,
     resetSession,
     demoDataGenerator,

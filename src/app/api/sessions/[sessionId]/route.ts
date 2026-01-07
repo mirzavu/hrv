@@ -61,7 +61,6 @@ export async function GET(
     if (session.rawFile) {
       try {
         const fileUrl = pb.files.getURL(session, session.rawFile);
-        console.log(`[API] Fetching raw file from: ${fileUrl}`);
 
         // Fetch the file
         const fileResponse = await fetch(fileUrl);
@@ -161,14 +160,6 @@ export async function GET(
       } catch (error) {
         console.error('[API] Error processing raw file:', error);
       }
-    }
-
-    console.log(`[API] Session ID: ${sessionId}`);
-    console.log(`[API] Extracted ${rawData.length} data points from raw file`);
-    if (rawData.length > 0) {
-      console.log(`[API] First timestamp: ${rawData[0].timestamp} (is absolute: ${rawData[0].timestamp > 1600000000000})`);
-      console.log(`[API] Last timestamp: ${rawData[rawData.length - 1].timestamp} (is absolute: ${rawData[rawData.length - 1].timestamp > 1600000000000})`);
-      console.log(`[API] Sample raw data entry:`, rawData[0]);
     }
 
     // Convert SessionSummaryRecord to SessionSummaryPayload

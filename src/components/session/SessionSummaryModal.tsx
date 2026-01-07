@@ -102,6 +102,27 @@ const SessionSummaryModal: React.FC<SessionSummaryModalProps> = ({
   const [comparisonSessionDate, setComparisonSessionDate] = useState<Date | null>(initialComparisonSessionDate ? new Date(initialComparisonSessionDate) : null);
   const [firstSessionDate, setFirstSessionDate] = useState<string | null>(initialFirstSessionDate);
 
+  // === ADD THIS BLOCK ===
+  // Sync state when API data arrives (fixes the race condition)
+  useEffect(() => {
+    if (initialBaseline) {
+      setBaseline(initialBaseline);
+    }
+  }, [initialBaseline]);
+
+  useEffect(() => {
+    if (initialInterpretation) {
+      setInterpretation(initialInterpretation);
+    }
+  }, [initialInterpretation]);
+
+  useEffect(() => {
+    if (initialPhaseData) {
+      setComputedPhaseData(initialPhaseData);
+    }
+  }, [initialPhaseData]);
+  // ======================
+
   // Loading state (kept for potential future use but defaults to false)
   const [baselineLoading, setBaselineLoading] = useState(false);
 

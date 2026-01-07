@@ -52,7 +52,10 @@ const AppContent = () => {
         rawHeartData,
         addRawHeartData,
         sessionSummary,
+
         setSessionSummary,
+        sessionBaseline, // <-- Add this
+        sessionPhase,    // <-- Add this
         endSession,
         resetSession,
         demoDataGenerator,
@@ -409,6 +412,9 @@ const AppContent = () => {
                                 userId={user?.$id ?? null}
                                 onClose={resetApp}
                                 rrQuality={finalRRQuality || undefined}
+                                // 2. PASS THE MISSING PROPS HERE
+                                initialBaseline={sessionBaseline}
+                                initialPhaseData={sessionPhase}
                             />
                         )
                     )}

@@ -226,7 +226,10 @@ const computeSessionSummaryPayload = async ({
         }, userBaseline);
 
         if (personalizedScore !== null) {
-            hrvScore = personalizedScore;
+            // ▼▼▼ COMMENT OUT OR REMOVE THIS LINE ▼▼▼
+            // hrvScore = personalizedScore; 
+            // ▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲▲
+
             baselineUsed = true;
 
             // Determine Phase based on unique_morning_sessions_count (not sessions_count)
@@ -403,7 +406,12 @@ export async function POST(request: NextRequest) {
 
 
 
-        console.log(`[Analyze API] 📊 Full Response:`, JSON.stringify(responseData, null, 2));
+        console.log(`[Analyze API] 📊 Response:`, JSON.stringify({
+            baseline: updatedBaseline ? { $id: updatedBaseline.$id, established: updatedBaseline.established } : null,
+            phase: phaseData,
+            isBaselineCreated,
+            isBaselineUpdated
+        }, null, 2));
 
         return NextResponse.json(responseData);
     } catch (error) {

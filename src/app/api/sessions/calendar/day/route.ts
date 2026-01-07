@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    console.log(`[Calendar Day] Fetching sessions for user ${userId}, date: ${date}, timezone: ${userTimezone}`);
+
 
     // Fetch sessions around the requested date (wider range to account for timezone)
     // We'll filter by local date after fetching
@@ -53,18 +53,12 @@ export async function GET(request: NextRequest) {
       if (!summary.session_date) return false;
       const localDate = toLocalDateString(summary.session_date, userTimezone);
 
-      // Debug: Log specific session conversion
-      if (summary.session_id?.includes('4jv4j82')) {
-        console.log(`[Calendar Day DEBUG] Session ${summary.session_id}: raw=${summary.session_date}, tz=${userTimezone}, localDate=${localDate}, requested=${date}, match=${localDate === date}`);
-      }
-
       return localDate === date;
     });
 
-    console.log(`[Calendar Day] Found ${filteredSummaries.length} summaries for local date ${date}`);
+
 
     if (filteredSummaries.length === 0) {
-      console.log(`[Calendar Day] No summaries found for local date ${date}`);
       return NextResponse.json({ sessions: [] });
     }
 
@@ -84,7 +78,6 @@ export async function GET(request: NextRequest) {
         sessionsResponse.items.forEach((session: any) => {
           sessionsMap.set(session.id, session);
         });
-        console.log(`[Calendar Day] Found ${sessionsMap.size} sessions`);
       } catch (error) {
         console.error('[Calendar Day] Batch session fetch failed, trying individual queries:', error);
         // Fallback: fetch sessions individually
@@ -98,9 +91,9 @@ export async function GET(request: NextRequest) {
             sessionsMap.set(res.value.id, res.value);
           }
         });
-        console.log(`[Calendar Day] Individual queries found ${sessionsMap.size} sessions`);
       }
     }
+
     // Transform sessions to calendar format
     // Use filtered summaries to get session IDs, then match with sessions for startTime/endTime
     const calendarSessions: CalendarSession[] = filteredSummaries
