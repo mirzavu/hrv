@@ -19,6 +19,7 @@
     "lucide-react": "^0.544.0",
     "next": "15.5.4",
     "node-cron": "^3.0.3",
+    "openai": "^6.15.0",
     "pako": "^2.1.0",
     "pocketbase": "^0.26.2",
     "react": "19.1.0",

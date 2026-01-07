@@ -398,7 +398,8 @@ export async function GET(request: NextRequest) {
 
         // Check for cached insight first (if not just refreshed/deleted)
         let cachedInsight: any = null;
-        if (!refresh) {
+        const ENABLE_CACHE = false; // Caching disabled by user request
+        if (ENABLE_CACHE && !refresh) {
             try {
                 console.log(`[Weekly API] Checking cache for user_id="${userId}", week_start="${weekStartForQuery}"`);
                 const cachedResults = await pb.collection('weekly_insights').getList(1, 1, {
@@ -450,91 +451,104 @@ export async function GET(request: NextRequest) {
 
                 // Call AI Insight API (internal call)
                 const baseUrl = request.nextUrl.origin;
+                const aiPayload = {
+                    mode: 'weekly',
+                    data: {
+                        scores: {
+                            energy: { avg: avgEnergy, change: changeEnergy },
+                            stress: { avg: avgStress, change: changeStress },
+                            health: { avg: avgHealth, change: changeHealth },
+                            focus: { avg: avgFocus, change: changeFocus },
+                            hrvScore: { avg: avgScore, change: changeScore }
+                        },
+                        readiness: {
+                            avg: avgReadiness,
+                            change: changeReadiness
+                        },
+                        hrv: {
+                            avgRMSSD: Math.round(avgHRV),
+                            weeklyCV: weeklyCV,
+                            changeCV: changeCV
+                        },
+                        baseline: {
+                            rmssdAvg: baselineMetrics.rmssd_avg,
+                            hrAvg: baselineMetrics.hr_avg,
+                            comparison: baselineComparison
+                        },
+                        dailyData: dailyDataForAI,
+                        weekRange: {
+                            start: startLocalDate,
+                            end: endLocalDate
+                        },
+                        usagePhase: usagePhase
+                    }
+                };
+
+                console.log('[Weekly API] 📤 Sending Payload to AI:', JSON.stringify(aiPayload, null, 2));
+
                 const aiResponse = await fetch(`${baseUrl}/api/ai-insight`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        mode: 'weekly',
-                        data: {
-                            scores: {
-                                energy: { avg: avgEnergy, change: changeEnergy },
-                                stress: { avg: avgStress, change: changeStress },
-                                health: { avg: avgHealth, change: changeHealth },
-                                focus: { avg: avgFocus, change: changeFocus },
-                                hrvScore: { avg: avgScore, change: changeScore }
-                            },
-                            readiness: {
-                                avg: avgReadiness,
-                                change: changeReadiness
-                            },
-                            hrv: {
-                                avgRMSSD: Math.round(avgHRV),
-                                weeklyCV: weeklyCV,
-                                changeCV: changeCV
-                            },
-                            baseline: {
-                                rmssdAvg: baselineMetrics.rmssd_avg,
-                                hrAvg: baselineMetrics.hr_avg,
-                                comparison: baselineComparison
-                            },
-                            dailyData: dailyDataForAI,
-                            weekRange: {
-                                start: startLocalDate,
-                                end: endLocalDate
-                            },
-                            usagePhase: usagePhase
-                        }
-                    })
+                    body: JSON.stringify(aiPayload)
                 });
 
                 if (aiResponse.ok) {
                     const aiData = await aiResponse.json();
-                    if (aiData.insight && aiData.actionableInsight) {
-                        insightObservation = aiData.insight;
-                        insightAction = aiData.actionableInsight;
+                    console.log('[Weekly API] 🤖 Full AI Response:', JSON.stringify(aiData, null, 2));
+
+                    // Support both new (OpenAI) and old (Gemini) keys
+                    const obsCheck = aiData.observation || aiData.insight;
+                    const actionCheck = aiData.action || aiData.actionableInsight;
+
+                    if (obsCheck && actionCheck) {
+                        insightObservation = obsCheck;
+                        insightAction = actionCheck;
                         // Use title from AI if available, otherwise fallback
-                        insightTitle = aiData.title || aiData.insight.split('.')[0].substring(0, 50) || 'Weekly Analysis';
+                        insightTitle = aiData.title || obsCheck.split('.')[0].substring(0, 50) || 'Weekly Analysis';
+
 
                         // Save to cache for future requests
-                        try {
-                            console.log(`[Weekly API] Attempting to save insight to cache:`, {
-                                user_id: userId,
-                                week_start: weekStartForQuery,
-                                title: insightTitle
-                            });
-                            await pb.collection('weekly_insights').create({
-                                user_id: userId,
-                                week_start: weekStartForQuery,
-                                insight_title: insightTitle,
-                                insight_observation: insightObservation,
-                                insight_action: insightAction,
-                                viewed: false // Default to false
-                            });
-                            console.log(`[Weekly API] ✅ Successfully saved insight to cache for week ${startLocalDate}`);
-                        } catch (saveError: any) {
-                            // If duplicate, try to update instead
-                            if (saveError.message?.includes('UNIQUE constraint')) {
-                                console.log('[Weekly API] Cache entry exists, attempting update instead');
-                                try {
-                                    const existing = await pb.collection('weekly_insights').getList(1, 1, {
-                                        filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
-                                    });
-                                    if (existing.items.length > 0) {
-                                        await pb.collection('weekly_insights').update(existing.items[0].id, {
-                                            insight_title: insightTitle,
-                                            insight_observation: insightObservation,
-                                            insight_action: insightAction,
-                                            viewed: false // Reset viewed on regen
+                        if (ENABLE_CACHE) {
+                            try {
+                                console.log(`[Weekly API] Attempting to save insight to cache:`, {
+                                    user_id: userId,
+                                    week_start: weekStartForQuery,
+                                    title: insightTitle
+                                });
+                                await pb.collection('weekly_insights').create({
+                                    user_id: userId,
+                                    week_start: weekStartForQuery,
+                                    insight_title: insightTitle,
+                                    insight_observation: insightObservation,
+                                    insight_action: insightAction,
+                                    viewed: false // Default to false
+                                });
+                                console.log(`[Weekly API] ✅ Successfully saved insight to cache for week ${startLocalDate}`);
+                            } catch (saveError: any) {
+                                // If duplicate, try to update instead
+                                if (saveError.message?.includes('UNIQUE constraint')) {
+                                    console.log('[Weekly API] Cache entry exists, attempting update instead');
+                                    try {
+                                        const existing = await pb.collection('weekly_insights').getList(1, 1, {
+                                            filter: `user_id = "${userId}" && week_start = "${weekStartForQuery}"`
                                         });
-                                        console.log(`[Weekly API] ✅ Updated existing cache entry for week ${startLocalDate}`);
+                                        if (existing.items.length > 0) {
+                                            await pb.collection('weekly_insights').update(existing.items[0].id, {
+                                                insight_title: insightTitle,
+                                                insight_observation: insightObservation,
+                                                insight_action: insightAction,
+                                                viewed: false // Reset viewed on regen
+                                            });
+                                            console.log(`[Weekly API] ✅ Updated existing cache entry for week ${startLocalDate}`);
+                                        }
+                                    } catch (updateError) {
+                                        console.warn('[Weekly API] Failed to update cache:', updateError);
                                     }
-                                } catch (updateError) {
-                                    console.warn('[Weekly API] Failed to update cache:', updateError);
+                                } else {
+                                    console.warn('[Weekly API] Failed to save insight to cache:', saveError.message);
                                 }
-                            } else {
-                                console.warn('[Weekly API] Failed to save insight to cache:', saveError.message);
                             }
-                        }
+                        } // End of ENABLE_CACHE block
                     }
                 } else {
                     console.warn('[Weekly API] AI Insight API failed, using fallback');
