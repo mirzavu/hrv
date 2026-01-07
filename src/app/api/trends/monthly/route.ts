@@ -80,73 +80,67 @@ export async function GET(request: NextRequest) {
             sessions = [];
         }
 
-        // 3. Process Weekly Data
-        const weeks = [];
-        const ranges = [
-            { start: 1, end: 7, label: 'Week 1' },
-            { start: 8, end: 14, label: 'Week 2' },
-            { start: 15, end: 21, label: 'Week 3' },
-            { start: 22, end: 31, label: 'Week 4+' }
-        ];
+        // 3. Process Daily Data (30 days)
+        const days = [];
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const maxDays = Math.min(30, daysInMonth);
 
-        for (const range of ranges) {
-            const rangeStart = new Date(year, month, range.start);
-            let rangeEnd = new Date(year, month, range.end, 23, 59, 59);
-            if (rangeEnd.getMonth() !== month) {
-                rangeEnd = new Date(year, month + 1, 0, 23, 59, 59);
-            }
-            if (rangeStart > monthEnd) continue;
+        for (let day = 1; day <= maxDays; day++) {
+            const dayDate = new Date(year, month, day);
+            if (dayDate > monthEnd) continue;
 
-            const rangeStartLocal = formatLocalDate(rangeStart);
-            const rangeEndLocal = formatLocalDate(rangeEnd);
+            const dayStart = new Date(year, month, day);
+            const dayEnd = new Date(year, month, day, 23, 59, 59);
+            const dayStartLocal = formatLocalDate(dayStart);
+            const dayEndLocal = formatLocalDate(dayEnd);
 
-            const weeklySessions = sessions.filter(s => {
+            const daySessions = sessions.filter(s => {
                 if (!s.session_date) return false;
                 const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
-                return sessionLocalDate >= rangeStartLocal && sessionLocalDate <= rangeEndLocal;
+                return sessionLocalDate >= dayStartLocal && sessionLocalDate <= dayEndLocal;
             });
 
-            // Weekly Averages for all metrics
-            const rmssdWeekly = calculateAverage(weeklySessions, 'rmssd_session_ms');
-            const hfnuWeekly = calculateAverageNormalizedHF(weeklySessions);
-            const scoreWeekly = calculateAverageScore(weeklySessions);
-            const energyWeekly = calculateAverage(weeklySessions, 'energy_score');
-            const stressWeekly = calculateAverage(weeklySessions, 'stress_score');
-            const healthWeekly = calculateAverage(weeklySessions, 'health_score');
-            const focusWeekly = calculateAverage(weeklySessions, 'focus_score');
-            const restingHRWeekly = calculateAverage(weeklySessions, 'session_mean_hr');
+            // Daily Averages for all metrics
+            const rmssdDaily = calculateAverage(daySessions, 'rmssd_session_ms');
+            const hfnuDaily = calculateAverageNormalizedHF(daySessions);
+            const scoreDaily = calculateAverageScore(daySessions);
+            const energyDaily = calculateAverage(daySessions, 'energy_score');
+            const stressDaily = calculateAverage(daySessions, 'stress_score');
+            const healthDaily = calculateAverage(daySessions, 'health_score');
+            const focusDaily = calculateAverage(daySessions, 'focus_score');
+            const restingHRDaily = calculateAverage(daySessions, 'session_mean_hr');
 
-            // 30-Day Rolling Average at the END of this week
-            const rollingStart = new Date(rangeEnd);
+            // 30-Day Rolling Average at the END of this day
+            const rollingStart = new Date(dayEnd);
             rollingStart.setDate(rollingStart.getDate() - 30);
             const rollingStartLocal = formatLocalDate(rollingStart);
 
             const rollingSessions = sessions.filter(s => {
                 if (!s.session_date) return false;
                 const sessionLocalDate = toLocalDateString(s.session_date, userTimezone);
-                return sessionLocalDate >= rollingStartLocal && sessionLocalDate <= rangeEndLocal;
+                return sessionLocalDate >= rollingStartLocal && sessionLocalDate <= dayEndLocal;
             });
 
             const rmssdRolling = calculateAverage(rollingSessions, 'rmssd_session_ms');
             const scoreRolling = calculateAverageScore(rollingSessions);
 
-            weeks.push({
-                label: range.label,
-                startDate: formatLocalDate(rangeStart),
-                endDate: formatLocalDate(rangeEnd),
+            days.push({
+                label: String(day),
+                startDate: formatLocalDate(dayStart),
+                endDate: formatLocalDate(dayEnd),
                 // Core metrics
-                rmssd: Math.round(rmssdWeekly || 0),
+                rmssd: Math.round(rmssdDaily || 0),
                 rmssdRolling: Math.round(rmssdRolling || 0),
-                hfnu: Math.round(hfnuWeekly || 0),
-                score: Math.round(scoreWeekly || 0),
+                hfnu: Math.round(hfnuDaily || 0),
+                score: Math.round(scoreDaily || 0),
                 scoreRolling: Math.round(scoreRolling || 0),
                 // Additional metrics for Body/Mind chart
-                energy: Math.round(energyWeekly || 0),
-                stress: Math.round(stressWeekly || 0),
-                health: Math.round(healthWeekly || 0),
-                focus: Math.round(focusWeekly || 0),
-                restingHR: Math.round(restingHRWeekly || 0),
-                hasData: weeklySessions.length > 0
+                energy: Math.round(energyDaily || 0),
+                stress: Math.round(stressDaily || 0),
+                health: Math.round(healthDaily || 0),
+                focus: Math.round(focusDaily || 0),
+                restingHR: Math.round(restingHRDaily || 0),
+                hasData: daySessions.length > 0
             });
         }
 
@@ -176,13 +170,13 @@ export async function GET(request: NextRequest) {
         const avgRMSSD = Math.round(calculateAverage(monthSessions, 'rmssd_session_ms') || 0);
         const avgRestingHR = Math.round(calculateAverage(monthSessions, 'session_mean_hr') || 0);
 
-        // Calculate changes (first week vs last week with data)
-        const weeksWithData = weeks.filter(w => w.hasData);
+        // Calculate changes (first day vs last day with data)
+        const daysWithData = days.filter(d => d.hasData);
         let changeScore = 0, changeEnergy = 0, changeStress = 0, changeHealth = 0, changeFocus = 0;
 
-        if (weeksWithData.length >= 2) {
-            const first = weeksWithData[0];
-            const last = weeksWithData[weeksWithData.length - 1];
+        if (daysWithData.length >= 2) {
+            const first = daysWithData[0];
+            const last = daysWithData[daysWithData.length - 1];
             changeScore = first.score > 0 ? Math.round(((last.score - first.score) / first.score) * 100) : 0;
             changeEnergy = first.energy > 0 ? Math.round(((last.energy - first.energy) / first.energy) * 100) : 0;
             changeStress = first.stress > 0 ? Math.round(((last.stress - first.stress) / first.stress) * 100) : 0;
@@ -233,15 +227,15 @@ export async function GET(request: NextRequest) {
                             avgRMSSD: avgRMSSD,
                             monthlyCV: Number(monthlyCV.toFixed(1))
                         },
-                        weeklyData: weeks.filter(w => w.hasData).map(w => ({
-                            label: w.label,
-                            score: w.score,
-                            energy: w.energy,
-                            stress: w.stress,
-                            health: w.health,
-                            focus: w.focus,
-                            rmssd: w.rmssd,
-                            restingHR: w.restingHR
+                        weeklyData: days.filter(d => d.hasData).map(d => ({
+                            label: d.label,
+                            score: d.score,
+                            energy: d.energy,
+                            stress: d.stress,
+                            health: d.health,
+                            focus: d.focus,
+                            rmssd: d.rmssd,
+                            restingHR: d.restingHR
                         })),
                         monthLabel: targetDate.toLocaleString('default', { month: 'long', year: 'numeric' }),
                         sessionCount: monthSessions.length
@@ -311,7 +305,7 @@ export async function GET(request: NextRequest) {
         }
 
         return NextResponse.json({
-            weeks,
+            weeks: days, // Keep 'weeks' key for backward compatibility
             stats: {
                 monthlyCV: Number(monthlyCV.toFixed(1)),
                 sessionCount: monthSessions.length,
@@ -336,7 +330,7 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error('Monthly API Error:', error);
         return NextResponse.json({
-            weeks: [],
+            weeks: [], // Keep 'weeks' key for backward compatibility
             stats: {
                 monthlyCV: 0,
                 sessionCount: 0,

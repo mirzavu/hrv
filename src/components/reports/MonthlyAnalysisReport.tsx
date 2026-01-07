@@ -32,7 +32,7 @@ import {
 // --- Types ---
 
 interface WeeklyDataPoint {
-    label: string; // "Week 1", "Week 2"
+    label: string; // "1", "2", "3", etc. (day numbers)
     startDate: string;
     endDate: string;
 
@@ -197,12 +197,12 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
     };
     const ddConfig = getDeepDiveConfig();
 
-    // Filter out weeks without data to prevent graphs from showing 0 values
-    const dataWithValues = data.filter(week => week.hasData === true);
+    // Filter out days without data to prevent graphs from showing 0 values
+    const dataWithValues = data.filter(day => day.hasData === true);
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-2 md:p-4 animate-in fade-in duration-200 font-sans">
-            <div className="bg-white w-full max-w-5xl rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
+            <div className="bg-white w-full max-w-6xl rounded-[32px] shadow-2xl overflow-hidden max-h-[95vh] flex flex-col">
 
                 {/* --- Header --- */}
                 <div className="relative z-10 bg-white border-b border-stone-100 p-4 md:px-6 md:py-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
@@ -236,7 +236,7 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                             <p className="font-medium">{error}</p>
                         </div>
                     ) : (
-                        <div className="p-4 md:p-8 space-y-6 md:space-y-8 max-w-5xl mx-auto">
+                        <div className="p-4 md:p-8 space-y-6 md:space-y-8 max-w-6xl mx-auto">
 
                             {/* SECTION 1: The 5 Scores */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
@@ -334,10 +334,10 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                             </div>
 
                             {/* SECTION 3: Biometrics Deep Dive */}
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
                                 {/* 3A: The Chart Panel */}
-                                <div className="lg:col-span-2 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative group">
+                                <div className="lg:col-span-3 bg-white border border-slate-200 rounded-3xl p-6 shadow-sm relative group">
 
                                     <div className="flex items-center justify-between mb-6">
                                         <div className="flex items-center gap-2">
@@ -482,7 +482,7 @@ const MonthlyAnalysisReport: React.FC<MonthlyAnalysisReportProps> = ({
                                             <>
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-3 h-3 rounded-sm opacity-30" style={{ backgroundColor: ddConfig.color }}></div>
-                                                    Weekly Avg
+                                                    Daily Avg
                                                 </div>
                                                 {ddConfig.baselineKey && (
                                                     <div className="flex items-center gap-2">
