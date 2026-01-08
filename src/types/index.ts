@@ -11,7 +11,10 @@ export interface User {
   passwordUpdate?: string;
   emailVerification?: boolean;
   phoneVerification?: boolean;
-  mfa?: boolean;
+  timezone?: string;
+
+  // For Push Notifications
+  fcm_token?: string;
 }
 
 export interface UserProfile {
