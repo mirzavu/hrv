@@ -74,70 +74,40 @@ export function CalendarView({ userId, darkMode = false }: CalendarViewProps) {
   const [weeklyReportViewed, setWeeklyReportViewed] = useState<boolean>(true); // Default to true to avoid badge flash
   const [monthlyReportViewed, setMonthlyReportViewed] = useState<boolean>(true); // Default to true
 
-  // Fetch user's usage_phase for badge display
+  // Consolidated Dashboard Status Fetch (replaces 3 separate useEffects)
   useEffect(() => {
     if (!userId) return;
-    const fetchUserPhase = async () => {
+
+    const fetchDashboardStatus = async () => {
       try {
-        const res = await fetch(`/api/user/profile?userId=${userId}`);
+        const res = await fetch(`/api/user/status?userId=${userId}`);
         if (res.ok) {
           const data = await res.json();
-          setUsagePhase(data.profile?.usage_phase || null);
-        }
-      } catch (e) {
-        console.error('Error fetching user phase:', e);
-      }
-    };
-    fetchUserPhase();
-  }, [userId]);
 
-  // Check baseline status (still needed for monthly report)
-  useEffect(() => {
-    if (!userId) return;
-    const checkBaseline = async () => {
-      try {
-        const res = await fetch(`/api/user/baseline?userId=${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          setBaselineEstablished(data.baseline?.established === true);
-        }
-      } catch (e) {
-        console.error('Error checking baseline:', e);
-      }
-    };
-    checkBaseline();
-  }, [userId]);
+          // 1. Set Phase
+          setUsagePhase(data.usagePhase);
 
-  // Fetch trends report viewed status (unified check)
-  useEffect(() => {
-    if (!userId) return;
-    const fetchTrendsStatus = async () => {
-      try {
-        const res = await fetch(`/api/trends/status?userId=${userId}`);
-        if (res.ok) {
-          const data = await res.json();
-          // Logic:
-          // If report exists and viewed=false -> unbadged? No, viewed=false means unviewed (show badge)
-          // Wait, data.viewed = true means it HAS been viewed.
-          // So if viewed=false, show badge.
-          // If report does not exist, badge should ideally be hidden (or shown if we want to prompt generation? User requested badge for unviewed.)
-          // Usually "unviewed" implies it exists but hasn't been seen.
-          // The weekly logic was: setWeeklyReportViewed(data.viewed === true)
-          // So if viewed=false, variable is false, badge shows (!weeklyReportViewed)
+          // 2. Set Baseline
+          setBaselineEstablished(data.baselineEstablished);
 
-          if (data.weekly) {
-            setWeeklyReportViewed(data.weekly.viewed === true);
-          }
-          if (data.monthly) {
-            setMonthlyReportViewed(data.monthly.viewed === true);
+          // 3. Set Trends Badges
+          if (data.trends) {
+            if (data.trends.weekly) {
+              setWeeklyReportViewed(data.trends.weekly.viewed === true);
+            }
+            if (data.trends.monthly) {
+              setMonthlyReportViewed(data.trends.monthly.viewed === true);
+            }
           }
         }
       } catch (e) {
-        console.error('Error fetching trends status:', e);
+        console.error('Error fetching dashboard status:', e);
       }
     };
-    fetchTrendsStatus();
+
+    fetchDashboardStatus();
   }, [userId, refreshKey]);
+
 
   // Mark weekly report as viewed
   const markWeeklyReportAsViewed = async () => {
