@@ -296,7 +296,7 @@ const Header: React.FC<HeaderProps> = ({
                         setIsDropdownOpen(false);
                       }}
                       onSettingsClick={() => {
-                        // TODO: Add settings handler
+                        router.push('/settings');
                         setIsDropdownOpen(false);
                       }}
                       onProfileClick={() => {

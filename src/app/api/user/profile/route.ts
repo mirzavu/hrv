@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
     }
 
     const pb = await getAdminPb();
-    
+
     // Get user profile directly (userId is the PB record ID)
     try {
       const userProfile = await pb.collection('users').getOne(userId);
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT /api/user/profile - Update user profile
+// PUT /api/user/profile - Update user profile (full replacement)
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
@@ -59,6 +59,58 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating user profile:', error);
     return NextResponse.json(
       { error: 'Failed to update user profile', details: error instanceof Error ? error.message : 'Unknown error' },
+      { status: 500 }
+    );
+  }
+}
+
+// PATCH /api/user/profile - Partial profile update with field whitelisting
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const { userId, updates } = body;
+
+    if (!userId || !updates) {
+      return NextResponse.json({ error: 'Missing userId or updates' }, { status: 400 });
+    }
+
+    // Whitelist allowed fields for security
+    const ALLOWED_FIELDS = [
+      'name', 'age', 'gender', 'weight', 'height',
+      'purpose', 'timezone', 'profileCompleted'
+    ];
+
+    const sanitizedUpdates: Record<string, unknown> = {};
+
+    for (const key of Object.keys(updates)) {
+      if (ALLOWED_FIELDS.includes(key)) {
+        sanitizedUpdates[key] = updates[key];
+      }
+    }
+
+    if (Object.keys(sanitizedUpdates).length === 0) {
+      return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });
+    }
+
+    const pb = await getAdminPb();
+
+    const updatedUser = await pb.collection('users').update(userId, sanitizedUpdates);
+
+    console.log(`✅ [API] User profile updated for ${userId}:`, Object.keys(sanitizedUpdates));
+
+    return NextResponse.json({
+      success: true,
+      updatedProfile: {
+        timezone: updatedUser.timezone,
+        usage_phase: updatedUser.usage_phase,
+        weight: updatedUser.weight
+      }
+    });
+
+  } catch (error: unknown) {
+    console.error('Error updating profile:', error);
+    return NextResponse.json(
+      { error: 'Failed to update profile', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
     );
   }
