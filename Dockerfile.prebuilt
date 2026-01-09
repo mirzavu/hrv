@@ -1,0 +1,57 @@
+FROM node:20.18-alpine AS base
+
+# Install dependencies only when needed
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+# Install dependencies based on the preferred package manager
+COPY package.json package-lock.json* ./
+# We need prod dependencies for runner? 
+# Standalone build includes dependencies.
+# So we might just need runner stage?
+# But standalone needs node_modules for some things?
+# Actually standalone usually packages node_modules.
+# However, usually we copy .next/standalone to /app.
+# And .next/static to .next/static.
+# So we don't need deps install if standalone is used.
+
+# Clean runner
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
+
+# Copy artifacts
+# Assumption: We copy from LOCAL CONTEXT where we run docker build?
+# If we run docker build on server, we need to copy artifacts TO server first.
+# Then COPY in Dockerfile refers to build context.
+# So we copy .next/standalone -> .
+# .next/static -> .next/static
+# public -> public
+
+COPY --chown=nextjs:nodejs public ./public
+# .next/standalone output structure:
+# .next/standalone/package.json
+# .next/standalone/server.js
+# .next/standalone/.next/...
+# .next/standalone/node_modules
+# See Next.js docs.
+# Usually we copy .next/standalone/* to ./
+
+COPY --chown=nextjs:nodejs .next/standalone ./
+RUN ls -F node_modules/next || echo "Next not found"
+COPY --chown=nextjs:nodejs .next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 3000
+
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]
