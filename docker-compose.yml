@@ -3,7 +3,9 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile.prebuilt
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_PB_URL: https://pb.hrv.demotesting.co.uk
     restart: always
     ports:
       - "3001:3000"

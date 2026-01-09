@@ -27,7 +27,7 @@ export const useAuth = (addToast: (message: string) => void) => {
       // For PocketBase, the user record IS the profile (they're the same)
       // We just need to ensure the profile fields are up to date
       const currentTime = new Date().toISOString();
-      
+
       // Update the user record with login time and ensure authUserId is set
       const updatedUser = await pb.collection('users').update(authUser.$id, {
         authUserId: authUser.$id, // For compatibility with existing code
@@ -62,7 +62,18 @@ export const useAuth = (addToast: (message: string) => void) => {
 
       console.log('User profile synced');
       return userProfile;
-    } catch (error) {
+    } catch (error: any) {
+      // === FIX STARTS HERE ===
+      // If the user record is deleted (404), we must clear the stale local session
+      if (error.status === 404) {
+        console.warn('User record not found (404). Clearing stale session.');
+        pb.authStore.clear();
+        setUser(null);
+        setUserProfile(null);
+        return null;
+      }
+      // === FIX ENDS HERE ===
+
       console.error('Error syncing user profile:', error);
       // Don't throw error - user can still use the app even if sync fails
       return null;
@@ -71,7 +82,7 @@ export const useAuth = (addToast: (message: string) => void) => {
 
   const loadUser = useCallback(async () => {
     setLoading(true);
-    
+
     // Check for temporary user data from auth callback first
     const tempUserData = localStorage.getItem('temp_auth_user');
     if (tempUserData) {
@@ -97,7 +108,7 @@ export const useAuth = (addToast: (message: string) => void) => {
         if (currentUser) {
           setUser(currentUser);
           setShowLoginModal(false);
-          
+
           // Sync user profile
           await syncUserToDatabase(currentUser);
         } else {
@@ -133,7 +144,7 @@ export const useAuth = (addToast: (message: string) => void) => {
       addToast('Failed to log out');
     }
   }, [addToast]);
-  
+
   // This will be called by LoginModal and AuthCallback
   const handleLoginSuccess = useCallback(async (userFromCallback: User | null = null) => {
     if (userFromCallback) {
@@ -141,7 +152,7 @@ export const useAuth = (addToast: (message: string) => void) => {
       setUser(userFromCallback);
       setShowLoginModal(false);
       addToast(`Welcome back!`);
-      
+
       // Sync user to database
       await syncUserToDatabase(userFromCallback);
     } else {
@@ -192,16 +203,16 @@ export const useAuth = (addToast: (message: string) => void) => {
     addToast('You can complete your profile later in settings');
   }, [addToast]);
 
-  return { 
-    user, 
+  return {
+    user,
     userProfile,
-    showLoginModal, 
+    showLoginModal,
     showOnboardingModal,
     loading,
-    handleLoginSuccess, 
-    handleLogout, 
+    handleLoginSuccess,
+    handleLogout,
     handleOnboardingComplete,
     handleOnboardingSkip,
-    setShowLoginModal 
+    setShowLoginModal
   };
 };
