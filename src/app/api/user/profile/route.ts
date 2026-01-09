@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAdminPb } from '@/lib/pbAdmin';
 import { withDollarId } from '@/lib/pbMap';
+import { verifyAuth } from '@/lib/apiAuth';
 
 // GET /api/user/profile - Get user profile
 export async function GET(request: NextRequest) {
@@ -67,6 +68,12 @@ export async function PUT(request: NextRequest) {
 // PATCH /api/user/profile - Partial profile update with field whitelisting
 export async function PATCH(request: NextRequest) {
   try {
+    // 1. VERIFY AUTH TOKEN
+    const authenticatedUser = await verifyAuth(request);
+    if (!authenticatedUser) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const body = await request.json();
     const { userId, updates } = body;
 
@@ -74,14 +81,20 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Missing userId or updates' }, { status: 400 });
     }
 
+    // 2. CHECK OWNERSHIP
+    // Ensure the token owner matches the userId being updated
+    if (authenticatedUser.id !== userId) {
+      return NextResponse.json({ error: 'Forbidden: You can only update your own profile' }, { status: 403 });
+    }
+
     // Whitelist allowed fields for security
     const ALLOWED_FIELDS = [
       'name', 'age', 'gender', 'weight', 'height',
-      'purpose', 'timezone', 'profileCompleted'
+      'purpose', 'timezone', 'profileCompleted',
+      'prefs' // <--- Added 'prefs'
     ];
 
-    const sanitizedUpdates: Record<string, unknown> = {};
-
+    const sanitizedUpdates: Record<string, any> = {}; // <--- Changed type to any
     for (const key of Object.keys(updates)) {
       if (ALLOWED_FIELDS.includes(key)) {
         sanitizedUpdates[key] = updates[key];
@@ -96,22 +109,18 @@ export async function PATCH(request: NextRequest) {
 
     const updatedUser = await pb.collection('users').update(userId, sanitizedUpdates);
 
-    console.log(`✅ [API] User profile updated for ${userId}:`, Object.keys(sanitizedUpdates));
+    console.log(`✅ [API] User profile updated for ${userId}`); // <--- Updated log message
 
     return NextResponse.json({
       success: true,
       updatedProfile: {
         timezone: updatedUser.timezone,
-        usage_phase: updatedUser.usage_phase,
-        weight: updatedUser.weight
+        usage_phase: updatedUser.usage_phase // <--- Updated returned fields
       }
     });
 
-  } catch (error: unknown) {
+  } catch (error: unknown) { // <--- Simplified error handling
     console.error('Error updating profile:', error);
-    return NextResponse.json(
-      { error: 'Failed to update profile', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to update profile' }, { status: 500 });
   }
 }

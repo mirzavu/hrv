@@ -1,10 +1,30 @@
 import { getAdminPb } from '@/lib/pbAdmin';
+import * as admin from 'firebase-admin';
+
+// Initialize Firebase Admin (Singleton pattern)
+if (!admin.apps.length) {
+    try {
+        // Option 1: Using Environment Variables (Best for security)
+        // You need to stringify your service-account.json and put it in .env
+        if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_JSON);
+            admin.initializeApp({
+                credential: admin.credential.cert(serviceAccount)
+            });
+            console.log('🔥 [Notifications] Firebase Admin Initialized');
+        } else {
+            console.warn('⚠️ [Notifications] FIREBASE_SERVICE_ACCOUNT_JSON missing in .env');
+        }
+    } catch (e) {
+        console.error('Failed to initialize Firebase:', e);
+    }
+}
 
 interface NotificationPayload {
     userId: string;
     title: string;
     body: string;
-    data?: Record<string, string>; // Deep link data (e.g., { route: '/measure' })
+    data?: Record<string, string>;
 }
 
 /**
@@ -20,29 +40,38 @@ export const sendPushNotification = async ({ userId, title, body, data }: Notifi
         const token = user.fcm_token;
 
         if (!token) {
-            console.warn(`🔕 [Notifications] User ${userId} has no registered device token.`);
             return { success: false, error: 'No token' };
         }
 
-        // 2. Construct the Message (FCM Format)
-        const message = {
-            token: token,
-            notification: {
-                title,
-                body,
-            },
-            data: data || {},
-            // Android/iOS specific config can go here
-        };
-
-        // TODO: UNCOMMENT THIS WHEN FIREBASE ADMIN IS INSTALLED
-        // import { getMessaging } from 'firebase-admin/messaging';
-        // const response = await getMessaging().send(message);
-
-        // For now, Mock it:
-        console.log(`🚀 [MOCK PUSH] Sending to ${user.email} (${token.substring(0, 10)}...)`);
-        console.log(`   Title: "${title}"`);
-        console.log(`   Body: "${body}"`);
+        // 2. Send via Firebase
+        if (admin.apps.length) {
+            await admin.messaging().send({
+                token: token,
+                notification: {
+                    title,
+                    body,
+                },
+                data: data || {},
+                // Android specific config for priority
+                android: {
+                    priority: 'high',
+                    notification: {
+                        clickAction: 'FLUTTER_NOTIFICATION_CLICK',
+                    }
+                },
+                // iOS specific config
+                apns: {
+                    payload: {
+                        aps: {
+                            sound: 'default',
+                        }
+                    }
+                }
+            });
+            console.log(`🚀 [PUSH] Sent to ${user.email}`);
+        } else {
+            console.log(`📢 [MOCK PUSH] (Firebase not configured) To: ${user.email} | Msg: ${title}`);
+        }
 
         return { success: true };
 
